@@ -1,0 +1,95 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: mobifaktura_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mobifaktura}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mobifaktura_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-mobifaktura}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mobifaktura_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mobifaktura}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO S3-compatible storage
+  minio:
+    image: minio/minio:latest
+    container_name: mobifaktura_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-mobifaktura_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-mobifaktura_minio_secret}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - mobifaktura_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO bucket initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: mobifaktura_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-mobifaktura_minio} ${MINIO_SECRET_KEY:-mobifaktura_minio_secret};
+      mc mb myminio/${MINIO_BUCKET:-invoices} --ignore-existing;
+      mc anonymous set private myminio/${MINIO_BUCKET:-invoices};
+      exit 0;
+      "
+    networks:
+      - mobifaktura_network
+
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mobifaktura_app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-mobifaktura}:${POSTGRES_PASSWORD:-mobifaktura_secret}@postgres:5432/${POSTGRES_DB:-mobifaktura}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-mobifaktura_minio}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-mobifaktura_minio_secret}
+      MINIO_BUCKET: ${MINIO_BUCKET:-invoices}
+      MINIO_USE_SSL: "false"
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-min-32-chars-long-here}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-mobifaktura_session}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    networks:
+      - mobifaktura_network
+
+networks:
+  mobifaktura_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
