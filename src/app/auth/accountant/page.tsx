@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Unauthorized } from "@/components/unauthorized";
-import { Footer } from "@/components/footer";
 import {
   Select,
   SelectContent,
@@ -319,8 +318,7 @@ export default function AccountantPage() {
                       variant="outline"
                       className="w-full"
                       onClick={() => {
-                        // TODO: Navigate to full list page when implemented
-                        console.log("Navigate to all reviewed invoices");
+                        router.push('/auth/invoices');
                       }}
                     >
                       Zobacz wszystkie
@@ -335,9 +333,6 @@ export default function AccountantPage() {
               )}
             </CardContent>
           </Card>
-        </div>
-        <div className="text-center mt-6">
-          <Footer />
         </div>
       </main>
     </div>

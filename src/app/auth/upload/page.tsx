@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
@@ -19,18 +19,23 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
-import { Footer } from "@/components/footer";
-import { Camera, Loader2, X } from "lucide-react";
+import { Camera, Loader2, X, QrCode, SwitchCamera } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
 
 export default function UploadPage() {
   const router = useRouter();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const qrScannerRef = useRef<Html5Qrcode | null>(null);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [ksefNumber, setKsefNumber] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [justification, setJustification] = useState("");
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [qrCameras, setQrCameras] = useState<{ id: string; label: string }[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<string>("");
+  const [isScanning, setIsScanning] = useState(false);
 
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
@@ -52,6 +57,136 @@ export default function UploadPage() {
       });
     },
   });
+
+  // Get available cameras
+  useEffect(() => {
+    Html5Qrcode.getCameras()
+      .then((devices) => {
+        if (devices && devices.length > 0) {
+          const cameras = devices.map((device) => ({
+            id: device.id,
+            label: device.label || `Camera ${device.id}`,
+          }));
+          setQrCameras(cameras);
+          // Select back camera by default (usually has "back" or "rear" in label)
+          const backCamera = cameras.find(
+            (cam) =>
+              cam.label.toLowerCase().includes("back") ||
+              cam.label.toLowerCase().includes("rear") ||
+              cam.label.toLowerCase().includes("environment")
+          );
+          setSelectedCamera(backCamera?.id || cameras[cameras.length - 1]?.id || "");
+        }
+      })
+      .catch((err) => {
+        console.error("Error getting cameras:", err);
+      });
+  }, []);
+
+  // Start QR scanner
+  const startQrScanner = useCallback(async () => {
+    if (!selectedCamera) {
+      toast({
+        title: "Błąd",
+        description: "Nie wykryto kamery",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsScanning(true);
+
+    try {
+      const scanner = new Html5Qrcode("qr-reader");
+      qrScannerRef.current = scanner;
+
+      await scanner.start(
+        selectedCamera,
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+        },
+        (decodedText) => {
+          // Successfully scanned
+          setKsefNumber(decodedText);
+          toast({
+            title: "Zeskanowano QR kod",
+            description: "Numer KSEF został wypełniony",
+          });
+          stopQrScanner();
+        },
+        (errorMessage) => {
+          // Scanning in progress, ignore error messages
+        }
+      );
+    } catch (err) {
+      console.error("Error starting scanner:", err);
+      toast({
+        title: "Błąd",
+        description: "Nie udało się uruchomić skanera",
+        variant: "destructive",
+      });
+      setIsScanning(false);
+    }
+  }, [selectedCamera, toast]);
+
+  // Stop QR scanner
+  const stopQrScanner = useCallback(async () => {
+    if (qrScannerRef.current && isScanning) {
+      try {
+        await qrScannerRef.current.stop();
+        qrScannerRef.current.clear();
+        qrScannerRef.current = null;
+      } catch (err) {
+        console.error("Error stopping scanner:", err);
+      }
+    }
+    setIsScanning(false);
+    setShowQrScanner(false);
+  }, [isScanning]);
+
+  // Change camera
+  const changeCamera = useCallback(async () => {
+    if (isScanning) {
+      await stopQrScanner();
+    }
+    
+    // Find next camera
+    const currentIndex = qrCameras.findIndex((cam) => cam.id === selectedCamera);
+    const nextIndex = (currentIndex + 1) % qrCameras.length;
+    const nextCamera = qrCameras[nextIndex];
+    
+    if (nextCamera) {
+      setSelectedCamera(nextCamera.id);
+      
+      // Restart scanner with new camera
+      setTimeout(() => {
+        startQrScanner();
+      }, 100);
+    }
+  }, [isScanning, qrCameras, selectedCamera, stopQrScanner, startQrScanner]);
+
+  // Toggle QR scanner
+  const toggleQrScanner = useCallback(() => {
+    if (showQrScanner) {
+      stopQrScanner();
+    } else {
+      setShowQrScanner(true);
+      setTimeout(() => {
+        startQrScanner();
+      }, 100);
+    }
+  }, [showQrScanner, startQrScanner, stopQrScanner]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (qrScannerRef.current) {
+        qrScannerRef.current.stop().catch(console.error);
+      }
+    };
+  }, []);
 
   const handleImageCapture = useCallback(() => {
     fileInputRef.current?.click();
@@ -171,12 +306,66 @@ export default function UploadPage() {
             <Label htmlFor="ksefNumber">
               Nr KSEF
             </Label>
-            <Input
-              id="ksefNumber"
-              value={ksefNumber}
-              onChange={(e) => setKsefNumber(e.target.value)}
-              placeholder="np. 1234567890-ABC-XYZ"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="ksefNumber"
+                value={ksefNumber}
+                onChange={(e) => setKsefNumber(e.target.value)}
+                placeholder="np. 1234567890-ABC-XYZ"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={toggleQrScanner}
+                title="Skanuj kod QR"
+              >
+                {showQrScanner ? <X className="h-4 w-4" /> : <QrCode className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {/* QR Scanner */}
+            {showQrScanner && (
+              <Card className="mt-4">
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <Label>Skaner kodów QR</Label>
+                    {qrCameras.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={changeCamera}
+                        disabled={!isScanning}
+                      >
+                        <SwitchCamera className="h-4 w-4 mr-2" />
+                        Zmień kamerę
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div 
+                    id="qr-reader" 
+                    className="w-full rounded-lg overflow-hidden border-2 border-primary"
+                    style={{ minHeight: "300px" }}
+                  />
+                  
+                  <div className="text-sm text-muted-foreground text-center">
+                    Skieruj kamerę na kod QR z numerem KSEF
+                  </div>
+                  
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="w-full"
+                    onClick={stopQrScanner}
+                  >
+                    Anuluj skanowanie
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Company Selection */}
@@ -286,9 +475,6 @@ export default function UploadPage() {
             )}
           </Button>
         </form>
-        <div className="text-center mt-6">
-          <Footer />
-        </div>
       </main>
     </div>
   );

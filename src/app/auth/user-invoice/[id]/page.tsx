@@ -6,7 +6,6 @@ import { AdminHeader } from "@/components/admin-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Footer } from "@/components/footer";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, ArrowLeft, Clock, CheckCircle, XCircle, ZoomIn, RefreshCw } from "lucide-react";
 import Link from "next/link";
@@ -201,9 +200,6 @@ function UserInvoiceContent({ id }: { id: string }) {
           </div>
         </DialogContent>
       </Dialog>
-      <div className="text-center p-4">
-        <Footer />
-      </div>
     </div>
   );
 }

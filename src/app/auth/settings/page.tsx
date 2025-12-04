@@ -13,7 +13,6 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Footer } from "@/components/footer";
 import { User, Mail, Shield, LogOut, KeyRound } from "lucide-react";
 
 export default function SettingsPage() {
@@ -206,9 +205,6 @@ export default function SettingsPage() {
             </div>
           </DialogContent>
         </Dialog>
-        <div className="text-center mt-6">
-          <Footer />
-        </div>
       </main>
     </div>
   );

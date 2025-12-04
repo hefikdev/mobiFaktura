@@ -161,9 +161,7 @@ export default function LoginPage() {
             </CardFooter>
           </form>
         </Card>
-        <div className="text-center mt-4">
-          <Footer />
-        </div>
+        <Footer />
       </div>
     </div>
   );

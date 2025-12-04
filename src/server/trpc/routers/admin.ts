@@ -3,7 +3,7 @@ import { createTRPCRouter, adminProcedure } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { users, invoices, companies, loginLogs } from "@/server/db/schema";
-import { eq, sql, desc, gte, and, inArray } from "drizzle-orm";
+import { eq, sql, desc, gte, and, inArray, lt } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { getStorageUsage } from "@/server/storage/minio";
 
@@ -281,7 +281,7 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         userId: z.string().uuid().optional(),
-        days: z.number().min(1).max(90).default(30),
+        days: z.number().min(1).default(30),
       })
     )
     .query(async ({ input }) => {
@@ -312,6 +312,18 @@ export const adminRouter = createTRPCRouter({
 
       return logs;
     }),
+
+  // Clean old login logs (30+ days)
+  cleanOldLoginLogs: adminProcedure.mutation(async () => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const result = await db
+      .delete(loginLogs)
+      .where(lt(loginLogs.createdAt, thirtyDaysAgo));
+
+    return { success: true, message: "Stare logi logowania zostały usunięte" };
+  }),
 
   // Get analytics data
   getAnalytics: adminProcedure.query(async ({ ctx }) => {

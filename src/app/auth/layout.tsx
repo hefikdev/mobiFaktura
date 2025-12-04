@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/server/auth/session";
+import { Footer } from "@/components/footer";
 
 export default async function AuthLayout({
   children,
@@ -12,5 +13,10 @@ export default async function AuthLayout({
     redirect("/login");
   }
 
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1">{children}</div>
+      <Footer />
+    </div>
+  );
 }

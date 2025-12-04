@@ -15,19 +15,39 @@ export const createTRPCContext = cache(async () => {
   // Extract IP address from headers (prefer IPv4 public IP)
   const forwardedFor = headersList.get("x-forwarded-for");
   const realIp = headersList.get("x-real-ip");
+  const cfConnectingIp = headersList.get("cf-connecting-ip"); // Cloudflare
+  const trueClientIp = headersList.get("true-client-ip"); // Akamai/Cloudflare
+  const xClientIp = headersList.get("x-client-ip");
   
   let ipAddress = "unknown";
   
-  if (forwardedFor) {
+  // Priority order: cf-connecting-ip, true-client-ip, x-real-ip, x-forwarded-for, x-client-ip
+  if (cfConnectingIp) {
+    ipAddress = cfConnectingIp;
+  } else if (trueClientIp) {
+    ipAddress = trueClientIp;
+  } else if (realIp) {
+    ipAddress = realIp;
+  } else if (forwardedFor) {
     // Split by comma and find first IPv4 address
     const ips = forwardedFor.split(",").map(ip => ip.trim());
     const ipv4 = ips.find(ip => {
-      // Check if it's IPv4 (not IPv6)
-      return ip.includes(".") && !ip.includes(":");
+      // Check if it's IPv4 (not IPv6 or loopback)
+      return ip.includes(".") && !ip.includes(":") && !ip.startsWith("127.") && !ip.startsWith("::1");
     });
     ipAddress = ipv4 || ips[0] || "unknown";
-  } else if (realIp) {
-    ipAddress = realIp;
+  } else if (xClientIp) {
+    ipAddress = xClientIp;
+  }
+  
+  // If still unknown in development, try to get local IP
+  if (ipAddress === "unknown" && process.env.NODE_ENV === "development") {
+    ipAddress = "127.0.0.1"; // Default to localhost in development
+  }
+  
+  // Convert IPv6 localhost to IPv4
+  if (ipAddress === "::1" || ipAddress === "::ffff:127.0.0.1") {
+    ipAddress = "127.0.0.1";
   }
   
   // Extract user agent
@@ -61,7 +81,6 @@ const t = initTRPC.context<Context>().create({
 
 // Router and procedure helpers
 export const createTRPCRouter = t.router;
-export const createCallerFactory = t.createCallerFactory;
 
 // Public procedure (no auth required)
 export const publicProcedure = t.procedure;

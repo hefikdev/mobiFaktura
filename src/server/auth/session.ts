@@ -127,33 +127,3 @@ export async function invalidateSession(): Promise<void> {
   // Clear cookie
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
-
-// Extend session (refresh)
-export async function refreshSession(): Promise<void> {
-  const current = await getCurrentSession();
-  if (!current) return;
-
-  const expiresAt = new Date(Date.now() + SESSION_DURATION);
-
-  // Update session expiry
-  await db
-    .update(sessions)
-    .set({ expiresAt })
-    .where(eq(sessions.id, current.session.id));
-
-  // Create new token
-  const token = await createToken({
-    sessionId: current.session.id,
-    expiresAt,
-  });
-
-  // Update cookie
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    expires: expiresAt,
-    path: "/",
-  });
-}

@@ -33,6 +33,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.44.7",
+    "html5-qrcode": "^2.3.8",
     "jose": "^5.9.6",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",

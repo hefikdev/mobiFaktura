@@ -8,7 +8,6 @@ import { Unauthorized } from "@/components/unauthorized";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Footer } from "@/components/footer";
 import { Loader2, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -151,9 +150,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
-        <div className="text-center mt-6">
-          <Footer />
-        </div>
       </main>
     </div>
   );

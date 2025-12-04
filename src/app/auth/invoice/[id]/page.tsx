@@ -15,7 +15,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Footer } from "@/components/footer";
 import {
   Dialog,
   DialogContent,
@@ -388,7 +387,7 @@ export default function InvoiceReviewPage() {
               <Button 
                 variant="outline" 
                 size="icon" 
-                onClick={() => router.push(user?.role === "admin" ? "/auth/admin" : "/auth/accountant")}
+                onClick={() => router.push(user?.role === "admin" ? "/auth/invoices" : "/auth/accountant")}
                 title="Powrót"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -765,9 +764,6 @@ export default function InvoiceReviewPage() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
-      <div className="text-center p-4">
-        <Footer />
-      </div>
     </div>
   );
 }

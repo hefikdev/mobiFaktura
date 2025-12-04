@@ -34,7 +34,6 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
 import { AdminHeader } from "@/components/admin-header";
-import { Footer } from "@/components/footer";
 import {
   Users,
   FileText,
@@ -68,23 +67,9 @@ export default function AdminPage() {
   const [companyNip, setCompanyNip] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
 
-  // Export states
-  const [exportDialogOpen, setExportDialogOpen] = useState(false);
-  const [exportFormat, setExportFormat] = useState<"csv" | "pdf">("csv");
-  const [exportPeriod, setExportPeriod] = useState<"last30" | "specificMonth" | "last3Months" | "last6Months" | "thisYear" | "all">("last30");
-  const [exportMonth, setExportMonth] = useState(new Date().getMonth().toString());
-  const [exportYear, setExportYear] = useState(new Date().getFullYear().toString());
-  const [exportCompany, setExportCompany] = useState<string>("all");
-  const [exportStatus, setExportStatus] = useState<string>("all");
-
   // Sorting states
   const [sortBy, setSortBy] = useState<"date" | "number" | "company" | "user" | "status">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-
-  // Search and filter states
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterCompany, setFilterCompany] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
 
   // Login logs states
   const [loginLogsDays, setLoginLogsDays] = useState(30);
@@ -178,6 +163,16 @@ export default function AdminPage() {
     },
   });
 
+  const cleanLoginLogsMutation = trpc.admin.cleanOldLoginLogs.useMutation({
+    onSuccess: () => {
+      toast({ title: "Logi wyczyszczone", description: "Stare logi logowania (30+ dni) zostały usunięte" });
+      window.location.reload(); // Refresh to update the logs list
+    },
+    onError: (error) => {
+      toast({ title: "Błąd", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleResetPassword = (userId: string, userName: string) => {
     setResetUserId(userId);
     setResetUserName(userName);
@@ -205,160 +200,6 @@ export default function AdminPage() {
   if (!user) {
     return <Unauthorized />;
   }
-
-  const handleExport = () => {
-    // Calculate date range based on selected period
-    const now = new Date();
-    let startDate: Date | undefined;
-    
-    switch (exportPeriod) {
-      case "last30":
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      case "specificMonth":
-        const month = parseInt(exportMonth);
-        const year = parseInt(exportYear);
-        startDate = new Date(year, month, 1);
-        const endDate = new Date(year, month + 1, 0, 23, 59, 59);
-        break;
-      case "last3Months":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-        break;
-      case "last6Months":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-        break;
-      case "thisYear":
-        startDate = new Date(now.getFullYear(), 0, 1);
-        break;
-      case "all":
-        startDate = undefined;
-        break;
-    }
-
-    // Filter invoices by date, company, and status
-    const filteredInvoices = invoices?.filter(inv => {
-      const isReviewed = inv.status === "accepted" || inv.status === "rejected";
-      if (!isReviewed) return false;
-      
-      // Filter by company
-      if (exportCompany !== "all" && inv.companyId !== exportCompany) return false;
-      
-      // Filter by status
-      if (exportStatus !== "all" && inv.status !== exportStatus) return false;
-      
-      // Filter by date
-      if (!startDate) return true;
-      
-      const invDate = new Date(inv.reviewedAt || inv.createdAt);
-      
-      if (exportPeriod === "specificMonth") {
-        const month = parseInt(exportMonth);
-        const year = parseInt(exportYear);
-        const endDate = new Date(year, month + 1, 0, 23, 59, 59);
-        return invDate >= startDate && invDate <= endDate;
-      }
-      
-      return invDate >= startDate;
-    }) || [];
-
-    // Convert to table format
-    const headers = ["Data przesłania", "Data decyzji", "Numer faktury", "Użytkownik", "Firma", "Status", "Księgowy", "Opis"];
-    const rows = filteredInvoices.map(inv => [
-      inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("pl-PL") : "",
-      inv.reviewedAt ? new Date(inv.reviewedAt).toLocaleDateString("pl-PL") : "",
-      inv.invoiceNumber || "",
-      inv.userName || "",
-      inv.companyName || "",
-      inv.status === "accepted" ? "Zaakceptowana" : "Odrzucona",
-      inv.reviewerName || "",
-      inv.description || ""
-    ]);
-
-    if (exportFormat === "csv") {
-      const csvContent = [
-        headers.join(","),
-        ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-      ].join("\n");
-
-      // Download CSV
-      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", `faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      // PDF Export using jsPDF
-      const doc = new jsPDF();
-      
-      // Add title
-      doc.setFontSize(16);
-      doc.text("Raport Faktur", 14, 15);
-      
-      // Add metadata
-      doc.setFontSize(10);
-      doc.text(`Data: ${new Date().toLocaleDateString("pl-PL")}`, 14, 22);
-      let periodText = "Okres: ";
-      switch (exportPeriod) {
-        case "last30": periodText += "Ostatnie 30 dni"; break;
-        case "specificMonth": periodText += `${parseInt(exportMonth) + 1}/${exportYear}`; break;
-        case "last3Months": periodText += "Ostatnie 3 miesiące"; break;
-        case "last6Months": periodText += "Ostatnie 6 miesięcy"; break;
-        case "thisYear": periodText += "Bieżący rok"; break;
-        case "all": periodText += "Wszystkie"; break;
-      }
-      doc.text(periodText, 14, 28);
-      if (exportCompany !== "all") {
-        const companyName = companies?.find(c => c.id === exportCompany)?.name || "";
-        doc.text(`Firma: ${companyName}`, 14, 34);
-      }
-      if (exportStatus !== "all") {
-        doc.text(`Status: ${exportStatus === "accepted" ? "Zaakceptowane" : "Odrzucone"}`, 14, exportCompany !== "all" ? 40 : 34);
-      }
-      doc.text(`Liczba faktur: ${filteredInvoices.length}`, 14, exportCompany !== "all" && exportStatus !== "all" ? 46 : exportCompany !== "all" || exportStatus !== "all" ? 40 : 34);
-      
-      // Add table
-      autoTable(doc, {
-        head: [headers],
-        body: rows,
-        startY: exportCompany !== "all" && exportStatus !== "all" ? 52 : exportCompany !== "all" || exportStatus !== "all" ? 46 : 40,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [66, 66, 66], textColor: [255, 255, 255] },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        columnStyles: {
-          0: { cellWidth: 22 },
-          1: { cellWidth: 22 },
-          2: { cellWidth: 25 },
-          3: { cellWidth: 25 },
-          4: { cellWidth: 25 },
-          5: { cellWidth: 22 },
-          6: { cellWidth: 22 },
-          7: { cellWidth: "auto" }
-        },
-        didParseCell: function(data) {
-          // Color status column
-          if (data.column.index === 5 && data.section === "body") {
-            if (data.cell.text[0] === "Zaakceptowana") {
-              data.cell.styles.textColor = [34, 197, 94];
-              data.cell.styles.fontStyle = "bold";
-            } else if (data.cell.text[0] === "Odrzucona") {
-              data.cell.styles.textColor = [239, 68, 68];
-              data.cell.styles.fontStyle = "bold";
-            }
-          }
-        }
-      });
-      
-      // Download PDF
-      doc.save(`faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}.pdf`);
-    }
-
-    setExportDialogOpen(false);
-    toast({ title: "Wyeksportowano", description: `Wyeksportowano ${filteredInvoices.length} faktur` });
-  };
 
   // Sorting function
   const sortedInvoices = invoices ? [...invoices].sort((a, b) => {
@@ -394,32 +235,6 @@ export default function AdminPage() {
     if (compareA > compareB) return sortOrder === "asc" ? 1 : -1;
     return 0;
   }) : [];
-
-  // Filter invoices by search query, company, and status
-  const filteredInvoices = sortedInvoices.filter(inv => {
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = 
-        (inv.invoiceNumber?.toLowerCase().includes(query)) ||
-        (inv.userName?.toLowerCase().includes(query)) ||
-        (inv.companyName?.toLowerCase().includes(query)) ||
-        (inv.description?.toLowerCase().includes(query));
-      if (!matchesSearch) return false;
-    }
-    
-    // Company filter
-    if (filterCompany !== "all" && inv.companyId !== filterCompany) {
-      return false;
-    }
-    
-    // Status filter
-    if (filterStatus !== "all" && inv.status !== filterStatus) {
-      return false;
-    }
-    
-    return true;
-  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -498,130 +313,13 @@ export default function AdminPage() {
         </div>
 
         {/* Tabs for different management sections */}
-        <Tabs defaultValue="invoices" className="space-y-4">
+        <Tabs defaultValue="users" className="space-y-4">
           <div className="flex justify-between items-center mb-4">
             <TabsList>
               <TabsTrigger value="users">Użytkownicy</TabsTrigger>
               <TabsTrigger value="companies">Firmy</TabsTrigger>
-              <TabsTrigger value="invoices">Faktury</TabsTrigger>
               <TabsTrigger value="logs">Logi logowania</TabsTrigger>
             </TabsList>
-            
-            <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" />
-                  Eksportuj faktury
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Eksport faktur</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="format">Format</Label>
-                    <Select value={exportFormat} onValueChange={(value: any) => setExportFormat(value)}>
-                      <SelectTrigger id="format">
-                        <SelectValue placeholder="Wybierz format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="csv">CSV (Excel)</SelectItem>
-                        <SelectItem value="pdf">PDF (do druku)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="period">Okres</Label>
-                    <Select value={exportPeriod} onValueChange={(value: any) => setExportPeriod(value)}>
-                      <SelectTrigger id="period">
-                        <SelectValue placeholder="Wybierz okres" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="last30">Ostatnie 30 dni</SelectItem>
-                        <SelectItem value="specificMonth">Wybrany miesiąc</SelectItem>
-                        <SelectItem value="last3Months">Ostatnie 3 miesiące</SelectItem>
-                        <SelectItem value="last6Months">Ostatnie 6 miesięcy</SelectItem>
-                        <SelectItem value="thisYear">Ten rok</SelectItem>
-                        <SelectItem value="all">Wszystkie</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {exportPeriod === "specificMonth" && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="month">Miesiąc</Label>
-                        <Select value={exportMonth} onValueChange={setExportMonth}>
-                          <SelectTrigger id="month">
-                            <SelectValue placeholder="Miesiąc" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Styczeń</SelectItem>
-                            <SelectItem value="1">Luty</SelectItem>
-                            <SelectItem value="2">Marzec</SelectItem>
-                            <SelectItem value="3">Kwiecień</SelectItem>
-                            <SelectItem value="4">Maj</SelectItem>
-                            <SelectItem value="5">Czerwiec</SelectItem>
-                            <SelectItem value="6">Lipiec</SelectItem>
-                            <SelectItem value="7">Sierpień</SelectItem>
-                            <SelectItem value="8">Wrzesień</SelectItem>
-                            <SelectItem value="9">Październik</SelectItem>
-                            <SelectItem value="10">Listopad</SelectItem>
-                            <SelectItem value="11">Grudzień</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="year">Rok</Label>
-                        <Select value={exportYear} onValueChange={setExportYear}>
-                          <SelectTrigger id="year">
-                            <SelectValue placeholder="Rok" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <Label htmlFor="exportCompany">Firma (opcjonalne)</Label>
-                    <Select value={exportCompany} onValueChange={setExportCompany}>
-                      <SelectTrigger id="exportCompany">
-                        <SelectValue placeholder="Wszystkie firmy" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Wszystkie firmy</SelectItem>
-                        {companies?.map((company) => (
-                          <SelectItem key={company.id} value={company.id}>
-                            {company.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="exportStatus">Status (opcjonalny)</Label>
-                    <Select value={exportStatus} onValueChange={setExportStatus}>
-                      <SelectTrigger id="exportStatus">
-                        <SelectValue placeholder="Wszystkie" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Wszystkie</SelectItem>
-                        <SelectItem value="accepted">Zaakceptowane</SelectItem>
-                        <SelectItem value="rejected">Odrzucone</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={handleExport} className="w-full">
-                    <Download className="mr-2 h-4 w-4" />
-                    Eksportuj do {exportFormat.toUpperCase()}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
           </div>
 
           {/* Users Tab */}
@@ -958,161 +656,65 @@ export default function AdminPage() {
           </TabsContent>
 
           {/* Invoices Tab */}
-          <TabsContent value="invoices" className="space-y-4">
-            <Card>
-              <CardHeader>
-                {/* Search and Filter Controls */}
-                <div className="flex gap-2 flex-wrap">
-                  <div className="flex-1 min-w-[200px]">
-                    <Input
-                      placeholder="Szukaj faktur..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                  <Select value={filterCompany} onValueChange={setFilterCompany}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Wszystkie firmy" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Wszystkie firmy</SelectItem>
-                      {companies?.map((company) => (
-                        <SelectItem key={company.id} value={company.id}>
-                          {company.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Wszystkie statusy" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Wszystkie</SelectItem>
-                      <SelectItem value="pending">Oczekuje</SelectItem>
-                      <SelectItem value="in_review">W trakcie</SelectItem>
-                      <SelectItem value="accepted">Zaakceptowane</SelectItem>
-                      <SelectItem value="rejected">Odrzucone</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Numer</TableHead>
-                      <TableHead>Użytkownik</TableHead>
-                      <TableHead>Firma</TableHead>
-                      <TableHead>Data przesłania</TableHead>
-                      <TableHead>Data decyzji</TableHead>
-                      <TableHead>Księgowy</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredInvoices?.map((invoice) => (
-                      <TableRow 
-                        key={invoice.id}
-                        className="cursor-pointer"
-                        onClick={() => router.push(`/auth/invoice/${invoice.id}`)}
-                      >
-                        <TableCell>{invoice.invoiceNumber || "-"}</TableCell>
-                        <TableCell>{invoice.userName}</TableCell>
-                        <TableCell>{invoice.companyName}</TableCell>
-                        <TableCell>
-                          {new Date(invoice.createdAt).toLocaleDateString("pl-PL", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          {invoice.reviewedAt 
-                            ? new Date(invoice.reviewedAt).toLocaleDateString("pl-PL", {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "-"}
-                        </TableCell>
-                        <TableCell>{invoice.reviewerName || "-"}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                              invoice.status === "accepted"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                : invoice.status === "rejected"
-                                ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                : invoice.status === "in_review"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                            }`}
-                          >
-                            {invoice.status === "accepted"
-                              ? "Zaakceptowana"
-                              : invoice.status === "rejected"
-                              ? "Odrzucona"
-                              : invoice.status === "in_review"
-                              ? "W trakcie"
-                              : "Oczekuje"}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Login Logs Tab */}
           <TabsContent value="logs">
             <Card>
               <CardHeader>
-                <div className="flex gap-4 mt-4">
-                  <div>
-                    <Label>Okres</Label>
-                    <Select 
-                      value={loginLogsDays.toString()} 
-                      onValueChange={(value) => setLoginLogsDays(parseInt(value))}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="7">Ostatnie 7 dni</SelectItem>
-                        <SelectItem value="14">Ostatnie 14 dni</SelectItem>
-                        <SelectItem value="30">Ostatnie 30 dni</SelectItem>
-                        <SelectItem value="60">Ostatnie 60 dni</SelectItem>
-                        <SelectItem value="90">Ostatnie 90 dni</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="flex justify-between items-start">
+                  <div className="flex gap-4">
+                    <div>
+                      <Label>Okres</Label>
+                      <Select 
+                        value={loginLogsDays.toString()} 
+                        onValueChange={(value) => setLoginLogsDays(parseInt(value))}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="7">Ostatnie 7 dni</SelectItem>
+                          <SelectItem value="14">Ostatnie 14 dni</SelectItem>
+                          <SelectItem value="30">Ostatnie 30 dni</SelectItem>
+                          <SelectItem value="60">Ostatnie 60 dni</SelectItem>
+                          <SelectItem value="90">Ostatnie 90 dni</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Użytkownik</Label>
+                      <Select 
+                        value={loginLogsUserId || "all"} 
+                        onValueChange={(value) => setLoginLogsUserId(value === "all" ? undefined : value)}
+                      >
+                        <SelectTrigger className="w-[250px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Wszyscy użytkownicy</SelectItem>
+                          {users?.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.name} ({u.email})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div>
-                    <Label>Użytkownik</Label>
-                    <Select 
-                      value={loginLogsUserId || "all"} 
-                      onValueChange={(value) => setLoginLogsUserId(value === "all" ? undefined : value)}
-                    >
-                      <SelectTrigger className="w-[250px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Wszyscy użytkownicy</SelectItem>
-                        {users?.map((u) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            {u.name} ({u.email})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Button 
+                    onClick={() => cleanLoginLogsMutation.mutate()}
+                    disabled={cleanLoginLogsMutation.isPending}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    {cleanLoginLogsMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Czyszczenie...
+                      </>
+                    ) : (
+                      "Wyczyść stare logi (30+ dni)"
+                    )}
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1204,9 +806,6 @@ export default function AdminPage() {
         <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
            Jeśli baza danych / plików jest za duża, skontaktuj się z administratorem lub projektantem systemu w celu oczyszczenia.
         </p>
-        <div className="text-center mt-6">
-          <Footer />
-        </div>
       </main>
     </div>
   );

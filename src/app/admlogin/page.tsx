@@ -17,7 +17,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Footer } from "@/components/footer";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, AlignCenter } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -201,9 +201,6 @@ export default function AdminLoginPage() {
             </CardFooter>
           </form>
         </Card>
-        <div className="text-center mt-4">
-          <Footer />
-        </div>
       </div>
     </div>
   );

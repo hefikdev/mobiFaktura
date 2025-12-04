@@ -263,6 +263,51 @@ export const invoiceRouter = createTRPCRouter({
     return enriched;
   }),
 
+  // Get all invoices (for accountant and admin - invoices page)
+  getAllInvoices: accountantProcedure.query(async () => {
+    const result = await db
+      .select()
+      .from(invoices)
+      .orderBy(desc(invoices.createdAt));
+
+    // Fetch related user and company data
+    const enriched = await Promise.all(
+      result.map(async (invoice) => {
+        const [submitter] = await db
+          .select({ name: users.name, email: users.email })
+          .from(users)
+          .where(eq(users.id, invoice.userId))
+          .limit(1);
+
+        const [company] = await db
+          .select({ name: companies.name })
+          .from(companies)
+          .where(eq(companies.id, invoice.companyId))
+          .limit(1);
+
+        let reviewer = null;
+        if (invoice.reviewedBy) {
+          const [rev] = await db
+            .select({ name: users.name })
+            .from(users)
+            .where(eq(users.id, invoice.reviewedBy))
+            .limit(1);
+          reviewer = rev;
+        }
+
+        return {
+          ...invoice,
+          userName: submitter?.name || "",
+          userEmail: submitter?.email || "",
+          companyName: company?.name || "",
+          reviewerName: reviewer?.name || null,
+        };
+      })
+    );
+
+    return enriched;
+  }),
+
   // Get single invoice with full details
   getById: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
