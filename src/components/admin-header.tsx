@@ -75,7 +75,7 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
           >
             <Link href="/auth/dashboard">
               <User className="mr-1 h-3 w-3" />
-              Użytkownik
+              Moje faktury
             </Link>
           </Button>
           <Button

@@ -131,6 +131,20 @@ export const loginLogs = pgTable("login_logs", {
     .defaultNow(),
 });
 
+// Login Attempts table (for rate limiting)
+export const loginAttempts = pgTable("login_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  identifier: varchar("identifier", { length: 255 }).notNull(), // email or IP address
+  attemptCount: varchar("attempt_count", { length: 10 }).notNull().default("0"),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   invoices: many(invoices),
@@ -196,5 +210,7 @@ export type InvoiceEditHistory = typeof invoiceEditHistory.$inferSelect;
 export type NewInvoiceEditHistory = typeof invoiceEditHistory.$inferInsert;
 export type LoginLog = typeof loginLogs.$inferSelect;
 export type NewLoginLog = typeof loginLogs.$inferInsert;
+export type LoginAttempt = typeof loginAttempts.$inferSelect;
+export type NewLoginAttempt = typeof loginAttempts.$inferInsert;
 export type UserRole = "user" | "accountant" | "admin";
 export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected";

@@ -6,8 +6,8 @@ import {
 } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { users, loginLogs } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { users, loginLogs, loginAttempts } from "@/server/db/schema";
+import { eq, and, gt } from "drizzle-orm";
 import {
   hashPassword,
   verifyPassword,
@@ -18,6 +18,110 @@ import { createSession, invalidateSession } from "@/server/auth/session";
 // Validation schemas
 const emailSchema = z.string().email("Nieprawidłowy adres email");
 const passwordSchema = z.string().min(8, "Hasło musi mieć minimum 8 znaków");
+
+// Login attempt constants
+const MAX_LOGIN_ATTEMPTS = 3;
+const LOCKOUT_DURATION_MS = 30000; // 30 seconds
+
+// Helper function to check and update login attempts
+async function checkLoginAttempts(identifier: string): Promise<{ 
+  isLocked: boolean; 
+  remainingTime?: number;
+  remainingAttempts?: number;
+}> {
+  const now = new Date();
+  
+  // Find existing attempt record
+  const [attempt] = await db
+    .select()
+    .from(loginAttempts)
+    .where(eq(loginAttempts.identifier, identifier))
+    .limit(1);
+
+  if (!attempt) {
+    return { isLocked: false, remainingAttempts: MAX_LOGIN_ATTEMPTS };
+  }
+
+  // Check if currently locked
+  if (attempt.lockedUntil && attempt.lockedUntil > now) {
+    const remainingTime = Math.ceil((attempt.lockedUntil.getTime() - now.getTime()) / 1000);
+    return { isLocked: true, remainingTime };
+  }
+
+  // If lock expired, reset attempts
+  if (attempt.lockedUntil && attempt.lockedUntil <= now) {
+    await db
+      .update(loginAttempts)
+      .set({
+        attemptCount: "0",
+        lockedUntil: null,
+        updatedAt: now,
+      })
+      .where(eq(loginAttempts.id, attempt.id));
+    return { isLocked: false, remainingAttempts: MAX_LOGIN_ATTEMPTS };
+  }
+
+  const currentAttempts = parseInt(attempt.attemptCount);
+  const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - currentAttempts);
+  return { isLocked: false, remainingAttempts };
+}
+
+// Helper function to record failed login attempt
+async function recordFailedAttempt(identifier: string): Promise<void> {
+  const now = new Date();
+  
+  const [attempt] = await db
+    .select()
+    .from(loginAttempts)
+    .where(eq(loginAttempts.identifier, identifier))
+    .limit(1);
+
+  if (!attempt) {
+    // Create new attempt record
+    await db.insert(loginAttempts).values({
+      identifier,
+      attemptCount: "1",
+      updatedAt: now,
+    });
+  } else {
+    const currentAttempts = parseInt(attempt.attemptCount);
+    const newAttempts = currentAttempts + 1;
+
+    if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+      // Lock the account
+      const lockUntil = new Date(now.getTime() + LOCKOUT_DURATION_MS);
+      await db
+        .update(loginAttempts)
+        .set({
+          attemptCount: String(newAttempts),
+          lockedUntil: lockUntil,
+          updatedAt: now,
+        })
+        .where(eq(loginAttempts.id, attempt.id));
+    } else {
+      // Increment attempt count
+      await db
+        .update(loginAttempts)
+        .set({
+          attemptCount: String(newAttempts),
+          updatedAt: now,
+        })
+        .where(eq(loginAttempts.id, attempt.id));
+    }
+  }
+}
+
+// Helper function to reset login attempts on successful login
+async function resetLoginAttempts(identifier: string): Promise<void> {
+  await db
+    .update(loginAttempts)
+    .set({
+      attemptCount: "0",
+      lockedUntil: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(loginAttempts.identifier, identifier));
+}
 
 export const authRouter = createTRPCRouter({
   // Register new user
@@ -99,6 +203,15 @@ export const authRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const loginEmail = input.email.toLowerCase();
       
+      // Check login attempts
+      const attemptStatus = await checkLoginAttempts(loginEmail);
+      if (attemptStatus.isLocked) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `Zbyt wiele nieudanych prób logowania. Spróbuj ponownie za ${attemptStatus.remainingTime} sekund.`,
+        });
+      }
+      
       // Find user
       const [user] = await db
         .select()
@@ -107,6 +220,9 @@ export const authRouter = createTRPCRouter({
         .limit(1);
 
       if (!user) {
+        // Record failed attempt
+        await recordFailedAttempt(loginEmail);
+        
         // Log failed login attempt
         await db.insert(loginLogs).values({
           email: loginEmail,
@@ -116,15 +232,29 @@ export const authRouter = createTRPCRouter({
           userId: null,
         });
         
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Nieprawidłowy email lub hasło",
-        });
+        // Get updated attempt status for user feedback
+        const updatedStatus = await checkLoginAttempts(loginEmail);
+        const remainingAttempts = updatedStatus.remainingAttempts || 0;
+        
+        if (remainingAttempts > 0) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: `Nieprawidłowy email lub hasło. Pozostało prób: ${remainingAttempts}`,
+          });
+        } else {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Nieprawidłowy email lub hasło. Konto zablokowane na 30 sekund.",
+          });
+        }
       }
 
       // Verify password
       const isValid = await verifyPassword(user.passwordHash, input.password);
       if (!isValid) {
+        // Record failed attempt
+        await recordFailedAttempt(loginEmail);
+        
         // Log failed login attempt
         await db.insert(loginLogs).values({
           email: loginEmail,
@@ -134,11 +264,25 @@ export const authRouter = createTRPCRouter({
           userId: user.id,
         });
         
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Nieprawidłowy email lub hasło",
-        });
+        // Get updated attempt status for user feedback
+        const updatedStatus = await checkLoginAttempts(loginEmail);
+        const remainingAttempts = updatedStatus.remainingAttempts || 0;
+        
+        if (remainingAttempts > 0) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: `Nieprawidłowy email lub hasło. Pozostało prób: ${remainingAttempts}`,
+          });
+        } else {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Nieprawidłowy email lub hasło. Konto zablokowane na 30 sekund.",
+          });
+        }
       }
+
+      // Reset login attempts on successful login
+      await resetLoginAttempts(loginEmail);
 
       // Log successful login
       await db.insert(loginLogs).values({

@@ -12,12 +12,22 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Loader2,
   Clock,
   CheckCircle,
   XCircle,
   Eye,
   AlertCircle,
+  User,
+  Building2,
+  ArrowUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -47,56 +57,79 @@ function InvoiceListItem({
   reviewedAt,
 }: InvoiceListItemProps) {
   const date = format(new Date(createdAt), "dd.MM.yyyy HH:mm", { locale: pl });
+  const reviewDate = reviewedAt ? format(new Date(reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl }) : null;
+
+  // Determine icon and status display
+  const isInReview = status === "in_review";
+  const isAccepted = status === "accepted";
+  const isRejected = status === "rejected";
 
   return (
     <Link href={`/auth/invoice/${id}`}>
       <div
         className={cn(
-          "py-3 px-4 cursor-pointer transition-colors hover:bg-muted/50 border-b last:border-b-0"
+          "py-4 px-4 cursor-pointer transition-colors hover:bg-muted/50 border-b border-muted"
         )}
       >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="font-medium truncate">
+        <div className="flex items-center gap-4">
+          {/* Status icon on far left for reviewed invoices */}
+          {(isAccepted || isRejected) && (
+            <div className="flex items-center shrink-0">
+              {isAccepted && (
+                <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
+              )}
+              {isRejected && (
+                <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" />
+              )}
+            </div>
+          )}
+
+          {/* Left side - Invoice Number, Date and Company */}
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-base truncate mb-2">
               {invoiceNumber || (
                 <span className="text-muted-foreground italic">
                   Brak numeru
                 </span>
               )}
             </p>
-            <p className="text-sm text-muted-foreground truncate">
-              {userName}
-            </p>
-            <p className="text-sm font-medium text-primary truncate">
-              {companyName}
-            </p>
-            <p className="text-xs text-muted-foreground">{date}</p>
-            
-            {currentReviewerName && (
-              <div className="flex items-center gap-1 mt-1 text-xs text-blue-600 dark:text-blue-400">
-                <Eye className="h-3 w-3" />
-                <span>{currentReviewerName}</span>
-              </div>
-            )}
-            
-            {reviewerName && reviewedAt && (
-              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                <span>{reviewerName} • {format(new Date(reviewedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}</span>
-              </div>
-            )}
+
+            {/* Date */}
+            <p className="text-sm text-muted-foreground mb-1.5">{date}</p>
+
+            {/* Company info */}
+            <div className="flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-muted-foreground/70" />
+              <span className="text-xs text-muted-foreground/70 truncate">
+                {companyName}
+              </span>
+            </div>
           </div>
           
-          <div className="shrink-0 flex flex-col items-end gap-1">
-            {status === "in_review" && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                W trakcie
+          {/* Right side - User icon + name + status */}
+          <div className="shrink-0 flex items-center gap-4">
+            {/* User info with icon and status badge */}
+            <div className="flex items-center gap-2">
+              {isInReview && currentReviewerName ? (
+                <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              ) : (
+                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              <span className="text-sm text-foreground whitespace-nowrap">
+                {userName}
               </span>
-            )}
-            {status === "accepted" && (
-              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-            )}
-            {status === "rejected" && (
-              <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              {isInReview && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0">
+                  W trakcie
+                </span>
+              )}
+            </div>
+
+            {/* For in-review, show current reviewer name if different from submitter */}
+            {isInReview && currentReviewerName && (
+              <div className="text-xs text-blue-600 dark:text-blue-400 text-right">
+                Przegląda: {currentReviewerName}
+              </div>
             )}
           </div>
         </div>
@@ -108,6 +141,9 @@ function InvoiceListItem({
 export default function AccountantPage() {
   const router = useRouter();
   const [lastInvoiceSync, setLastInvoiceSync] = useState<string>("");
+  const [sortBy, setSortBy] = useState<"date">("date");
+  const [filterStatus, setFilterStatus] = useState<"all" | "accepted" | "rejected">("all");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
@@ -132,6 +168,29 @@ export default function AccountantPage() {
       setLastInvoiceSync(date.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     }
   }, [pendingUpdatedAt]);
+
+  // Filter and sort reviewed invoices
+  const filteredAndSortedInvoices = reviewedInvoices 
+    ? [...reviewedInvoices]
+        .filter((invoice) => {
+          if (filterStatus === "all") return true;
+          return invoice.status === filterStatus;
+        })
+        .sort((a, b) => {
+          const dateA = a.reviewedAt ? new Date(a.reviewedAt).getTime() : 0;
+          const dateB = b.reviewedAt ? new Date(b.reviewedAt).getTime() : 0;
+          return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+        })
+    : [];
+
+  // Sort pending invoices - oldest first (ascending order)
+  const sortedPendingInvoices = pendingInvoices 
+    ? [...pendingInvoices].sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateA - dateB; // Oldest first
+      })
+    : [];
 
   // Role-based access control - after all hooks
   if (loadingUser) {
@@ -169,9 +228,9 @@ export default function AccountantPage() {
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : pendingInvoices && pendingInvoices.length > 0 ? (
+              ) : sortedPendingInvoices && sortedPendingInvoices.length > 0 ? (
                 <ScrollArea className="h-full">
-                  {pendingInvoices.map((invoice) => (
+                  {sortedPendingInvoices.map((invoice) => (
                     <InvoiceListItem
                       key={invoice.id}
                       id={invoice.id}
@@ -196,37 +255,78 @@ export default function AccountantPage() {
           {/* Reviewed invoices */}
           <Card className="flex flex-col">
             <CardHeader className="shrink-0">
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5" />
-                Rozpatrzone
-                {reviewedInvoices && (
-                  <span className="ml-auto text-sm font-normal text-muted-foreground">
-                    ({reviewedInvoices.length})
-                  </span>
-                )}
-              </CardTitle>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5" />
+                  Rozpatrzone
+                  {reviewedInvoices && (
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      ({filteredAndSortedInvoices.length}/{reviewedInvoices.length})
+                    </span>
+                  )}
+                </CardTitle>
+                
+                {/* Filter and Sorting controls */}
+                <div className="flex items-center gap-2">
+                  <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | "accepted" | "rejected")}>
+                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Wszystkie</SelectItem>
+                      <SelectItem value="accepted">Zaakceptowane</SelectItem>
+                      <SelectItem value="rejected">Odrzucone</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                    title={sortOrder === "asc" ? "Najstarsze" : "Najnowsze"}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="flex-1 p-0 overflow-hidden">
+            <CardContent className="flex-1 p-0 overflow-hidden flex flex-col">
               {loadingReviewed ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : reviewedInvoices && reviewedInvoices.length > 0 ? (
-                <ScrollArea className="h-full">
-                  {reviewedInvoices.map((invoice) => (
-                    <InvoiceListItem
-                      key={invoice.id}
-                      id={invoice.id}
-                      invoiceNumber={invoice.invoiceNumber}
-                      userName={invoice.userName}
-                      companyName={invoice.companyName}
-                      createdAt={invoice.createdAt}
-                      status={invoice.status}
-                      reviewerName={invoice.reviewerName}
-                      reviewedAt={invoice.reviewedAt}
-                    />
-                  ))}
-                </ScrollArea>
+              ) : filteredAndSortedInvoices && filteredAndSortedInvoices.length > 0 ? (
+                <>
+                  <ScrollArea className="flex-1">
+                    {filteredAndSortedInvoices.map((invoice) => (
+                      <InvoiceListItem
+                        key={invoice.id}
+                        id={invoice.id}
+                        invoiceNumber={invoice.invoiceNumber}
+                        userName={invoice.userName}
+                        companyName={invoice.companyName}
+                        createdAt={invoice.createdAt}
+                        status={invoice.status}
+                        reviewerName={invoice.reviewerName}
+                        reviewedAt={invoice.reviewedAt}
+                      />
+                    ))}
+                  </ScrollArea>
+                  {/* Zobacz wszystkie button */}
+                  <div className="p-4 border-t">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        // TODO: Navigate to full list page when implemented
+                        console.log("Navigate to all reviewed invoices");
+                      }}
+                    >
+                      Zobacz wszystkie
+                    </Button>
+                  </div>
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-6">
                   <CheckCircle className="h-12 w-12 mb-4" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
@@ -17,16 +17,34 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Footer } from "@/components/footer";
-import { Loader2, Shield } from "lucide-react";
+import { Loader2, FileText } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+
+  // Handle lockout countdown
+  useEffect(() => {
+    if (lockoutSeconds > 0) {
+      const timer = setTimeout(() => {
+        setLockoutSeconds(lockoutSeconds - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (isLocked && lockoutSeconds === 0) {
+      setIsLocked(false);
+    }
+  }, [lockoutSeconds, isLocked]);
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: (data) => {
+      // Reset lockout state on success
+      setIsLocked(false);
+      setLockoutSeconds(0);
+      
       // Check if user is admin
       if (data.user.role !== "admin") {
         toast({
@@ -46,6 +64,17 @@ export default function AdminLoginPage() {
       router.refresh();
     },
     onError: (error) => {
+      // Check if error is due to too many attempts
+      if (error.data?.code === "TOO_MANY_REQUESTS") {
+        // Extract seconds from error message
+        const match = error.message.match(/za (\d+) sekund/);
+        if (match && match[1]) {
+          const seconds = parseInt(match[1]);
+          setIsLocked(true);
+          setLockoutSeconds(seconds);
+        }
+      }
+      
       toast({
         title: "Błąd logowania",
         description: error.message,
@@ -74,7 +103,9 @@ export default function AdminLoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loginMutation.mutate({ email, password });
+    if (!isLocked) {
+      loginMutation.mutate({ email, password });
+    }
   };
 
   return (
@@ -86,8 +117,8 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Shield className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">mobiFaktura Admin</h1>
+            <FileText className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold">mobiFaktura</h1>
           </div>
           <p className="text-muted-foreground mt-2">
             Panel Administracyjny
@@ -95,6 +126,7 @@ export default function AdminLoginPage() {
         </div>
 
         <Card className="border-primary/20">
+        <CardHeader/>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -125,19 +157,26 @@ export default function AdminLoginPage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={loginMutation.isPending}
+                disabled={loginMutation.isPending || isLocked}
               >
                 {loginMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Logowanie...
                   </>
+                ) : isLocked ? (
+                  `Poczekaj (${lockoutSeconds}s)`
                 ) : (
                   <>
                     Zaloguj
                   </>
                 )}
               </Button>
+              {isLocked && (
+                <p className="text-sm text-destructive text-center">
+                  Zbyt wiele nieudanych prób logowania.
+                </p>
+              )}
               
               {process.env.NODE_ENV === "development" && (
                 <Button
@@ -162,10 +201,6 @@ export default function AdminLoginPage() {
             </CardFooter>
           </form>
         </Card>
-        
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          Dostęp ograniczony. Próby nieautoryzowanego dostępu są monitorowane.
-        </p>
         <div className="text-center mt-4">
           <Footer />
         </div>
