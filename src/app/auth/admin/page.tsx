@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc/client";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -34,6 +34,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
 import { AdminHeader } from "@/components/admin-header";
+import { Footer } from "@/components/footer";
 import {
   Users,
   FileText,
@@ -87,14 +88,36 @@ export default function AdminPage() {
   const [deleteUserOpen, setDeleteUserOpen] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState("");
   const [deleteUserName, setDeleteUserName] = useState("");
+  const [deleteUserPassword, setDeleteUserPassword] = useState("");
+
+  // Delete invoice dialog states
+  const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
+  const [deleteInvoiceId, setDeleteInvoiceId] = useState("");
+  const [deleteInvoiceNumber, setDeleteInvoiceNumber] = useState("");
+  const [deleteInvoicePassword, setDeleteInvoicePassword] = useState("");
 
   // Queries
   const { data: stats, isLoading: loadingStats } = trpc.admin.getStats.useQuery();
-  const { data: users, refetch: refetchUsers } = trpc.admin.getUsers.useQuery(undefined, {
-    refetchInterval: 30000, // Refresh every 30 seconds
-    refetchOnWindowFocus: true,
-    staleTime: 20000, // Consider data fresh for 20 seconds
-  });
+  
+  // Users with infinite query
+  const {
+    data: usersData,
+    fetchNextPage: fetchNextUsers,
+    hasNextPage: hasNextUsers,
+    isFetchingNextPage: isFetchingNextUsers,
+    refetch: refetchUsers,
+  } = trpc.admin.getUsers.useInfiniteQuery(
+    { limit: 50 },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      refetchInterval: 30000,
+      refetchOnWindowFocus: true,
+      staleTime: 20000,
+    }
+  );
+
+  const users = usersData?.pages.flatMap((page) => page.items) || [];
+
   const { data: companies, refetch: refetchCompanies } = trpc.company.listAll.useQuery(undefined, {
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
@@ -102,11 +125,56 @@ export default function AdminPage() {
   });
   const { data: invoices } = trpc.admin.getAllInvoices.useQuery();
 
-  // Login logs query
-  const { data: loginLogs } = trpc.admin.getLoginLogs.useQuery({
-    userId: loginLogsUserId,
-    days: loginLogsDays,
-  });
+  // Login logs with infinite query
+  const {
+    data: loginLogsData,
+    fetchNextPage: fetchNextLogs,
+    hasNextPage: hasNextLogs,
+    isFetchingNextPage: isFetchingNextLogs,
+  } = trpc.admin.getLoginLogs.useInfiniteQuery(
+    {
+      userId: loginLogsUserId,
+      days: loginLogsDays,
+      limit: 50,
+    },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    }
+  );
+
+  const loginLogs = loginLogsData?.pages.flatMap((page) => page.items) || [];
+
+  // Intersection observer for users
+  const usersObserver = useRef<IntersectionObserver>();
+  const lastUserElementRef = useCallback(
+    (node: HTMLTableRowElement | null) => {
+      if (isFetchingNextUsers) return;
+      if (usersObserver.current) usersObserver.current.disconnect();
+      usersObserver.current = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting && hasNextUsers) {
+          fetchNextUsers();
+        }
+      });
+      if (node) usersObserver.current.observe(node);
+    },
+    [isFetchingNextUsers, hasNextUsers, fetchNextUsers]
+  );
+
+  // Intersection observer for login logs
+  const logsObserver = useRef<IntersectionObserver>();
+  const lastLogElementRef = useCallback(
+    (node: HTMLTableRowElement | null) => {
+      if (isFetchingNextLogs) return;
+      if (logsObserver.current) logsObserver.current.disconnect();
+      logsObserver.current = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting && hasNextLogs) {
+          fetchNextLogs();
+        }
+      });
+      if (node) logsObserver.current.observe(node);
+    },
+    [isFetchingNextLogs, hasNextLogs, fetchNextLogs]
+  );
 
   // Mutations
   const createUserMutation = trpc.admin.createUser.useMutation({
@@ -140,8 +208,28 @@ export default function AdminPage() {
 
   const deleteUserMutation = trpc.admin.deleteUser.useMutation({
     onSuccess: () => {
-      toast({ title: "Użytkownik usunięty" });
+      toast({ title: "Użytkownik usunięty", description: "Użytkownik został trwale usunięty" });
+      setDeleteUserOpen(false);
+      setDeleteUserId("");
+      setDeleteUserName("");
+      setDeleteUserPassword("");
       refetchUsers();
+    },
+    onError: (error) => {
+      toast({ title: "Błąd", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteInvoiceMutation = trpc.admin.deleteInvoice.useMutation({
+    onSuccess: () => {
+      toast({ 
+        title: "Faktura usunięta", 
+        description: "Faktura została trwale usunięta z bazy danych i serwera plików"
+      });
+      setDeleteInvoiceOpen(false);
+      setDeleteInvoiceId("");
+      setDeleteInvoiceNumber("");
+      setDeleteInvoicePassword("");
     },
     onError: (error) => {
       toast({ title: "Błąd", description: error.message, variant: "destructive" });
@@ -203,8 +291,8 @@ export default function AdminPage() {
 
   // Sorting function
   const sortedInvoices = invoices ? [...invoices].sort((a, b) => {
-    let compareA: any;
-    let compareB: any;
+    let compareA: number | string;
+    let compareB: number | string;
 
     switch (sortBy) {
       case "date":
@@ -369,7 +457,7 @@ export default function AdminPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="role">Rola</Label>
-                      <Select value={userRole} onValueChange={(v: any) => setUserRole(v)}>
+                      <Select value={userRole} onValueChange={(v: string) => setUserRole(v as "user" | "accountant" | "admin")}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -419,56 +507,66 @@ export default function AdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users?.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                              user.role === "admin"
-                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                    {users?.map((user, index) => {
+                      const isLastElement = index === users.length - 1;
+                      return (
+                        <TableRow key={user.id} ref={isLastElement ? lastUserElementRef : null}>
+                          <TableCell>{user.name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                                user.role === "admin"
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                                  : user.role === "accountant"
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                  : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                              }`}
+                            >
+                              {user.role === "admin"
+                                ? "Administrator"
                                 : user.role === "accountant"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                            }`}
-                          >
-                            {user.role === "admin"
-                              ? "Administrator"
-                              : user.role === "accountant"
-                              ? "Księgowy"
-                              : "Użytkownik"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(user.createdAt).toLocaleDateString("pl-PL")}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-2 justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleResetPassword(user.id, user.name)}
-                              title="Resetuj hasło"
-                            >
-                              <KeyRound className="h-4 w-4 text-blue-600" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setDeleteUserId(user.id);
-                                setDeleteUserName(user.name);
-                                setDeleteUserOpen(true);
-                              }}
-                              title="Usuń użytkownika"
-                            >
-                              <Trash2 className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </div>
+                                ? "Księgowy"
+                                : "Użytkownik"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(user.createdAt).toLocaleDateString("pl-PL")}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleResetPassword(user.id, user.name)}
+                                title="Resetuj hasło"
+                              >
+                                <KeyRound className="h-4 w-4 text-blue-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setDeleteUserId(user.id);
+                                  setDeleteUserName(user.name);
+                                  setDeleteUserOpen(true);
+                                }}
+                                title="Usuń użytkownika"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {isFetchingNextUsers && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -729,34 +827,44 @@ export default function AdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loginLogs?.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell>
-                          {new Date(log.createdAt).toLocaleString("pl-PL", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                          })}
-                        </TableCell>
-                        <TableCell>{log.email}</TableCell>
-                        <TableCell>{log.userName || "-"}</TableCell>
-                        <TableCell className="font-mono text-sm">{log.ipAddress}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                              log.success
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                            }`}
-                          >
-                            {log.success ? "Sukces" : "Błąd"}
-                          </span>
+                    {loginLogs?.map((log, index) => {
+                      const isLastElement = index === loginLogs.length - 1;
+                      return (
+                        <TableRow key={log.id} ref={isLastElement ? lastLogElementRef : null}>
+                          <TableCell>
+                            {new Date(log.createdAt).toLocaleString("pl-PL", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                            })}
+                          </TableCell>
+                          <TableCell>{log.email}</TableCell>
+                          <TableCell>{log.userName || "-"}</TableCell>
+                          <TableCell className="font-mono text-sm">{log.ipAddress}</TableCell>
+                          <TableCell>
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                                log.success
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                  : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                              }`}
+                            >
+                              {log.success ? "Sukces" : "Błąd"}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {isFetchingNextLogs && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
                 {loginLogs && loginLogs.length === 0 && (
@@ -773,40 +881,137 @@ export default function AdminPage() {
         <Dialog open={deleteUserOpen} onOpenChange={setDeleteUserOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Potwierdzenie usunięcia</DialogTitle>
+              <DialogTitle>Potwierdzenie usunięcia użytkownika</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-sm">
                 Czy na pewno chcesz usunąć użytkownika <span className="font-semibold">{deleteUserName}</span>?
               </p>
-              <p className="text-sm text-muted-foreground">
-                Ta operacja jest nieodwracalna.
+              <p className="text-sm font-semibold text-destructive">
+                ⚠️ Ta operacja jest NIEODWRACALNA. Użytkownik zostanie trwale usunięty.
               </p>
+              <div className="space-y-2">
+                <Label htmlFor="deleteUserPassword">Twoje hasło administratora</Label>
+                <Input
+                  id="deleteUserPassword"
+                  type="password"
+                  placeholder="Wprowadź hasło aby potwierdzić"
+                  value={deleteUserPassword}
+                  onChange={(e) => setDeleteUserPassword(e.target.value)}
+                />
+              </div>
               <div className="flex gap-2 justify-end">
                 <Button
                   variant="outline"
-                  onClick={() => setDeleteUserOpen(false)}
+                  onClick={() => {
+                    setDeleteUserOpen(false);
+                    setDeleteUserPassword("");
+                  }}
                 >
                   Anuluj
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={() => {
-                    deleteUserMutation.mutate({ id: deleteUserId });
-                    setDeleteUserOpen(false);
+                    if (!deleteUserPassword) {
+                      toast({ 
+                        title: "Błąd", 
+                        description: "Hasło administratora jest wymagane", 
+                        variant: "destructive" 
+                      });
+                      return;
+                    }
+                    deleteUserMutation.mutate({ 
+                      id: deleteUserId,
+                      adminPassword: deleteUserPassword 
+                    });
                   }}
-                  disabled={deleteUserMutation.isPending}
+                  disabled={deleteUserMutation.isPending || !deleteUserPassword}
                 >
-                  Usuń
+                  {deleteUserMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Usuwanie...
+                    </>
+                  ) : (
+                    "Usuń definitywnie"
+                  )}
                 </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Invoice Confirmation Dialog */}
+        <Dialog open={deleteInvoiceOpen} onOpenChange={setDeleteInvoiceOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Potwierdzenie usunięcia faktury</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm">
+                Czy na pewno chcesz usunąć fakturę <span className="font-semibold">{deleteInvoiceNumber}</span>?
+              </p>
+              <p className="text-sm font-semibold text-destructive">
+                ⚠️ Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte z bazy danych i serwera plików.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="deleteInvoicePassword">Twoje hasło administratora</Label>
+                <Input
+                  id="deleteInvoicePassword"
+                  type="password"
+                  placeholder="Wprowadź hasło aby potwierdzić"
+                  value={deleteInvoicePassword}
+                  onChange={(e) => setDeleteInvoicePassword(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteInvoiceOpen(false);
+                    setDeleteInvoicePassword("");
+                  }}
+                >
+                  Anuluj
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (!deleteInvoicePassword) {
+                      toast({ 
+                        title: "Błąd", 
+                        description: "Hasło administratora jest wymagane", 
+                        variant: "destructive" 
+                      });
+                      return;
+                    }
+                    deleteInvoiceMutation.mutate({ 
+                      id: deleteInvoiceId,
+                      adminPassword: deleteInvoicePassword 
+                    });
+                  }}
+                  disabled={deleteInvoiceMutation.isPending || !deleteInvoicePassword}
+                >
+                  {deleteInvoiceMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Usuwanie...
+                    </>
+                  ) : (
+                    "Usuń definitywnie"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
            Jeśli baza danych / plików jest za duża, skontaktuj się z administratorem lub projektantem systemu w celu oczyszczenia.
         </p>
       </main>
+      <Footer />
     </div>
   );
 }

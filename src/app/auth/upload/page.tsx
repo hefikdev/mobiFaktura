@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
 import { AdminHeader } from "@/components/admin-header";
+import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -476,6 +477,7 @@ export default function UploadPage() {
           </Button>
         </form>
       </main>
+      <Footer />
     </div>
   );
 }

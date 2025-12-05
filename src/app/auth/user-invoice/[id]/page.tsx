@@ -3,18 +3,20 @@
 import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
 import { AdminHeader } from "@/components/admin-header";
+import { Footer } from "@/components/footer";
+import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, ArrowLeft, Clock, CheckCircle, XCircle, ZoomIn, RefreshCw } from "lucide-react";
+import { Loader2, ArrowLeft, ZoomIn, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, use } from "react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 
-export default async function UserInvoicePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function UserInvoicePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   return <UserInvoiceContent id={id} />;
 }
 
@@ -53,32 +55,6 @@ function UserInvoiceContent({ id }: { id: string }) {
       </div>
     );
   }
-
-  const statusConfig = {
-    pending: {
-      label: "Oczekuje na przegląd",
-      icon: Clock,
-      color: "text-yellow-600 dark:text-yellow-400",
-    },
-    in_review: {
-      label: "W trakcie przeglądu",
-      icon: Clock,
-      color: "text-blue-600 dark:text-blue-400",
-    },
-    accepted: {
-      label: "Zaakceptowana",
-      icon: CheckCircle,
-      color: "text-green-600 dark:text-green-400",
-    },
-    rejected: {
-      label: "Odrzucona",
-      icon: XCircle,
-      color: "text-red-600 dark:text-red-400",
-    },
-  };
-
-  const status = statusConfig[invoice.status as keyof typeof statusConfig] || statusConfig.pending;
-  const StatusIcon = status.icon;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -132,9 +108,8 @@ function UserInvoiceContent({ id }: { id: string }) {
                 <CardTitle>Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`flex items-center gap-2 text-lg font-medium ${status.color}`}>
-                  <StatusIcon className="h-5 w-5" />
-                  <span>{status.label}</span>
+                <div className="mb-2">
+                  <InvoiceStatusBadge status={invoice.status} />
                 </div>
                 {invoice.reviewedAt && (
                   <p className="text-sm text-muted-foreground mt-2">
@@ -200,6 +175,7 @@ function UserInvoiceContent({ id }: { id: string }) {
           </div>
         </DialogContent>
       </Dialog>
+      <Footer />
     </div>
   );
 }

@@ -96,8 +96,10 @@ export const invoiceRouter = createTRPCRouter({
         reviewedAt: invoices.reviewedAt,
         imageKey: invoices.imageKey,
         companyId: invoices.companyId,
+        companyName: companies.name,
       })
       .from(invoices)
+      .leftJoin(companies, eq(invoices.companyId, companies.id))
       .where(eq(invoices.userId, ctx.user.id))
       .orderBy(desc(invoices.createdAt));
 
@@ -105,71 +107,89 @@ export const invoiceRouter = createTRPCRouter({
   }),
 
   // Get all pending/in_review invoices (for accountant)
-  pendingInvoices: accountantProcedure.query(async () => {
-    // First, release stale reviews (no ping in last 10 seconds)
-    const staleThreshold = new Date(Date.now() - 10000); // 10 seconds
-    await db
-      .update(invoices)
-      .set({
-        status: "pending",
-        currentReviewer: null,
-        reviewStartedAt: null,
-        lastReviewPing: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(invoices.status, "in_review"),
-          or(
-            isNull(invoices.lastReviewPing),
-            lt(invoices.lastReviewPing, staleThreshold)
+  pendingInvoices: accountantProcedure
+    .input(
+      z.object({
+        cursor: z.number().optional(),
+        limit: z.number().min(1).max(100).default(50),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const limit = input?.limit || 50;
+      const cursor = input?.cursor || 0;
+
+      // First, release stale reviews (no ping in last 10 seconds)
+      const staleThreshold = new Date(Date.now() - 10000); // 10 seconds
+      await db
+        .update(invoices)
+        .set({
+          status: "pending",
+          currentReviewer: null,
+          reviewStartedAt: null,
+          lastReviewPing: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(invoices.status, "in_review"),
+            or(
+              isNull(invoices.lastReviewPing),
+              lt(invoices.lastReviewPing, staleThreshold)
+            )
           )
-        )
+        );
+
+      const result = await db
+        .select()
+        .from(invoices)
+        .where(or(eq(invoices.status, "pending"), eq(invoices.status, "in_review")))
+        .orderBy(desc(invoices.createdAt))
+        .limit(limit + 1)
+        .offset(cursor);
+
+      const hasMore = result.length > limit;
+      const items = hasMore ? result.slice(0, limit) : result;
+
+      // Fetch related user and company data
+      const enriched = await Promise.all(
+        items.map(async (invoice) => {
+          const [submitter] = await db
+            .select({ name: users.name, email: users.email })
+            .from(users)
+            .where(eq(users.id, invoice.userId))
+            .limit(1);
+
+          const [company] = await db
+            .select({ name: companies.name })
+            .from(companies)
+            .where(eq(companies.id, invoice.companyId))
+            .limit(1);
+
+          let currentReviewer = null;
+          if (invoice.currentReviewer) {
+            const [reviewer] = await db
+              .select({ name: users.name })
+              .from(users)
+              .where(eq(users.id, invoice.currentReviewer))
+              .limit(1);
+            currentReviewer = reviewer;
+          }
+
+          return {
+            ...invoice,
+            userName: submitter?.name || "",
+            userEmail: submitter?.email || "",
+            companyName: company?.name || "",
+            currentReviewerName: currentReviewer?.name || null,
+          };
+        })
       );
 
-    const  result = await db
-      .select()
-      .from(invoices)
-      .where(or(eq(invoices.status, "pending"), eq(invoices.status, "in_review")))
-      .orderBy(desc(invoices.createdAt));
-
-    // Fetch related user and company data
-    const enriched = await Promise.all(
-      result.map(async (invoice) => {
-        const [submitter] = await db
-          .select({ name: users.name, email: users.email })
-          .from(users)
-          .where(eq(users.id, invoice.userId))
-          .limit(1);
-
-        const [company] = await db
-          .select({ name: companies.name })
-          .from(companies)
-          .where(eq(companies.id, invoice.companyId))
-          .limit(1);
-
-        let currentReviewer = null;
-        if (invoice.currentReviewer) {
-          const [reviewer] = await db
-            .select({ name: users.name })
-            .from(users)
-            .where(eq(users.id, invoice.currentReviewer))
-            .limit(1);
-          currentReviewer = reviewer;
-        }
-
-        return {
-          ...invoice,
-          userName: submitter?.name || "",
-          userEmail: submitter?.email || "",
-          companyName: company?.name || "",
-          currentReviewerName: currentReviewer?.name || null,
-        };
-      })
-    );
-
-    return enriched;
-  }),
+      return {
+        items: enriched,
+        nextCursor: hasMore ? cursor + limit : undefined,
+      };
+    }),
 
   // Get only in_review invoices (for fast polling)
   inReviewInvoices: accountantProcedure.query(async () => {
@@ -218,95 +238,131 @@ export const invoiceRouter = createTRPCRouter({
   }),
 
   // Get reviewed invoices (for accountant)
-  reviewedInvoices: accountantProcedure.query(async () => {
-    const result = await db
-      .select()
-      .from(invoices)
-      .where(or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected")))
-      .orderBy(desc(invoices.reviewedAt));
+  reviewedInvoices: accountantProcedure
+    .input(
+      z.object({
+        cursor: z.number().optional(),
+        limit: z.number().min(1).max(100).default(10),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const limit = input?.limit || 10;
+      const cursor = input?.cursor || 0;
 
-    // Fetch related user and company data
-    const enriched = await Promise.all(
-      result.map(async (invoice) => {
-        const [submitter] = await db
-          .select({ name: users.name, email: users.email })
-          .from(users)
-          .where(eq(users.id, invoice.userId))
-          .limit(1);
+      const result = await db
+        .select()
+        .from(invoices)
+        .where(or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected")))
+        .orderBy(desc(invoices.reviewedAt))
+        .limit(limit + 1)
+        .offset(cursor);
 
-        const [company] = await db
-          .select({ name: companies.name })
-          .from(companies)
-          .where(eq(companies.id, invoice.companyId))
-          .limit(1);
+      const hasMore = result.length > limit;
+      const items = hasMore ? result.slice(0, limit) : result;
 
-        let reviewer = null;
-        if (invoice.reviewedBy) {
-          const [rev] = await db
-            .select({ name: users.name })
+      // Fetch related user and company data
+      const enriched = await Promise.all(
+        items.map(async (invoice) => {
+          const [submitter] = await db
+            .select({ name: users.name, email: users.email })
             .from(users)
-            .where(eq(users.id, invoice.reviewedBy))
+            .where(eq(users.id, invoice.userId))
             .limit(1);
-          reviewer = rev;
-        }
 
-        return {
-          ...invoice,
-          userName: submitter?.name || "",
-          userEmail: submitter?.email || "",
-          companyName: company?.name || "",
-          reviewerName: reviewer?.name || null,
-        };
-      })
-    );
+          const [company] = await db
+            .select({ name: companies.name })
+            .from(companies)
+            .where(eq(companies.id, invoice.companyId))
+            .limit(1);
 
-    return enriched;
-  }),
+          let reviewer = null;
+          if (invoice.reviewedBy) {
+            const [rev] = await db
+              .select({ name: users.name })
+              .from(users)
+              .where(eq(users.id, invoice.reviewedBy))
+              .limit(1);
+            reviewer = rev;
+          }
+
+          return {
+            ...invoice,
+            userName: submitter?.name || "",
+            userEmail: submitter?.email || "",
+            companyName: company?.name || "",
+            reviewerName: reviewer?.name || null,
+          };
+        })
+      );
+
+      return {
+        items: enriched,
+        nextCursor: hasMore ? cursor + limit : undefined,
+      };
+    }),
 
   // Get all invoices (for accountant and admin - invoices page)
-  getAllInvoices: accountantProcedure.query(async () => {
-    const result = await db
-      .select()
-      .from(invoices)
-      .orderBy(desc(invoices.createdAt));
+  getAllInvoices: accountantProcedure
+    .input(
+      z.object({
+        cursor: z.number().optional(),
+        limit: z.number().min(1).max(200).default(100),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const limit = input?.limit || 100;
+      const cursor = input?.cursor || 0;
 
-    // Fetch related user and company data
-    const enriched = await Promise.all(
-      result.map(async (invoice) => {
-        const [submitter] = await db
-          .select({ name: users.name, email: users.email })
-          .from(users)
-          .where(eq(users.id, invoice.userId))
-          .limit(1);
+      const result = await db
+        .select()
+        .from(invoices)
+        .orderBy(desc(invoices.createdAt))
+        .limit(limit + 1)
+        .offset(cursor);
 
-        const [company] = await db
-          .select({ name: companies.name })
-          .from(companies)
-          .where(eq(companies.id, invoice.companyId))
-          .limit(1);
+      const hasMore = result.length > limit;
+      const items = hasMore ? result.slice(0, limit) : result;
 
-        let reviewer = null;
-        if (invoice.reviewedBy) {
-          const [rev] = await db
-            .select({ name: users.name })
+      // Fetch related user and company data
+      const enriched = await Promise.all(
+        items.map(async (invoice) => {
+          const [submitter] = await db
+            .select({ name: users.name, email: users.email })
             .from(users)
-            .where(eq(users.id, invoice.reviewedBy))
+            .where(eq(users.id, invoice.userId))
             .limit(1);
-          reviewer = rev;
-        }
 
-        return {
-          ...invoice,
-          userName: submitter?.name || "",
-          userEmail: submitter?.email || "",
-          companyName: company?.name || "",
-          reviewerName: reviewer?.name || null,
-        };
-      })
-    );
+          const [company] = await db
+            .select({ name: companies.name })
+            .from(companies)
+            .where(eq(companies.id, invoice.companyId))
+            .limit(1);
 
-    return enriched;
-  }),
+          let reviewer = null;
+          if (invoice.reviewedBy) {
+            const [rev] = await db
+              .select({ name: users.name })
+              .from(users)
+              .where(eq(users.id, invoice.reviewedBy))
+              .limit(1);
+            reviewer = rev;
+          }
+
+          return {
+            ...invoice,
+            userName: submitter?.name || "",
+            userEmail: submitter?.email || "",
+            companyName: company?.name || "",
+            reviewerName: reviewer?.name || null,
+          };
+        })
+      );
+
+      return {
+        items: enriched,
+        nextCursor: hasMore ? cursor + limit : undefined,
+      };
+    }),
 
   // Get single invoice with full details
   getById: protectedProcedure
@@ -469,6 +525,14 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
+      // Transaction safety: Can only edit if invoice is in_review
+      if (invoice.status !== "in_review") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Możesz edytować tylko faktury w trakcie przeglądu",
+        });
+      }
+
       if (invoice.currentReviewer !== ctx.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -486,7 +550,13 @@ export const invoiceRouter = createTRPCRouter({
       }
 
       // Prepare update data
-      const updateData: any = {
+      const updateData: {
+        lastEditedBy: string;
+        lastEditedAt: Date;
+        updatedAt: Date;
+        invoiceNumber?: string;
+        description?: string;
+      } = {
         lastEditedBy: ctx.user.id,
         lastEditedAt: new Date(),
         updatedAt: new Date(),
@@ -499,11 +569,26 @@ export const invoiceRouter = createTRPCRouter({
         updateData.description = description;
       }
 
-      // Update invoice
-      await db
+      // Update invoice with transaction safety
+      const [updated] = await db
         .update(invoices)
         .set(updateData)
-        .where(eq(invoices.id, id));
+        .where(
+          and(
+            eq(invoices.id, id),
+            eq(invoices.status, "in_review"),
+            eq(invoices.currentReviewer, ctx.user.id)
+          )
+        )
+        .returning();
+
+      // Verify update was successful
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Faktura nie może być edytowana - zmienił się jej status",
+        });
+      }
 
       // Log to edit history
       await db.insert(invoiceEditHistory).values({
@@ -601,6 +686,22 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
+      // Transaction safety: Check if invoice is already finalized
+      if (invoice.status === "accepted" || invoice.status === "rejected") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Ta faktura została już rozpatrzona",
+        });
+      }
+
+      // Verify the invoice is in_review status
+      if (invoice.status !== "in_review") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Faktura musi być w trakcie przeglądu",
+        });
+      }
+
       if (invoice.currentReviewer !== ctx.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -624,10 +725,26 @@ export const invoiceRouter = createTRPCRouter({
           reviewedAt: new Date(),
           rejectionReason: input.status === "rejected" ? input.rejectionReason : null,
           currentReviewer: null,
+          lastReviewPing: null,
           updatedAt: new Date(),
         })
-        .where(eq(invoices.id, input.id))
+        .where(
+          and(
+            eq(invoices.id, input.id),
+            // Additional safety: only update if still in_review and current reviewer matches
+            eq(invoices.status, "in_review"),
+            eq(invoices.currentReviewer, ctx.user.id)
+          )
+        )
         .returning();
+
+      // Verify the update was successful
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Faktura została już rozpatrzona przez innego księgowego",
+        });
+      }
 
       return {
         success: true,

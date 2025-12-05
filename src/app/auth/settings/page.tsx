@@ -7,6 +7,7 @@ import packageJson from "../../../../package.json";
 import { UserHeader } from "@/components/user-header";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
+import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -206,6 +207,7 @@ export default function SettingsPage() {
           </DialogContent>
         </Dialog>
       </main>
+      <Footer />
     </div>
   );
 }

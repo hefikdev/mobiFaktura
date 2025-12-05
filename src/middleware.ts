@@ -8,22 +8,11 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = request.cookies.get("mobifaktura_session");
 
-  // Extract client IP address
+  // Extract client IP address (simple priority: forwarded-for > real-ip > localhost)
   const forwardedFor = request.headers.get("x-forwarded-for");
   const realIp = request.headers.get("x-real-ip");
-  const cfConnectingIp = request.headers.get("cf-connecting-ip");
   
-  let clientIp = realIp || cfConnectingIp || "127.0.0.1";
-  
-  if (forwardedFor && !clientIp) {
-    // Get first IP from x-forwarded-for chain
-    clientIp = forwardedFor.split(",")[0]?.trim() || "127.0.0.1";
-  }
-  
-  // Convert IPv6 localhost to IPv4
-  if (clientIp === "::1" || clientIp === "::ffff:127.0.0.1") {
-    clientIp = "127.0.0.1";
-  }
+  const clientIp = forwardedFor?.split(",")[0]?.trim() || realIp || "127.0.0.1";
 
   // Clone the request headers and add/update the IP address header
   const requestHeaders = new Headers(request.headers);

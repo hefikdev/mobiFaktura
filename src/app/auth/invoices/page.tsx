@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -12,6 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -24,7 +31,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
+import { Footer } from "@/components/footer";
 import { InvoiceExportDialog } from "@/components/invoice-export-dialog";
+import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import {
   Loader2,
   FileText,
@@ -33,6 +42,7 @@ import {
   User,
   Calendar,
   FileCheck,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -48,16 +58,71 @@ export default function InvoicesPage() {
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  // Data fetching
-  const { data: allInvoices, isLoading: loadingInvoices } = trpc.invoice.getAllInvoices.useQuery(
-    undefined,
-    { enabled: !!user && (user.role === "accountant" || user.role === "admin") }
+  // Delete invoice dialog states
+  const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
+  const [deleteInvoiceId, setDeleteInvoiceId] = useState("");
+  const [deleteInvoiceNumber, setDeleteInvoiceNumber] = useState("");
+  const [deleteInvoicePassword, setDeleteInvoicePassword] = useState("");
+
+  // Data fetching with infinite query
+  const {
+    data: invoicesData,
+    isLoading: loadingInvoices,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch: refetchInvoices,
+  } = trpc.invoice.getAllInvoices.useInfiniteQuery(
+    { limit: 100 },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      enabled: !!user && (user.role === "accountant" || user.role === "admin"),
+    }
   );
+
+  const allInvoices = invoicesData?.pages.flatMap((page) => page.items) || [];
   
   const { data: companies } = trpc.company.list.useQuery();
-  const { data: users } = trpc.admin.getUsers.useQuery(
+  const { data: usersData } = trpc.admin.getUsers.useQuery(
     undefined,
     { enabled: !!user && (user.role === "admin" || user.role === "accountant") }
+  );
+
+  // Delete invoice mutation (admin only)
+  const deleteInvoiceMutation = trpc.admin.deleteInvoice.useMutation({
+    onSuccess: () => {
+      toast({ 
+        title: "Faktura usunięta", 
+        description: "Faktura została trwale usunięta z bazy danych i serwera plików"
+      });
+      setDeleteInvoiceOpen(false);
+      setDeleteInvoiceId("");
+      setDeleteInvoiceNumber("");
+      setDeleteInvoicePassword("");
+      refetchInvoices();
+    },
+    onError: (error) => {
+      toast({ title: "Błąd", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Get all users for the filter
+  const allUsers = usersData?.items || [];
+
+  // Ref for infinite scroll
+  const observer = useRef<IntersectionObserver>();
+  const lastInvoiceElementRef = useCallback(
+    (node: HTMLTableRowElement | null) => {
+      if (loadingInvoices || isFetchingNextPage) return;
+      if (observer.current) observer.current.disconnect();
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage) {
+          fetchNextPage();
+        }
+      });
+      if (node) observer.current.observe(node);
+    },
+    [loadingInvoices, isFetchingNextPage, hasNextPage, fetchNextPage]
   );
 
   // Filter invoices based on search and filters
@@ -105,21 +170,6 @@ export default function InvoicesPage() {
   if (!user || (user.role !== "accountant" && user.role !== "admin")) {
     return <Unauthorized />;
   }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">Oczekuje</span>;
-      case "in_review":
-        return <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">W trakcie</span>;
-      case "accepted":
-        return <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Zaakceptowana</span>;
-      case "rejected":
-        return <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Odrzucona</span>;
-      default:
-        return <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">{status}</span>;
-    }
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -203,49 +253,77 @@ export default function InvoicesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredInvoices.map((invoice) => (
-                    <TableRow
-                      key={invoice.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => router.push(`/auth/invoice/${invoice.id}`)}
-                    >
-                      <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{invoice.ksefNumber || "-"}</TableCell>
-                      <TableCell>{invoice.companyName}</TableCell>
-                      <TableCell>{invoice.userName}</TableCell>
-                      <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                      <TableCell className="text-sm">
-                        {format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {invoice.reviewedAt
-                          ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="text-sm">{invoice.reviewerName || "-"}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (invoice.ksefNumber) {
-                              window.open(`https://www.gov.pl/web/kas/szukaj-faktury?q=${invoice.ksefNumber}`, "_blank");
-                            } else {
-                              toast({
-                                title: "Brak numeru KSeF",
-                                description: "Ta faktura nie ma przypisanego numeru KSeF",
-                                variant: "destructive",
-                              });
-                            }
-                          }}
-                          disabled={!invoice.ksefNumber}
-                        >
-                          Zobacz KSEF
-                        </Button>
+                  {filteredInvoices.map((invoice, index) => {
+                    const isLastElement = index === filteredInvoices.length - 1;
+                    return (
+                      <TableRow
+                        key={invoice.id}
+                        ref={isLastElement ? lastInvoiceElementRef : null}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => router.push(`/auth/invoice/${invoice.id}`)}
+                      >
+                        <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{invoice.ksefNumber || "-"}</TableCell>
+                        <TableCell>{invoice.companyName}</TableCell>
+                        <TableCell>{invoice.userName}</TableCell>
+                        <TableCell><InvoiceStatusBadge status={invoice.status} variant="compact" /></TableCell>
+                        <TableCell className="text-sm">
+                          {format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {invoice.reviewedAt
+                            ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-sm">{invoice.reviewerName || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (invoice.ksefNumber) {
+                                  window.open(`https://www.gov.pl/web/kas/szukaj-faktury?q=${invoice.ksefNumber}`, "_blank");
+                                } else {
+                                  toast({
+                                    title: "Brak numeru KSeF",
+                                    description: "Ta faktura nie ma przypisanego numeru KSeF",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                              disabled={!invoice.ksefNumber}
+                            >
+                              Zobacz KSEF
+                            </Button>
+                            {user?.role === "admin" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteInvoiceId(invoice.id);
+                                  setDeleteInvoiceNumber(invoice.invoiceNumber || "");
+                                  setDeleteInvoiceOpen(true);
+                                }}
+                                title="Usuń fakturę (tylko admin)"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {isFetchingNextPage && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-4">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             )}
@@ -257,7 +335,73 @@ export default function InvoicesPage() {
             Wyświetlono {filteredInvoices.length} z {allInvoices?.length || 0} faktur
           </div>
         )}
+
+        {/* Delete Invoice Confirmation Dialog */}
+        <Dialog open={deleteInvoiceOpen} onOpenChange={setDeleteInvoiceOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Potwierdzenie usunięcia faktury</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm">
+                Czy na pewno chcesz usunąć fakturę <span className="font-semibold">{deleteInvoiceNumber}</span>?
+              </p>
+              <p className="text-sm font-semibold text-destructive">
+                ⚠️ Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte z bazy danych i serwera plików.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="deleteInvoicePassword">Twoje hasło administratora</Label>
+                <Input
+                  id="deleteInvoicePassword"
+                  type="password"
+                  placeholder="Wprowadź hasło aby potwierdzić"
+                  value={deleteInvoicePassword}
+                  onChange={(e) => setDeleteInvoicePassword(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteInvoiceOpen(false);
+                    setDeleteInvoicePassword("");
+                  }}
+                >
+                  Anuluj
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (!deleteInvoicePassword) {
+                      toast({ 
+                        title: "Błąd", 
+                        description: "Hasło administratora jest wymagane", 
+                        variant: "destructive" 
+                      });
+                      return;
+                    }
+                    deleteInvoiceMutation.mutate({ 
+                      id: deleteInvoiceId,
+                      adminPassword: deleteInvoicePassword 
+                    });
+                  }}
+                  disabled={deleteInvoiceMutation.isPending || !deleteInvoicePassword}
+                >
+                  {deleteInvoiceMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Usuwanie...
+                    </>
+                  ) : (
+                    "Usuń definitywnie"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
+      <Footer />
     </div>
   );
 }

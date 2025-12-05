@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
 import { AdminHeader } from "@/components/admin-header";
 import { AccountantHeader } from "@/components/accountant-header";
+import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -550,7 +551,7 @@ export default function InvoiceReviewPage() {
                     <p className="text-sm font-medium">Historia edycji</p>
                     <div className="space-y-2 bg-muted/30 p-3 rounded-md max-h-[120px] overflow-y-auto">
                       <div className="space-y-2">
-                        {invoice.editHistory.map((edit: any, index: number) => (
+                        {invoice.editHistory.map((edit: { editor: { name: string } | null; editedAt: Date }, index: number) => (
                           <div key={index} className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">{edit.editor?.name || "Nieznany"}</span>
                             <span className="text-muted-foreground text-xs">{format(new Date(edit.editedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}</span>
@@ -764,6 +765,7 @@ export default function InvoiceReviewPage() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      <Footer />
     </div>
   );
 }

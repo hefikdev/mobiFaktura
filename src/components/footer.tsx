@@ -5,10 +5,8 @@ export function Footer() {
   const version = packageJson.version;
   
   return (
-    <div className="container mx-auto py-4">
-      <p className="text-xs text-muted-foreground leading-relaxed text-right">
+      <p className="text-xs text-muted-foreground leading-relaxed text-right py-2">
         &copy; mobiFaktura v{version} {currentYear} for IM Technologies, internal company use only.
       </p>
-    </div>
   );
 }

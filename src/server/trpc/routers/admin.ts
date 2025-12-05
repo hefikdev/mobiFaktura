@@ -2,10 +2,10 @@ import { z } from "zod";
 import { createTRPCRouter, adminProcedure } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { users, invoices, companies, loginLogs } from "@/server/db/schema";
+import { users, invoices, companies, loginLogs, invoiceEditHistory } from "@/server/db/schema";
 import { eq, sql, desc, gte, and, inArray, lt } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
-import { getStorageUsage } from "@/server/storage/minio";
+import { getStorageUsage, deleteFile } from "@/server/storage/minio";
 
 export const adminRouter = createTRPCRouter({
   // Get dashboard statistics
@@ -62,21 +62,38 @@ export const adminRouter = createTRPCRouter({
   }),
 
   // Get all users
-  getUsers: adminProcedure.query(async ({ ctx }) => {
+  getUsers: adminProcedure
+    .input(
+      z.object({
+        cursor: z.number().optional(),
+        limit: z.number().min(1).max(100).default(50),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const limit = input?.limit || 50;
+      const cursor = input?.cursor || 0;
 
-    const allUsers = await db
-      .select({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        role: users.role,
-        createdAt: users.createdAt,
-      })
-      .from(users)
-      .orderBy(desc(users.createdAt));
+      const allUsers = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .orderBy(desc(users.createdAt))
+        .limit(limit + 1)
+        .offset(cursor);
 
-    return allUsers;
-  }),
+      const hasMore = allUsers.length > limit;
+      const items = hasMore ? allUsers.slice(0, limit) : allUsers;
+
+      return {
+        items,
+        nextCursor: hasMore ? cursor + limit : undefined,
+      };
+    }),
 
   // Create user (admin only - replaces registration)
   createUser: adminProcedure
@@ -137,7 +154,24 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { id, password, ...data } = input;
 
-      const updateData: any = { ...data, updatedAt: new Date() };
+      // Transaction safety: Verify user exists before update
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
+
+      if (!existingUser) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Użytkownik nie został znaleziony",
+        });
+      }
+
+      const updateData: typeof data & { updatedAt: Date; passwordHash?: string } = { 
+        ...data, 
+        updatedAt: new Date() 
+      };
 
       if (password) {
         updateData.passwordHash = await hashPassword(password);
@@ -154,12 +188,22 @@ export const adminRouter = createTRPCRouter({
           role: users.role,
         });
 
+      if (!updated) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Nie udało się zaktualizować użytkownika",
+        });
+      }
+
       return updated;
     }),
 
-  // Delete user
+  // Delete user (requires admin password)
   deleteUser: adminProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ 
+      id: z.string().uuid(),
+      adminPassword: z.string().min(1, "Hasło administratora jest wymagane"),
+    }))
     .mutation(async ({ ctx, input }) => {
       // Prevent self-deletion
       if (input.id === ctx.user.id) {
@@ -169,7 +213,48 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
+      // Verify admin password
+      const [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nie znaleziono administratora",
+        });
+      }
+
+      const isValidPassword = await verifyPassword(
+        admin.passwordHash,
+        input.adminPassword
+      );
+
+      if (!isValidPassword) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe hasło administratora",
+        });
+      }
+
+      // Delete user
       await db.delete(users).where(eq(users.id, input.id));
+
+      // Verify deletion
+      const [stillExists] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, input.id))
+        .limit(1);
+
+      if (stillExists) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Nie udało się usunąć użytkownika",
+        });
+      }
 
       return { success: true };
     }),
@@ -282,9 +367,13 @@ export const adminRouter = createTRPCRouter({
       z.object({
         userId: z.string().uuid().optional(),
         days: z.number().min(1).default(30),
+        cursor: z.number().optional(),
+        limit: z.number().min(1).max(100).default(50),
       })
     )
     .query(async ({ input }) => {
+      const limit = input.limit;
+      const cursor = input.cursor || 0;
       const dateThreshold = new Date();
       dateThreshold.setDate(dateThreshold.getDate() - input.days);
 
@@ -308,9 +397,16 @@ export const adminRouter = createTRPCRouter({
         .leftJoin(users, eq(loginLogs.userId, users.id))
         .where(and(...conditions))
         .orderBy(desc(loginLogs.createdAt))
-        .limit(500);
+        .limit(limit + 1)
+        .offset(cursor);
 
-      return logs;
+      const hasMore = logs.length > limit;
+      const items = hasMore ? logs.slice(0, limit) : logs;
+
+      return {
+        items,
+        nextCursor: hasMore ? cursor + limit : undefined,
+      };
     }),
 
   // Clean old login logs (30+ days)
@@ -418,4 +514,97 @@ export const adminRouter = createTRPCRouter({
       avgTimeToDecision,
     };
   }),
+
+  // Delete invoice (requires admin password)
+  deleteInvoice: adminProcedure
+    .input(z.object({ 
+      id: z.string().uuid(),
+      adminPassword: z.string().min(1, "Hasło administratora jest wymagane"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify admin password
+      const [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nie znaleziono administratora",
+        });
+      }
+
+      const isValidPassword = await verifyPassword(
+        admin.passwordHash,
+        input.adminPassword
+      );
+
+      if (!isValidPassword) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe hasło administratora",
+        });
+      }
+
+      // Get invoice details for cleanup
+      const [invoice] = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, input.id))
+        .limit(1);
+
+      if (!invoice) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Faktura nie została znaleziona",
+        });
+      }
+
+      let minioDeleted = false;
+      let dbDeleted = false;
+
+      try {
+        // 1. Delete from MinIO
+        await deleteFile(invoice.imageKey);
+        minioDeleted = true;
+
+        // 2. Delete edit history
+        await db.delete(invoiceEditHistory).where(eq(invoiceEditHistory.invoiceId, input.id));
+
+        // 3. Delete from database
+        await db.delete(invoices).where(eq(invoices.id, input.id));
+        dbDeleted = true;
+
+        // 4. Verify complete deletion from database
+        const [stillExistsInDb] = await db
+          .select()
+          .from(invoices)
+          .where(eq(invoices.id, input.id))
+          .limit(1);
+
+        if (stillExistsInDb) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Nie udało się usunąć faktury z bazy danych",
+          });
+        }
+
+        return { 
+          success: true,
+          minioDeleted,
+          dbDeleted,
+        };
+      } catch (error) {
+        // If one deletion succeeded but the other failed, we have a problem
+        if (minioDeleted && !dbDeleted) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Plik został usunięty, ale nie udało się usunąć wpisu z bazy danych",
+          });
+        }
+        throw error;
+      }
+    }),
 });

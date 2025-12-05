@@ -3,6 +3,7 @@
 import { trpc } from "@/lib/trpc/client";
 import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
+import { Footer } from "@/components/footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, TrendingUp, FileText, CheckCircle, XCircle, Clock, BarChart3 } from "lucide-react";
 import {
@@ -295,6 +296,7 @@ export default function AnalyticsPage() {
           </Card>
         )}
       </main>
+      <Footer />
     </div>
   );
 }

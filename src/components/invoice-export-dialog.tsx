@@ -240,7 +240,7 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="format">Format</Label>
-            <Select value={exportFormat} onValueChange={(value: any) => setExportFormat(value)}>
+            <Select value={exportFormat} onValueChange={(value: string) => setExportFormat(value as "csv" | "pdf")}>
               <SelectTrigger id="format">
                 <SelectValue placeholder="Wybierz format" />
               </SelectTrigger>
@@ -252,7 +252,7 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
           </div>
           <div className="space-y-2">
             <Label htmlFor="period">Okres</Label>
-            <Select value={exportPeriod} onValueChange={(value: any) => setExportPeriod(value)}>
+            <Select value={exportPeriod} onValueChange={(value: string) => setExportPeriod(value as "last30" | "specificMonth" | "last3Months" | "last6Months" | "thisYear" | "all")}>
               <SelectTrigger id="period">
                 <SelectValue placeholder="Wybierz okres" />
               </SelectTrigger>

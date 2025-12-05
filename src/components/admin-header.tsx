@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LogOut, Settings, Shield, User, Calculator, LayoutDashboard, BarChart3, Plus } from "lucide-react";
+import { LogOut, Settings, Shield, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon } from "lucide-react";
 
 interface AdminHeaderProps {
   showAddButton?: boolean;
@@ -87,6 +87,17 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
             <Link href="/auth/accountant">
               <Calculator className="mr-1 h-3 w-3" />
               Księgowy
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-xs"
+          >
+            <Link href="/auth/invoices">
+              <FileIcon className="mr-1 h-3 w-3" />
+              Faktury
             </Link>
           </Button>
           <Button

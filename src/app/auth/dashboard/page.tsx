@@ -5,82 +5,12 @@ import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
+import { Footer } from "@/components/footer";
+import { InvoiceListItem } from "@/components/invoice-list-item";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import Link from "next/link";
-
-// Status badge component
-function StatusBadge({ status }: { status: string }) {
-  const config = {
-    pending: {
-      label: "Oczekuje",
-      icon: Clock,
-      className: "text-yellow-600 dark:text-yellow-400",
-    },
-    accepted: {
-      label: "Zaakceptowana",
-      icon: CheckCircle,
-      className: "text-green-600 dark:text-green-400",
-    },
-    rejected: {
-      label: "Odrzucona",
-      icon: XCircle,
-      className: "text-red-600 dark:text-red-400",
-    },
-  };
-
-  const statusConfig = config[status as keyof typeof config] || config.pending;
-  const Icon = statusConfig.icon;
-
-  return (
-    <div className={cn("flex items-center gap-1 text-sm", statusConfig.className)}>
-      <Icon className="h-4 w-4" />
-      <span>{statusConfig.label}</span>
-    </div>
-  );
-}
-
-// Invoice list item
-function InvoiceItem({
-  id,
-  invoiceNumber,
-  description,
-  status,
-  createdAt,
-}: {
-  id: string;
-  invoiceNumber: string;
-  description: string;
-  status: string;
-  createdAt: Date;
-}) {
-  const date = new Date(createdAt).toLocaleDateString("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-
-  return (
-    <Link href={`/auth/user-invoice/${id}`} className="block py-4 hover:bg-accent/50 transition-colors -mx-4 px-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          <FileText className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium truncate">{invoiceNumber}</p>
-            <p className="text-sm text-muted-foreground truncate">
-              {description}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">{date}</p>
-          </div>
-        </div>
-        <StatusBadge status={status} />
-      </div>
-    </Link>
-  );
-}
+import { Loader2, FileText } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -123,12 +53,14 @@ export default function DashboardPage() {
                 <div className="px-4">
                   {invoices.map((invoice, index) => (
                     <div key={invoice.id}>
-                      <InvoiceItem
+                      <InvoiceListItem
                         id={invoice.id}
                         invoiceNumber={invoice.invoiceNumber}
-                        description={invoice.description || ""}
+                        description={invoice.description}
                         status={invoice.status}
                         createdAt={invoice.createdAt}
+                        companyName={invoice.companyName}
+                        variant="user"
                       />
                       {index < invoices.length - 1 && <Separator />}
                     </div>
@@ -151,6 +83,7 @@ export default function DashboardPage() {
           </Card>
         )}
       </main>
+      <Footer />
     </div>
   );
 }
