@@ -295,8 +295,13 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
         )}
+        <div className="hidden md:block">
+          <Footer />
+        </div>
       </main>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

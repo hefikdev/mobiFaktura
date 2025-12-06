@@ -175,13 +175,13 @@ export default function InvoicesPage() {
     <div className="min-h-screen flex flex-col bg-background">
       {user.role === "admin" ? <AdminHeader /> : <AccountantHeader />}
 
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
+      <main className="flex-1 container mx-auto px-4 py-4 md:py-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3">
           <div className="flex items-center gap-3">
-            <FileText className="h-8 w-8 text-primary" />
+            <FileText className="h-6 w-6 md:h-8 md:w-8 text-primary" />
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Faktury</h1>
-              <p className="text-muted-foreground text-sm">Tylko do przeglądania a nie pracy na żywo, ryzyko wystąpienia niespójności danych.</p>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Faktury</h1>
+              <p className="text-muted-foreground text-xs md:text-sm">Tylko do przeglądania a nie pracy na żywo, ryzyko wystąpienia niespójności danych.</p>
             </div>
           </div>
 
@@ -191,7 +191,7 @@ export default function InvoicesPage() {
         <Card>
           <CardHeader>
             {/* Search and Filter Controls */}
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
               <div className="flex-1 min-w-[200px]">
                 <Input
                   placeholder="Szukaj faktur..."
@@ -201,7 +201,7 @@ export default function InvoicesPage() {
                 />
               </div>
               <Select value={filterCompany} onValueChange={setFilterCompany}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px]">
                   <SelectValue placeholder="Wszystkie firmy" />
                 </SelectTrigger>
                 <SelectContent>
@@ -214,7 +214,7 @@ export default function InvoicesPage() {
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Wszystkie statusy" />
                 </SelectTrigger>
                 <SelectContent>
@@ -238,94 +238,189 @@ export default function InvoicesPage() {
                 <p>Brak faktur do wyświetlenia</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Numer faktury</TableHead>
-                    <TableHead>KSeF</TableHead>
-                    <TableHead>Firma</TableHead>
-                    <TableHead>Użytkownik</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Data przesłania</TableHead>
-                    <TableHead>Data decyzji</TableHead>
-                    <TableHead>Księgowy</TableHead>
-                    <TableHead className="text-right">Akcje</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Mobile View - Cards */}
+                <div className="md:hidden divide-y">
                   {filteredInvoices.map((invoice, index) => {
                     const isLastElement = index === filteredInvoices.length - 1;
                     return (
-                      <TableRow
+                      <div
                         key={invoice.id}
                         ref={isLastElement ? lastInvoiceElementRef : null}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => router.push(`/auth/invoice/${invoice.id}`)}
+                        className="p-4 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => router.push(`/a/invoice/${invoice.id}`)}
                       >
-                        <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{invoice.ksefNumber || "-"}</TableCell>
-                        <TableCell>{invoice.companyName}</TableCell>
-                        <TableCell>{invoice.userName}</TableCell>
-                        <TableCell><InvoiceStatusBadge status={invoice.status} variant="compact" /></TableCell>
-                        <TableCell className="text-sm">
-                          {format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {invoice.reviewedAt
-                            ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })
-                            : "-"}
-                        </TableCell>
-                        <TableCell className="text-sm">{invoice.reviewerName || "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="font-semibold">{invoice.invoiceNumber}</div>
+                            {invoice.ksefNumber && (
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                KSeF: {invoice.ksefNumber}
+                              </div>
+                            )}
+                          </div>
+                          <InvoiceStatusBadge status={invoice.status} variant="compact" />
+                        </div>
+                        
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Building2 className="h-3 w-3" />
+                            <span>{invoice.companyName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <User className="h-3 w-3" />
+                            <span>{invoice.userName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>{format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</span>
+                          </div>
+                          {invoice.reviewerName && (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <FileCheck className="h-3 w-3" />
+                              <span>{invoice.reviewerName}</span>
+                              {invoice.reviewedAt && (
+                                <span className="text-xs">
+                                  ({format(new Date(invoice.reviewedAt), "dd.MM HH:mm", { locale: pl })})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-2 mt-3">
+                          {invoice.ksefNumber && (
                             <Button
-                              variant="ghost"
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(`https://www.gov.pl/web/kas/szukaj-faktury?q=${invoice.ksefNumber}`, "_blank");
+                              }}
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              KSeF
+                            </Button>
+                          )}
+                          {user?.role === "admin" && (
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (invoice.ksefNumber) {
-                                  window.open(`https://www.gov.pl/web/kas/szukaj-faktury?q=${invoice.ksefNumber}`, "_blank");
-                                } else {
-                                  toast({
-                                    title: "Brak numeru KSeF",
-                                    description: "Ta faktura nie ma przypisanego numeru KSeF",
-                                    variant: "destructive",
-                                  });
-                                }
+                                setDeleteInvoiceId(invoice.id);
+                                setDeleteInvoiceNumber(invoice.invoiceNumber || "");
+                                setDeleteInvoiceOpen(true);
                               }}
-                              disabled={!invoice.ksefNumber}
                             >
-                              Zobacz KSEF
+                              <Trash2 className="h-3 w-3 mr-1 text-red-600" />
+                              Usuń
                             </Button>
-                            {user?.role === "admin" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteInvoiceId(invoice.id);
-                                  setDeleteInvoiceNumber(invoice.invoiceNumber || "");
-                                  setDeleteInvoiceOpen(true);
-                                }}
-                                title="Usuń fakturę (tylko admin)"
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                   {isFetchingNextPage && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-4">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
-                      </TableCell>
-                    </TableRow>
+                    <div className="p-4 text-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
+                    </div>
                   )}
-                </TableBody>
-              </Table>
+                </div>
+                
+                {/* Desktop View - Table */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Numer faktury</TableHead>
+                        <TableHead>KSeF</TableHead>
+                        <TableHead>Firma</TableHead>
+                        <TableHead>Użytkownik</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Data przesłania</TableHead>
+                        <TableHead>Data decyzji</TableHead>
+                        <TableHead>Księgowy</TableHead>
+                        <TableHead className="text-right">Akcje</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredInvoices.map((invoice, index) => {
+                        const isLastElement = index === filteredInvoices.length - 1;
+                        return (
+                          <TableRow
+                            key={invoice.id}
+                            ref={isLastElement ? lastInvoiceElementRef : null}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => router.push(`/a/invoice/${invoice.id}`)}
+                          >
+                            <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{invoice.ksefNumber || "-"}</TableCell>
+                            <TableCell>{invoice.companyName}</TableCell>
+                            <TableCell>{invoice.userName}</TableCell>
+                            <TableCell><InvoiceStatusBadge status={invoice.status} variant="compact" /></TableCell>
+                            <TableCell className="text-sm">
+                              {format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {invoice.reviewedAt
+                                ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })
+                                : "-"}
+                            </TableCell>
+                            <TableCell className="text-sm">{invoice.reviewerName || "-"}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (invoice.ksefNumber) {
+                                      window.open(`https://www.gov.pl/web/kas/szukaj-faktury?q=${invoice.ksefNumber}`, "_blank");
+                                    } else {
+                                      toast({
+                                        title: "Brak numeru KSeF",
+                                        description: "Ta faktura nie ma przypisanego numeru KSeF",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  disabled={!invoice.ksefNumber}
+                                >
+                                  Zobacz KSEF
+                                </Button>
+                                {user?.role === "admin" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteInvoiceId(invoice.id);
+                                      setDeleteInvoiceNumber(invoice.invoiceNumber || "");
+                                      setDeleteInvoiceOpen(true);
+                                    }}
+                                    title="Usuń fakturę (tylko admin)"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {isFetchingNextPage && (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-4">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -400,8 +495,13 @@ export default function InvoicesPage() {
             </div>
           </DialogContent>
         </Dialog>
+        <div className="hidden md:block">
+          <Footer />
+        </div>
       </main>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

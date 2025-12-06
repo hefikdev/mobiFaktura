@@ -13,9 +13,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LogOut, Settings } from "lucide-react";
+import { LogOut, Settings, Menu } from "lucide-react";
 
 interface AccountantHeaderProps {
   lastInvoiceSync?: string;
@@ -42,14 +49,69 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center justify-between px-6">
-        <Link href="/auth/accountant" className="font-bold text-lg">
+        <Link href="/a/accountant" className="font-bold text-lg">
           mobiFaktura
-          <span className="text-xs font-normal text-muted-foreground ml-2">
+          <span className="text-xs font-normal text-muted-foreground ml-2 hidden sm:inline">
             Panel księgowego
           </span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        {/* Mobile Menu */}
+        <div className="md:hidden">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right">
+              <div className="flex flex-col gap-4 mt-6">
+                <div className="flex items-center gap-3 pb-4 border-b">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback>{initials || "K"}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    <p className="text-xs text-muted-foreground">Księgowy</p>
+                  </div>
+                </div>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Ustawienia
+                  </Link>
+                </Button>
+                
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm">Motyw</span>
+                  <ThemeToggle />
+                </div>
+                
+                <Button
+                  variant="outline"
+                  className="justify-start mt-auto"
+                  onClick={() => logoutMutation.mutate()}
+                  disabled={logoutMutation.isPending}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Wyloguj się
+                </Button>
+                
+                {lastInvoiceSync && (
+                  <div className="text-xs text-muted-foreground text-center pt-4 border-t">
+                    Ostatnia synchronizacja: {lastInvoiceSync}
+                  </div>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        {/* Desktop Menu */}
+        <div className="hidden md:flex items-center gap-2">
           <ThemeToggle />
 
           <DropdownMenu>
@@ -72,7 +134,7 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/auth/settings" className="cursor-pointer">
+                <Link href="/a/settings" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
                   Ustawienia
                 </Link>

@@ -1010,8 +1010,13 @@ export default function AdminPage() {
         <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
            Jeśli baza danych / plików jest za duża, skontaktuj się z administratorem lub projektantem systemu w celu oczyszczenia.
         </p>
+        <div className="hidden md:block">
+          <Footer />
+        </div>
       </main>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

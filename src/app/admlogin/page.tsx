@@ -60,7 +60,7 @@ export default function AdminLoginPage() {
         description: `Witaj, ${data.user.name}!`,
       });
       
-      router.push("/auth/admin");
+      router.push("/a/admin");
       router.refresh();
     },
     onError: (error) => {
@@ -89,7 +89,7 @@ export default function AdminLoginPage() {
         title: "Zalogowano jako Dev Admin",
         description: "Tryb developerski aktywny",
       });
-      router.push("/auth/admin");
+      router.push("/a/admin");
       router.refresh();
     },
     onError: (error) => {

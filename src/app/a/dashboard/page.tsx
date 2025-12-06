@@ -40,8 +40,6 @@ export default function DashboardPage() {
       {user.role === "admin" ? <AdminHeader /> : <UserHeader />}
 
       <main className="flex-1 p-4">
-        <h2 className="text-xl font-semibold mb-4">Moje faktury</h2>
-
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -82,8 +80,13 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
+        <div className="hidden md:block">
+          <Footer />
+        </div>
       </main>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

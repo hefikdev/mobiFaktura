@@ -60,9 +60,9 @@ export default function LoginPage() {
         });
         return;
       } else if (data.user.role === "accountant") {
-        router.push("/auth/accountant");
+        router.push("/a/accountant");
       } else {
-        router.push("/auth/dashboard");
+        router.push("/a/dashboard");
       }
       router.refresh();
     },

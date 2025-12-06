@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, ArrowLeft, ZoomIn, RefreshCw } from "lucide-react";
+import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X } from "lucide-react";
 import Link from "next/link";
 import { useState, use } from "react";
 import { format } from "date-fns";
@@ -24,6 +24,8 @@ function UserInvoiceContent({ id }: { id: string }) {
   const { data: invoice, isLoading, refetch } = trpc.invoice.getById.useQuery({ id });
   const { data: user } = trpc.auth.me.useQuery();
   const [imageZoomed, setImageZoomed] = useState(false);
+  const [imageScale, setImageScale] = useState(1);
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const { toast } = useToast();
 
   if (isLoading) {
@@ -44,7 +46,7 @@ function UserInvoiceContent({ id }: { id: string }) {
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-xl font-semibold mb-2">Faktura nie została znaleziona</p>
-            <Link href="/auth/dashboard">
+            <Link href="/a/dashboard">
               <Button variant="outline">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Powrót do listy
@@ -62,7 +64,7 @@ function UserInvoiceContent({ id }: { id: string }) {
 
       <main className="flex-1 p-4 max-w-6xl mx-auto w-full">
         <div className="mb-4">
-          <Link href="/auth/dashboard">
+          <Link href="/a/dashboard">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Powrót do listy
@@ -164,18 +166,56 @@ function UserInvoiceContent({ id }: { id: string }) {
       </main>
 
       {/* Image Zoom Dialog */}
-      <Dialog open={imageZoomed} onOpenChange={setImageZoomed}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] p-2">
-          <div className="relative w-full h-[90vh]">
+      <Dialog open={imageZoomed} onOpenChange={(open) => {
+        setImageZoomed(open);
+        if (!open) {
+          setImageScale(1);
+          setImagePosition({ x: 50, y: 50 });
+        }
+      }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[95vh] p-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute right-2 top-2 z-10 bg-background/80 backdrop-blur-sm"
+            onClick={() => setImageZoomed(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <div className="relative w-full h-[85vh] overflow-auto scrollbar-hide flex items-start justify-center">
             <img
               src={invoice.imageUrl}
               alt="Faktura - powiększenie"
-              className="w-full h-full object-contain"
+              className="max-w-full h-auto object-contain cursor-zoom-in transition-transform duration-100 ease-out hidden sm:block"
+              style={{
+                transform: `scale(${imageScale})`,
+                transformOrigin: `${imagePosition.x}% ${imagePosition.y}%`
+              }}
+              onMouseEnter={() => setImageScale(2.5)}
+              onMouseLeave={() => {
+                setImageScale(1);
+                setImagePosition({ x: 50, y: 50 });
+              }}
+              onMouseMove={(e) => {
+                if (imageScale > 1) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = ((e.clientX - rect.left) / rect.width) * 100;
+                  const y = ((e.clientY - rect.top) / rect.height) * 100;
+                  setImagePosition({ x, y });
+                }
+              }}
+            />
+            <img
+              src={invoice.imageUrl}
+              alt="Faktura - powiększenie"
+              className="max-w-full h-auto object-contain sm:hidden"
             />
           </div>
         </DialogContent>
       </Dialog>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

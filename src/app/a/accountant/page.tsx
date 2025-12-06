@@ -158,9 +158,8 @@ export default function AccountantPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {user.role === "admin" ? <AdminHeader /> : <AccountantHeader lastInvoiceSync={lastInvoiceSync} />}
-
       <main className="flex-1 p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-120px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(98vh-120px)]">
           {/* Pending invoices */}
           <Card className="flex flex-col">
             <CardHeader className="shrink-0">
@@ -323,7 +322,7 @@ export default function AccountantPage() {
                       variant="outline"
                       className="w-full"
                       onClick={() => {
-                        router.push('/auth/invoices');
+                        router.push('/a/invoices');
                       }}
                     >
                       Zobacz wszystkie
@@ -339,8 +338,13 @@ export default function AccountantPage() {
             </CardContent>
           </Card>
         </div>
+        <div className="hidden md:block">
+          <Footer />
+        </div>
       </main>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

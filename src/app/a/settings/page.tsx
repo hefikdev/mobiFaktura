@@ -206,8 +206,13 @@ export default function SettingsPage() {
             </div>
           </DialogContent>
         </Dialog>
+        <div className="hidden md:block">
+          <Footer />
+        </div>
       </main>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

@@ -38,7 +38,8 @@ import {
   Printer,
   ArrowLeft,
   UserIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  ExternalLink
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -51,6 +52,8 @@ export default function InvoiceReviewPage() {
   const { data: user } = trpc.auth.me.useQuery();
 
   const [imageZoomed, setImageZoomed] = useState(false);
+  const [imageScale, setImageScale] = useState(1);
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showConflictWarning, setShowConflictWarning] = useState(false);
   const [conflictReviewerName, setConflictReviewerName] = useState("");
@@ -191,7 +194,7 @@ export default function InvoiceReviewPage() {
         title: "Przegląd zakończony",
         description: "Faktura została rozpatrzona",
       });
-      router.push("/auth/accountant");
+      router.push("/a/accountant");
       router.refresh();
     },
     onError: (error) => {
@@ -383,17 +386,18 @@ export default function InvoiceReviewPage() {
       {user?.role === "admin" ? <AdminHeader /> : <AccountantHeader />}
       <main className="flex-1 p-4 max-w-7xl mx-auto w-full">
         <div className="mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-row items-center gap-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex flex-row items-center gap-2 md:gap-3">
               <Button 
                 variant="outline" 
                 size="icon" 
-                onClick={() => router.push(user?.role === "admin" ? "/auth/invoices" : "/auth/accountant")}
+                onClick={() => router.push(user?.role === "admin" ? "/a/invoices" : "/a/accountant")}
                 title="Powrót"
+                className="h-8 w-8 md:h-10 md:w-10"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-2xl font-semibold">Przegląd faktury</h2>
+              <h2 className="text-xl md:text-2xl font-semibold">Przegląd faktury</h2>
             </div>
             {/* Status badge */}
             <div className="text-right">
@@ -442,9 +446,9 @@ export default function InvoiceReviewPage() {
         </div>
 
         {/* Horizontal layout: Image + Info in middle, Buttons on right */}
-        <div className="flex gap-6">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Left: Image */}
-          <div className="w-2/5">
+          <div className="w-full lg:w-2/5">
             <Card className="h-full">
               <CardContent className="pt-6">
                 <div
@@ -462,41 +466,32 @@ export default function InvoiceReviewPage() {
           </div>
 
           {/* Middle: Form and Info */}
-          <div className="w-2/5">
+          <div className="w-full lg:w-2/5">
             <Card className="h-full">
               <CardHeader>
-                <div className="flex items-center justify-between" ref={invoiceNumberInputRef}>
+                <div className="flex items-center justify-between gap-2" ref={invoiceNumberInputRef}>
                   {isEditingInvoiceNumber ? (
                     <Input
                       id="invoiceNumber"
                       value={invoiceNumber}
                       onChange={(e) => setInvoiceNumber(e.target.value)}
-                      className="text-2xl font-bold h-auto py-1"
+                      className="text-xl md:text-2xl font-bold h-auto py-1"
                       placeholder="Numer faktury"
                       autoFocus
                     />
                   ) : (
-                    <CardTitle>{invoiceNumber || "Brak numeru"}</CardTitle>
+                    <CardTitle className="text-xl md:text-2xl">{invoiceNumber || "Brak numeru"}</CardTitle>
                   )}
-                  {canEdit && !isEditingInvoiceNumber && (
+                  {invoice.ksefNumber && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setIsEditingInvoiceNumber(true)}
+                      onClick={() => window.open(`https://www.ksef.gov.pl/${invoice.ksefNumber}`, '_blank')}
+                      title="Zobacz KSEF"
+                      className="flex items-center gap-1"
                     >
-                      Edytuj
-                    </Button>
-                  )}
-                  {canEdit && isEditingInvoiceNumber && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setIsEditingInvoiceNumber(false);
-                        handleSave();
-                      }}
-                    >
-                      Zapisz
+                      <ExternalLink className="h-4 w-4" />
+                      <span>KSeF</span>
                     </Button>
                   )}
                 </div>
@@ -584,22 +579,22 @@ export default function InvoiceReviewPage() {
 
           {/* Right: BIG Action Buttons */}
           {isReviewing && !isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
-            <div className="w-48 flex flex-col gap-4">
+            <div className="w-full lg:w-48 flex flex-row lg:flex-col gap-3 lg:gap-4">
               <Button
                 onClick={handleAccept}
                 size="lg"
                 disabled={finalizeMutation.isPending}
-                className="h-32 text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700"
+                className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700"
               >
                 {finalizeMutation.isPending ? (
                   <>
-                    <Loader2 className="h-10 w-10 animate-spin" />
-                    <span className="text-sm font-bold">Przetwarzanie...</span>
+                    <Loader2 className="h-8 w-8 md:h-10 md:w-10 animate-spin" />
+                    <span className="text-xs md:text-sm font-bold">Przetwarzanie...</span>
                   </>
                 ) : (
                   <>
-                    <Check className="h-12 w-12 stroke-[3] text-white" />
-                    <span className="font-bold text-white">Zaakceptuj</span>
+                    <Check className="h-8 w-8 md:h-12 md:w-12 stroke-[3] text-white" />
+                    <span className="font-bold text-white text-sm md:text-base">Zaakceptuj</span>
                   </>
                 )}
               </Button>
@@ -609,12 +604,33 @@ export default function InvoiceReviewPage() {
                 variant="destructive"
                 size="lg"
                 disabled={finalizeMutation.isPending}
-                className="h-32 text-xl font-bold flex-col gap-2"
+                className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2"
               >
-                <X className="h-12 w-12 stroke-[3]" />
-                <span className="font-bold">Odrzuć</span>
+                <X className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
+                <span className="font-bold text-sm md:text-base">Odrzuć</span>
               </Button>
-              <div className="flex flex-row gap-2 mt-3">
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (isEditingInvoiceNumber) {
+                      setIsEditingInvoiceNumber(false);
+                      handleSave();
+                    } else {
+                      setIsEditingInvoiceNumber(true);
+                      // Scroll to invoice number input
+                      setTimeout(() => {
+                        invoiceNumberInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }
+                  }}
+                  className="hidden lg:flex w-full items-center gap-1 mt-3"
+                >
+                  <span>{isEditingInvoiceNumber ? 'Zapisz' : 'Edytuj'}</span>
+                </Button>
+              )}
+              <div className="hidden lg:flex flex-row gap-2 mt-3">
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -636,33 +652,63 @@ export default function InvoiceReviewPage() {
                   <span>Pobierz</span>
                 </Button>
               </div>
-              {invoice.ksefNumber && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(`https://www.ksef.gov.pl/${invoice.ksefNumber}`, '_blank')}
-                  title="Zobacz KSEF"
-                  className="flex items-center gap-1 mt-2"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Zobacz KSEF</span>
-                </Button>
-              )}
             </div>
           )}
 
           {isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
-            <div className="w-48">
+            <div className="w-full lg:w-48">
               <Button
-                onClick={() => router.push(user?.role === "admin" ? "/auth/admin" : "/auth/accountant")}
+                onClick={() => router.push("/a/invoices")}
                 variant="outline"
                 size="lg"
-                className="h-32 text-lg flex-col gap-2 w-full"
+                className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2"
               >
                 Powrót do listy
               </Button>
             </div>
           )}
+        </div>
+        
+        {/* Mobile action buttons row */}
+        {isReviewing && !isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
+          <div className="lg:hidden flex gap-2 mt-4">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handlePrint}
+              title="Drukuj"
+              className="flex-1 flex items-center justify-center gap-1"
+            >
+              <Printer className="h-4 w-4" />
+              <span>Drukuj</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleDownload}
+              title="Pobierz"
+              className="flex-1 flex items-center justify-center gap-1"
+            >
+              <Download className="h-4 w-4" />
+              <span>Pobierz</span>
+            </Button>
+            {invoice.ksefNumber && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(`https://www.ksef.gov.pl/${invoice.ksefNumber}`, '_blank')}
+                title="Zobacz KSEF"
+                className="flex-1 flex items-center justify-center gap-1"
+              >
+                <FileText className="h-4 w-4" />
+                <span>KSeF</span>
+              </Button>
+            )}
+          </div>
+        )}
+        
+        <div className="hidden md:block">
+          <Footer />
         </div>
       </main>
 
@@ -752,20 +798,57 @@ export default function InvoiceReviewPage() {
       </Dialog>
 
       {/* Image zoom dialog with scrolling */}
-      <Dialog open={imageZoomed} onOpenChange={setImageZoomed}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] p-4">
+      <Dialog open={imageZoomed} onOpenChange={(open) => {
+        setImageZoomed(open);
+        if (!open) {
+          setImageScale(1);
+          setImagePosition({ x: 0, y: 0 });
+        }
+      }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[95vh] p-2">
           <DialogTitle className="sr-only">Powiększony skan faktury</DialogTitle>
-          <ScrollArea className="h-[80vh] w-full">
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute right-2 top-2 z-10 bg-background/80 backdrop-blur-sm"
+            onClick={() => setImageZoomed(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <div className="relative w-full h-[85vh] overflow-auto scrollbar-hide flex items-start justify-center">
             <img
               src={invoice.imageUrl}
               alt="Faktura - powiększenie"
-              className="max-w-none h-auto"
-              style={{ width: 'auto' }}
+              className="max-w-full h-auto object-contain cursor-zoom-in transition-transform duration-100 ease-out hidden sm:block"
+              style={{
+                transform: `scale(${imageScale})`,
+                transformOrigin: `${imagePosition.x}% ${imagePosition.y}%`
+              }}
+              onMouseEnter={() => setImageScale(2.5)}
+              onMouseLeave={() => {
+                setImageScale(1);
+                setImagePosition({ x: 50, y: 50 });
+              }}
+              onMouseMove={(e) => {
+                if (imageScale > 1) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = ((e.clientX - rect.left) / rect.width) * 100;
+                  const y = ((e.clientY - rect.top) / rect.height) * 100;
+                  setImagePosition({ x, y });
+                }
+              }}
             />
-          </ScrollArea>
+            <img
+              src={invoice.imageUrl}
+              alt="Faktura - powiększenie"
+              className="max-w-full h-auto object-contain sm:hidden"
+            />
+          </div>
         </DialogContent>
       </Dialog>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

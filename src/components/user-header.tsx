@@ -13,9 +13,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Plus, User, LogOut, Settings } from "lucide-react";
+import { Plus, User, LogOut, Settings, Menu } from "lucide-react";
 
 interface UserHeaderProps {
   showAddButton?: boolean;
@@ -50,17 +57,80 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center justify-between px-4">
-        <Link href="/auth/dashboard" className="font-bold text-lg">
+        <Link href="/a/dashboard" className="font-bold text-lg">
           mobiFaktura
-          <span className="text-xs font-normal text-muted-foreground ml-2">
+          <span className="text-xs font-normal text-muted-foreground ml-2 hidden sm:inline">
             Panel użytkownika
           </span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        {/* Mobile Menu */}
+        <div className="flex items-center gap-2 md:hidden">
           {showAddButton && (
             <Button asChild size="icon" variant="ghost">
-              <Link href="/auth/upload">
+              <Link href="/a/upload">
+                <Plus className="h-5 w-5" />
+                <span className="sr-only">Dodaj fakturę</span>
+              </Link>
+            </Button>
+          )}
+          
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right">
+              <div className="flex flex-col gap-4 mt-6">
+                <div className="flex items-center gap-3 pb-4 border-b">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback>{initials || "U"}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                </div>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Ustawienia
+                  </Link>
+                </Button>
+                
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm">Motyw</span>
+                  <ThemeToggle />
+                </div>
+                
+                <Button
+                  variant="outline"
+                  className="justify-start mt-auto"
+                  onClick={() => logoutMutation.mutate()}
+                  disabled={logoutMutation.isPending}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Wyloguj się
+                </Button>
+                
+                {lastSync && (
+                  <div className="text-xs text-muted-foreground text-center pt-4 border-t">
+                    Ostatnia synchronizacja: {lastSync}
+                  </div>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        {/* Desktop Menu */}
+        <div className="hidden md:flex items-center gap-2">
+          {showAddButton && (
+            <Button asChild size="icon" variant="ghost">
+              <Link href="/a/upload">
                 <Plus className="h-6 w-6" />
                 <span className="sr-only">Dodaj fakturę</span>
               </Link>
@@ -86,7 +156,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/auth/settings" className="cursor-pointer">
+                <Link href="/a/settings" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
                   Ustawienia
                 </Link>

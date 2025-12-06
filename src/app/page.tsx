@@ -7,11 +7,11 @@ export default async function HomePage() {
   if (session) {
     // Redirect based on role
     if (session.user.role === "admin") {
-      redirect("/auth/admin");
+      redirect("/a/admin");
     } else if (session.user.role === "accountant") {
-      redirect("/auth/accountant");
+      redirect("/a/accountant");
     } else {
-      redirect("/auth/dashboard");
+      redirect("/a/dashboard");
     }
   }
 

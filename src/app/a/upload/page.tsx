@@ -47,7 +47,7 @@ export default function UploadPage() {
         title: "Faktura wysłana",
         description: "Twoja faktura została przesłana do weryfikacji",
       });
-      router.push("/auth/dashboard");
+      router.push("/a/dashboard");
       router.refresh();
     },
     onError: (error) => {
@@ -281,13 +281,13 @@ export default function UploadPage() {
     <div className="min-h-screen flex flex-col bg-background">
       {user?.role === "admin" ? <AdminHeader /> : <UserHeader showAddButton={false} />}
 
-      <main className="flex-1 p-4">
-        <h2 className="text-xl font-semibold mb-4">Dodaj fakturę</h2>
-        <p className="text-sm text-muted-foreground mb-6">
+      <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
+        <h2 className="text-xl md:text-2xl font-semibold mb-3 md:mb-4">Dodaj fakturę</h2>
+        <p className="text-sm text-muted-foreground mb-4 md:mb-6">
           Zrób zdjęcie faktury aparatem i uzupełnij dane.
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
           {/* Invoice Number */}
           <div className="space-y-2">
             <Label htmlFor="invoiceNumber">
@@ -329,8 +329,8 @@ export default function UploadPage() {
             {/* QR Scanner */}
             {showQrScanner && (
               <Card className="mt-4">
-                <CardContent className="p-4 space-y-4">
-                  <div className="flex justify-between items-center">
+                <CardContent className="p-3 md:p-4 space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <Label>Skaner kodów QR</Label>
                     {qrCameras.length > 1 && (
                       <Button
@@ -476,8 +476,13 @@ export default function UploadPage() {
             )}
           </Button>
         </form>
+        <div className="hidden md:block">
+          <Footer />
+        </div>
       </main>
-      <Footer />
+      <div className="md:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

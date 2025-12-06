@@ -22,7 +22,7 @@ export function middleware(request: NextRequest) {
   if (publicPaths.some((path) => pathname.startsWith(path))) {
     // If logged in, redirect away from login/register
     if (sessionCookie) {
-      return NextResponse.redirect(new URL("/auth/dashboard", request.url));
+      return NextResponse.redirect(new URL("/a/dashboard", request.url));
     }
     return NextResponse.next({
       request: {

@@ -34,7 +34,7 @@ export function InvoiceListItem({
   variant = "user",
   href,
 }: InvoiceListItemProps) {
-  const linkHref = href || (variant === "user" ? `/auth/user-invoice/${id}` : `/auth/invoice/${id}`);
+  const linkHref = href || (variant === "user" ? `/a/user-invoice/${id}` : `/a/invoice/${id}`);
   
   const date = variant === "user" 
     ? new Date(createdAt).toLocaleDateString("pl-PL", {
