@@ -120,6 +120,16 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
       return;
     }
 
+    // Check if there are any invoices with re_review status
+    const reReviewInvoices = exportInvoices.filter(inv => inv.status === "re_review");
+    if (reReviewInvoices.length > 0) {
+      toast({
+        title: "Ostrzeżenie",
+        description: `Eksportowana partia zawiera ${reReviewInvoices.length} faktur(y) w statusie "Ponowna weryfikacja". Sprawdź dokumenty przed eksportem.`,
+        variant: "destructive",
+      });
+    }
+
     // Convert to table format
     const headers = ["Data przesłania", "Data decyzji", "Numer faktury", "KSeF", "Użytkownik", "Firma", "Status", "Księgowy", "Opis"];
     const rows = exportInvoices.map(inv => [
@@ -129,7 +139,7 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
       inv.ksefNumber || "-",
       inv.userName || "",
       inv.companyName || "",
-      inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : "Oczekuje",
+      inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : inv.status === "re_review" ? "Ponowna weryfikacja" : "Oczekuje",
       inv.reviewerName || "-",
       inv.description || "-"
     ]);
@@ -333,6 +343,7 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
                 <SelectItem value="in_review">W trakcie</SelectItem>
                 <SelectItem value="accepted">Zaakceptowane</SelectItem>
                 <SelectItem value="rejected">Odrzucone</SelectItem>
+                <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
               </SelectContent>
             </Select>
           </div>

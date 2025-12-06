@@ -16,6 +16,7 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
   "in_review",
   "accepted",
   "rejected",
+  "re_review",
 ]);
 
 // Users table

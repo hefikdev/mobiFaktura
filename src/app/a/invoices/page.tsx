@@ -223,6 +223,7 @@ export default function InvoicesPage() {
                   <SelectItem value="in_review">W trakcie</SelectItem>
                   <SelectItem value="accepted">Zaakceptowane</SelectItem>
                   <SelectItem value="rejected">Odrzucone</SelectItem>
+                  <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
                 </SelectContent>
               </Select>
             </div>

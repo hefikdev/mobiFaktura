@@ -252,8 +252,8 @@ export const invoiceRouter = createTRPCRouter({
       const result = await db
         .select()
         .from(invoices)
-        .where(or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected")))
-        .orderBy(desc(invoices.reviewedAt))
+        .where(or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected"), eq(invoices.status, "re_review")))
+        .orderBy(desc(invoices.updatedAt))
         .limit(limit + 1)
         .offset(cursor);
 
@@ -743,6 +743,68 @@ export const invoiceRouter = createTRPCRouter({
         throw new TRPCError({
           code: "CONFLICT",
           message: "Faktura została już rozpatrzona przez innego księgowego",
+        });
+      }
+
+      return {
+        success: true,
+        invoice: updated,
+      };
+    }),
+
+  // Request re-review (accountant can request admin to review again)
+  requestReReview: accountantProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        reason: z.string().min(1, "Powód jest wymagany"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [invoice] = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, input.id))
+        .limit(1);
+
+      if (!invoice) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Faktura nie została znaleziona",
+        });
+      }
+
+      // Can only request re-review on accepted or rejected invoices
+      if (invoice.status !== "accepted" && invoice.status !== "rejected") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Można poprosić o edycję tylko zaakceptowanych lub odrzuconych faktur",
+        });
+      }
+
+      // Check if the accountant reviewed this invoice
+      if (invoice.reviewedBy !== ctx.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Możesz poprosić o edycję tylko faktur, które sam rozpatrzyłeś",
+        });
+      }
+
+      // Update status to re_review
+      const [updated] = await db
+        .update(invoices)
+        .set({
+          status: "re_review",
+          rejectionReason: input.reason, // Store the reason for re-review
+          updatedAt: new Date(),
+        })
+        .where(eq(invoices.id, input.id))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Nie udało się zmienić statusu faktury",
         });
       }
 

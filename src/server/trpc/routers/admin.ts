@@ -38,6 +38,11 @@ export const adminRouter = createTRPCRouter({
       .from(invoices)
       .where(eq(invoices.status, "rejected"));
 
+    const [reReviewCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(invoices)
+      .where(eq(invoices.status, "re_review"));
+
     // Get storage usage in GB (always show decimal, even if less than 1GB)
     const storageBytes = await getStorageUsage();
     const storageGB = storageBytes / (1024 * 1024 * 1024);
@@ -56,6 +61,7 @@ export const adminRouter = createTRPCRouter({
       pending: pendingCount?.count || 0,
       accepted: acceptedCount?.count || 0,
       rejected: rejectedCount?.count || 0,
+      reReview: reReviewCount?.count || 0,
       storageGB: parseFloat(storageGB.toFixed(3)),
       databaseGB: parseFloat(dbSizeGB.toFixed(4)),
     };
@@ -443,6 +449,11 @@ export const adminRouter = createTRPCRouter({
       .from(invoices)
       .where(eq(invoices.status, "pending"));
 
+    const [reReviewInvoices] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(invoices)
+      .where(eq(invoices.status, "re_review"));
+
     // Invoices by company
     const invoicesByCompany = await db
       .select({
@@ -507,6 +518,7 @@ export const adminRouter = createTRPCRouter({
       acceptedInvoices: acceptedInvoices?.count || 0,
       rejectedInvoices: rejectedInvoices?.count || 0,
       pendingInvoices: pendingInvoices?.count || 0,
+      reReviewInvoices: reReviewInvoices?.count || 0,
       invoicesByCompany,
       invoicesByUser,
       accountantPerformance,
@@ -606,5 +618,82 @@ export const adminRouter = createTRPCRouter({
         }
         throw error;
       }
+    }),
+
+  // Admin change invoice status (for re-review invoices)
+  changeInvoiceStatus: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        newStatus: z.enum(["pending", "accepted", "rejected"]),
+        reason: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [invoice] = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, input.id))
+        .limit(1);
+
+      if (!invoice) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Faktura nie została znaleziona",
+        });
+      }
+
+      // Store previous values for history
+      const previousStatus = invoice.status;
+
+      // Update invoice status
+      const updateData: any = {
+        status: input.newStatus,
+        updatedAt: new Date(),
+        lastEditedBy: ctx.user.id,
+        lastEditedAt: new Date(),
+      };
+
+      // If changing to accepted or rejected, set reviewedBy and reviewedAt
+      if (input.newStatus === "accepted" || input.newStatus === "rejected") {
+        updateData.reviewedBy = ctx.user.id;
+        updateData.reviewedAt = new Date();
+        if (input.reason && input.newStatus === "rejected") {
+          updateData.rejectionReason = input.reason;
+        }
+      }
+
+      // If changing from re_review to pending, clear rejection reason
+      if (previousStatus === "re_review" && input.newStatus === "pending") {
+        updateData.rejectionReason = null;
+      }
+
+      const [updated] = await db
+        .update(invoices)
+        .set(updateData)
+        .where(eq(invoices.id, input.id))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Nie udało się zmienić statusu faktury",
+        });
+      }
+
+      // Log to edit history
+      await db.insert(invoiceEditHistory).values({
+        invoiceId: input.id,
+        editedBy: ctx.user.id,
+        previousInvoiceNumber: null,
+        newInvoiceNumber: null,
+        previousDescription: `Status: ${previousStatus}`,
+        newDescription: `Status zmieniony przez admina na: ${input.newStatus}${input.reason ? ` (${input.reason})` : ''}`,
+      });
+
+      return {
+        success: true,
+        invoice: updated,
+      };
     }),
 });

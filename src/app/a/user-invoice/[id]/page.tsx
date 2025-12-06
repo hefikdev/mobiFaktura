@@ -75,19 +75,6 @@ function UserInvoiceContent({ id }: { id: string }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Image Section */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                Zdjęcie faktury
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setImageZoomed(true)}
-                  className="ml-auto"
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-              </CardTitle>
-            </CardHeader>
             <CardContent>
               <div
                 className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
@@ -110,18 +97,26 @@ function UserInvoiceContent({ id }: { id: string }) {
                 <CardTitle>Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="mb-2">
+                <div className="mb-2 scale-150 origin-left">
                   <InvoiceStatusBadge status={invoice.status} />
                 </div>
-                {invoice.reviewedAt && (
+                {invoice.reviewedAt && invoice.reviewer && (
                   <p className="text-sm text-muted-foreground mt-2">
-                    Sprawdzona: {format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })}
+                    Sprawdzona przez: <span className="font-medium">{invoice.reviewer.name}</span>
+                    <br />
+                    {format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })}
                   </p>
                 )}
                 {invoice.status === "rejected" && invoice.rejectionReason && (
                   <div className="mt-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md">
                     <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-1">Powód odrzucenia:</p>
                     <p className="text-sm text-red-800 dark:text-red-300">{invoice.rejectionReason}</p>
+                  </div>
+                )}
+                {(invoice.status === "accepted" || invoice.status === "re_review") && invoice.rejectionReason && (
+                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">Uwagi księgowego:</p>
+                    <p className="text-sm text-blue-800 dark:text-blue-300">{invoice.rejectionReason}</p>
                   </div>
                 )}
               </CardContent>

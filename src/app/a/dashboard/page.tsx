@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
+import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
@@ -10,7 +11,9 @@ import { InvoiceListItem } from "@/components/invoice-list-item";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, FileText, Plus } from "lucide-react";
+import Link from "next/link";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -37,9 +40,19 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {user.role === "admin" ? <AdminHeader /> : <UserHeader />}
+      {user.role === "admin" ? <AdminHeader /> : user.role === "accountant" ? <AccountantHeader /> : <UserHeader />}
 
       <main className="flex-1 p-4">
+        {user.role === "user" && (
+          <div className="mb-6 max-w-4xl mx-auto">
+            <Button asChild size="lg" className="w-full h-20 text-lg font-semibold">
+              <Link href="/a/upload">
+                <Plus className="mr-2 h-6 w-6" />
+                Dodaj fakturę
+              </Link>
+            </Button>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

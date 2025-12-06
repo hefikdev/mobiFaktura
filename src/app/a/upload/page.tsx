@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
+import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
@@ -279,15 +280,58 @@ export default function UploadPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {user?.role === "admin" ? <AdminHeader /> : <UserHeader showAddButton={false} />}
+      {user?.role === "admin" ? <AdminHeader /> : user?.role === "accountant" ? <AccountantHeader /> : <UserHeader showAddButton={false} />}
 
       <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
-        <h2 className="text-xl md:text-2xl font-semibold mb-3 md:mb-4">Dodaj fakturę</h2>
-        <p className="text-sm text-muted-foreground mb-4 md:mb-6">
-          Zrób zdjęcie faktury aparatem i uzupełnij dane.
-        </p>
+        <h2 className="text-xl md:text-2xl font-semibold mb-5 md:mb-6">Dodaj fakturę</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+          {/* Image capture area */}
+          <div className="relative">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            {imageDataUrl ? (
+              <Card className="relative overflow-hidden">
+                <CardContent className="p-0">
+                  <img
+                    src={imageDataUrl}
+                    alt="Podgląd faktury"
+                    className="w-full h-auto max-h-[50vh] object-contain"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2"
+                    onClick={handleClearImage}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card
+                className="border-dashed border-2 cursor-pointer hover:border-primary transition-colors"
+                onClick={handleImageCapture}
+              >
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <Camera className="h-16 w-16 text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium">Zrób zdjęcie faktury</p>
+                  <p className="text-sm text-muted-foreground">
+                    Kliknij, aby aktywować aparat
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
           {/* Invoice Number */}
           <div className="space-y-2">
             <Label htmlFor="invoiceNumber">
@@ -411,52 +455,6 @@ export default function UploadPage() {
             <p className="text-xs text-muted-foreground">
               {justification.length}/10 znaków minimum
             </p>
-          </div>
-
-          {/* Image capture area */}
-          <div className="relative">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-
-            {imageDataUrl ? (
-              <Card className="relative overflow-hidden">
-                <CardContent className="p-0">
-                  <img
-                    src={imageDataUrl}
-                    alt="Podgląd faktury"
-                    className="w-full h-auto max-h-[50vh] object-contain"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={handleClearImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card
-                className="border-dashed border-2 cursor-pointer hover:border-primary transition-colors"
-                onClick={handleImageCapture}
-              >
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <Camera className="h-16 w-16 text-muted-foreground mb-4" />
-                  <p className="text-lg font-medium">Zrób zdjęcie faktury</p>
-                  <p className="text-sm text-muted-foreground">
-                    Kliknij, aby aktywować aparat
-                  </p>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           {/* Submit button */}

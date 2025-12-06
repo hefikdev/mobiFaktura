@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LogOut, Settings, Menu } from "lucide-react";
+import { LogOut, Settings, Menu, Plus, FileText, User, BookCheck } from "lucide-react";
 
 interface AccountantHeaderProps {
   lastInvoiceSync?: string;
@@ -57,7 +57,14 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
         </Link>
 
         {/* Mobile Menu */}
-        <div className="md:hidden">
+        <div className="flex items-center gap-2 md:hidden">
+          <Button asChild size="icon" variant="ghost">
+            <Link href="/a/upload">
+              <Plus className="h-5 w-5" />
+              <span className="sr-only">Dodaj fakturę</span>
+            </Link>
+          </Button>
+          
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -77,6 +84,34 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
                     <p className="text-xs text-muted-foreground">Księgowy</p>
                   </div>
                 </div>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/upload">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Dodaj fakturę
+                  </Link>
+                </Button>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/accountant">
+                    <BookCheck className="mr-2 h-4 w-4" />
+                    Widok
+                  </Link>
+                </Button>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/dashboard">
+                    <User className="mr-2 h-4 w-4" />
+                    Moje faktury
+                  </Link>
+                </Button>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/invoices">
+                    <FileText className="mr-2 h-4 w-4" />
+                    Wszystkie faktury
+                  </Link>
+                </Button>
                 
                 <Button asChild variant="outline" className="justify-start">
                   <Link href="/a/settings">
@@ -112,6 +147,35 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-2">
+          <Button asChild size="icon" variant="ghost">
+            <Link href="/a/upload">
+              <Plus className="h-6 w-6" />
+              <span className="sr-only">Dodaj fakturę</span>
+            </Link>
+          </Button>
+          
+          <Button asChild variant="ghost">
+            <Link href="/a/accountant">
+              <BookCheck className="mr-2 h-4 w-4" />
+              Widok
+            </Link>
+          </Button>
+          
+          <Button asChild variant="ghost">
+            <Link href="/a/invoices">
+              <FileText className="mr-2 h-4 w-4" />
+              Faktury
+            </Link>
+          </Button>
+
+          <Button asChild variant="ghost">
+            <Link href="/a/dashboard">
+              <User className="mr-2 h-4 w-4" />
+              Moje faktury
+            </Link>
+          </Button>
+          
+          
           <ThemeToggle />
 
           <DropdownMenu>

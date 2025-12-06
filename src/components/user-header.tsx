@@ -66,14 +66,6 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
 
         {/* Mobile Menu */}
         <div className="flex items-center gap-2 md:hidden">
-          {showAddButton && (
-            <Button asChild size="icon" variant="ghost">
-              <Link href="/a/upload">
-                <Plus className="h-5 w-5" />
-                <span className="sr-only">Dodaj fakturę</span>
-              </Link>
-            </Button>
-          )}
           
           <Sheet>
             <SheetTrigger asChild>

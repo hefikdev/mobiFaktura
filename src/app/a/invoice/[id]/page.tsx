@@ -17,6 +17,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogTitle,
@@ -39,7 +46,8 @@ import {
   ArrowLeft,
   UserIcon,
   UserCircleIcon,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -58,6 +66,11 @@ export default function InvoiceReviewPage() {
   const [showConflictWarning, setShowConflictWarning] = useState(false);
   const [conflictReviewerName, setConflictReviewerName] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
+  const [showReReviewDialog, setShowReReviewDialog] = useState(false);
+  const [reReviewReason, setReReviewReason] = useState("");
+  const [showAdminStatusDialog, setShowAdminStatusDialog] = useState(false);
+  const [newAdminStatus, setNewAdminStatus] = useState<"pending" | "accepted" | "rejected">("pending");
+  const [adminStatusReason, setAdminStatusReason] = useState("");
   const [isEditingInvoiceNumber, setIsEditingInvoiceNumber] = useState(false);
   const invoiceNumberInputRef = useRef<HTMLDivElement>(null);
   
@@ -206,6 +219,44 @@ export default function InvoiceReviewPage() {
     },
   });
 
+  const reReviewMutation = trpc.invoice.requestReReview.useMutation({
+    onSuccess: async () => {
+      await refetch();
+      toast({
+        title: "Wysłano prośbę",
+        description: "Faktura została przekazana do ponownej weryfikacji przez administratora",
+      });
+      setShowReReviewDialog(false);
+      setReReviewReason("");
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const adminChangeStatusMutation = trpc.admin.changeInvoiceStatus.useMutation({
+    onSuccess: async () => {
+      await refetch();
+      toast({
+        title: "Status zmieniony",
+        description: "Status faktury został zaktualizowany",
+      });
+      setShowAdminStatusDialog(false);
+      setAdminStatusReason("");
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSave = () => {
     // Only save if there are actual changes
     const hasInvoiceNumberChange = invoiceNumber !== invoice?.invoiceNumber;
@@ -287,6 +338,50 @@ export default function InvoiceReviewPage() {
     });
     setShowRejectDialog(false);
     setRejectionReason("");
+  };
+
+  const handleRequestReReview = () => {
+    setShowReReviewDialog(true);
+  };
+
+  const confirmReReview = () => {
+    if (!reReviewReason.trim()) {
+      toast({
+        title: "Błąd",
+        description: "Powód prośby o edycję jest wymagany",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    reReviewMutation.mutate({
+      id: invoiceId,
+      reason: reReviewReason,
+    });
+  };
+
+  const handleAdminStatusChange = () => {
+    setShowAdminStatusDialog(true);
+    if (invoice) {
+      setNewAdminStatus(invoice.status as any);
+    }
+  };
+
+  const confirmAdminStatusChange = () => {
+    if (newAdminStatus === "rejected" && !adminStatusReason.trim()) {
+      toast({
+        title: "Błąd",
+        description: "Powód odrzucenia jest wymagany",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    adminChangeStatusMutation.mutate({
+      id: invoiceId,
+      newStatus: newAdminStatus,
+      reason: adminStatusReason || undefined,
+    });
   };
 
   const handlePrint = () => {
@@ -391,7 +486,7 @@ export default function InvoiceReviewPage() {
               <Button 
                 variant="outline" 
                 size="icon" 
-                onClick={() => router.push(user?.role === "admin" ? "/a/invoices" : "/a/accountant")}
+                onClick={() => router.back()}
                 title="Powrót"
                 className="h-8 w-8 md:h-10 md:w-10"
               >
@@ -436,6 +531,18 @@ export default function InvoiceReviewPage() {
                     <p className="text-xs text-muted-foreground mt-1">
                       przez {invoice.reviewer.name}
                       <br />
+                      {format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}
+                    </p>
+                  )}
+                </div>
+              )}
+              {invoice.status === "re_review" && (
+                <div>
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                    Ponowna weryfikacja
+                  </span>
+                  {invoice.reviewedAt && (
+                    <p className="text-xs text-muted-foreground mt-1">
                       {format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}
                     </p>
                   )}
@@ -656,7 +763,39 @@ export default function InvoiceReviewPage() {
           )}
 
           {isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
-            <div className="w-full lg:w-48">
+            <div className="w-full lg:w-48 flex flex-col gap-3">
+              {user?.role === "admin" && (
+                <Button
+                  onClick={handleAdminStatusChange}
+                  variant="outline"
+                  size="lg"
+                  className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                >
+                  <RefreshCw className="h-8 w-8" />
+                  <span className="font-bold text-sm">Zmień status</span>
+                </Button>
+              )}
+              {user?.role === "accountant" && invoice.status !== "re_review" && (
+                <Button
+                  onClick={handleRequestReReview}
+                  variant="outline"
+                  size="lg"
+                  disabled={reReviewMutation.isPending}
+                  className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
+                >
+                  {reReviewMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                      <span className="text-xs font-bold">Przetwarzanie...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-8 w-8" />
+                      <span className="font-bold text-sm">Poproś o edycję</span>
+                    </>
+                  )}
+                </Button>
+              )}
               <Button
                 onClick={() => router.push("/a/invoices")}
                 variant="outline"
@@ -768,6 +907,168 @@ export default function InvoiceReviewPage() {
                 <>
                   <X className="mr-2 h-4 w-4" />
                   Odrzuć fakturę
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Re-Review Request Dialog */}
+      <Dialog open={showReReviewDialog} onOpenChange={setShowReReviewDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Poproś o edycję</DialogTitle>
+            <DialogDescription>
+              Poproś administratora o ponowną weryfikację tej faktury. Opisz powód prośby.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+              <p className="text-sm text-muted-foreground">
+                <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Użytkownik:</strong> {invoice.submitter?.name}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Firma:</strong> {invoice.company?.name}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Obecny status:</strong> {invoice.status === "accepted" ? "Zaakceptowana" : "Odrzucona"}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reReviewReason">Powód prośby o edycję *</Label>
+              <Textarea
+                id="reReviewReason"
+                value={reReviewReason}
+                onChange={(e) => setReReviewReason(e.target.value)}
+                placeholder="Np. Pomyłka w numerze faktury, należy zweryfikować ponownie..."
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowReReviewDialog(false);
+                setReReviewReason("");
+              }}
+            >
+              Anuluj
+            </Button>
+            <Button
+              onClick={confirmReReview}
+              disabled={reReviewMutation.isPending || !reReviewReason.trim()}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {reReviewMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Wysyłam...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Poproś o edycję
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Status Change Dialog */}
+      <Dialog open={showAdminStatusDialog} onOpenChange={setShowAdminStatusDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Zmień status faktury</DialogTitle>
+            <DialogDescription>
+              Jako administrator możesz ręcznie zmienić status faktury. Ta zmiana zostanie zapisana w historii edycji.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+              <p className="text-sm text-muted-foreground">
+                <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Użytkownik:</strong> {invoice.submitter?.name}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Obecny status:</strong> {
+                  invoice.status === "accepted" ? "Zaakceptowana" :
+                  invoice.status === "rejected" ? "Odrzucona" :
+                  invoice.status === "in_review" ? "W trakcie" :
+                  invoice.status === "re_review" ? "Ponowna weryfikacja" :
+                  "Oczekuje"
+                }
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newStatus">Nowy status *</Label>
+              <Select value={newAdminStatus} onValueChange={(value) => setNewAdminStatus(value as any)}>
+                <SelectTrigger id="newStatus">
+                  <SelectValue placeholder="Wybierz nowy status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Oczekuje</SelectItem>
+                  <SelectItem value="accepted">Zaakceptowana</SelectItem>
+                  <SelectItem value="rejected">Odrzucona</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {newAdminStatus === "rejected" && (
+              <div className="space-y-2">
+                <Label htmlFor="adminStatusReason">Powód odrzucenia *</Label>
+                <Textarea
+                  id="adminStatusReason"
+                  value={adminStatusReason}
+                  onChange={(e) => setAdminStatusReason(e.target.value)}
+                  placeholder="Opisz powód odrzucenia..."
+                  className="min-h-[100px]"
+                />
+              </div>
+            )}
+            {(newAdminStatus === "accepted" || newAdminStatus === "pending") && (
+              <div className="space-y-2">
+                <Label htmlFor="adminStatusReason">Uwagi (opcjonalne)</Label>
+                <Textarea
+                  id="adminStatusReason"
+                  value={adminStatusReason}
+                  onChange={(e) => setAdminStatusReason(e.target.value)}
+                  placeholder="Dodatkowe uwagi (opcjonalne)..."
+                  className="min-h-[80px]"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAdminStatusDialog(false);
+                setAdminStatusReason("");
+              }}
+            >
+              Anuluj
+            </Button>
+            <Button
+              onClick={confirmAdminStatusChange}
+              disabled={adminChangeStatusMutation.isPending || (newAdminStatus === "rejected" && !adminStatusReason.trim())}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {adminChangeStatusMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Zmieniam...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Zmień status
                 </>
               )}
             </Button>
