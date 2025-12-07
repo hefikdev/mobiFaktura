@@ -21,6 +21,7 @@ import { Download } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatDate } from "@/lib/date-utils";
 
 type ExportPeriod = "last30" | "specificMonth" | "last3Months" | "last6Months" | "thisYear" | "all";
 type ExportFormat = "csv" | "pdf";
@@ -133,8 +134,8 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
     // Convert to table format
     const headers = ["Data przesłania", "Data decyzji", "Numer faktury", "KSeF", "Użytkownik", "Firma", "Status", "Księgowy", "Opis"];
     const rows = exportInvoices.map(inv => [
-      inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("pl-PL") : "",
-      inv.reviewedAt ? new Date(inv.reviewedAt).toLocaleDateString("pl-PL") : "-",
+      inv.createdAt ? formatDate(inv.createdAt) : "",
+      inv.reviewedAt ? formatDate(inv.reviewedAt) : "-",
       inv.invoiceNumber || "",
       inv.ksefNumber || "-",
       inv.userName || "",

@@ -486,7 +486,10 @@ export default function InvoiceReviewPage() {
               <Button 
                 variant="outline" 
                 size="icon" 
-                onClick={() => router.back()}
+                onClick={() => {
+                  router.push("/a/invoices");
+                  router.refresh();
+                }}
                 title="Powrót"
                 className="h-8 w-8 md:h-10 md:w-10"
               >
@@ -797,7 +800,10 @@ export default function InvoiceReviewPage() {
                 </Button>
               )}
               <Button
-                onClick={() => router.push("/a/invoices")}
+                onClick={() => {
+                  router.push("/a/invoices");
+                  router.refresh();
+                }}
                 variant="outline"
                 size="lg"
                 className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2"

@@ -4,6 +4,7 @@ import { FileText, Building2, User, Eye, CheckCircle, XCircle } from "lucide-rea
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import { formatDate, formatDateTime } from "@/lib/date-utils";
 
 interface InvoiceListItemProps {
   id: string;
@@ -37,14 +38,10 @@ export function InvoiceListItem({
   const linkHref = href || (variant === "user" ? `/a/user-invoice/${id}` : `/a/invoice/${id}`);
   
   const date = variant === "user" 
-    ? new Date(createdAt).toLocaleDateString("pl-PL", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-    : format(new Date(createdAt), "dd.MM.yyyy HH:mm", { locale: pl });
+    ? formatDate(createdAt)
+    : formatDateTime(createdAt);
 
-  const reviewDate = reviewedAt ? format(new Date(reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl }) : null;
+  const reviewDate = reviewedAt ? formatDateTime(reviewedAt) : null;
 
   const isInReview = status === "in_review";
   const isAccepted = status === "accepted";

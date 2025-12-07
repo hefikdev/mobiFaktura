@@ -35,6 +35,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
+import { BulkDeleteInvoices } from "@/components/bulk-delete-invoices";
+import { formatDate, formatDateTimeWithSeconds } from "@/lib/date-utils";
 import {
   Users,
   FileText,
@@ -95,6 +97,13 @@ export default function AdminPage() {
   const [deleteInvoiceId, setDeleteInvoiceId] = useState("");
   const [deleteInvoiceNumber, setDeleteInvoiceNumber] = useState("");
   const [deleteInvoicePassword, setDeleteInvoicePassword] = useState("");
+
+  // Bulk delete dialog state
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  // Delete all logs dialog state
+  const [deleteAllLogsOpen, setDeleteAllLogsOpen] = useState(false);
+  const [deleteAllLogsPassword, setDeleteAllLogsPassword] = useState("");
 
   // Queries
   const { data: stats, isLoading: loadingStats } = trpc.admin.getStats.useQuery();
@@ -261,6 +270,19 @@ export default function AdminPage() {
     },
   });
 
+  const deleteAllLogsMutation = trpc.admin.deleteAllLoginLogs.useMutation({
+    onSuccess: () => {
+      toast({ title: "Logi usunięte", description: "Wszystkie logi logowania zostały usunięte" });
+      setDeleteAllLogsOpen(false);
+      setDeleteAllLogsPassword("");
+      window.location.reload(); // Refresh to update the logs list
+    },
+    onError: (error) => {
+      toast({ title: "Błąd", description: error.message, variant: "destructive" });
+      setDeleteAllLogsPassword("");
+    },
+  });
+
   const handleResetPassword = (userId: string, userName: string) => {
     setResetUserId(userId);
     setResetUserName(userName);
@@ -400,6 +422,29 @@ export default function AdminPage() {
           </Card>
         </div>
 
+        {/* Bulk Delete Button */}
+        <div className="mb-6">
+          <Card className="border-destructive">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-destructive">Strefa Zagrożenia</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Masowe usuwanie faktur z bazy danych i MinIO
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Masowe usuwanie faktur
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Tabs for different management sections */}
         <Tabs defaultValue="users" className="space-y-4">
           <div className="flex justify-between items-center mb-4">
@@ -531,7 +576,7 @@ export default function AdminPage() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            {new Date(user.createdAt).toLocaleDateString("pl-PL")}
+                            {formatDate(user.createdAt)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
@@ -798,21 +843,31 @@ export default function AdminPage() {
                       </Select>
                     </div>
                   </div>
-                  <Button 
-                    onClick={() => cleanLoginLogsMutation.mutate()}
-                    disabled={cleanLoginLogsMutation.isPending}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    {cleanLoginLogsMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Czyszczenie...
-                      </>
-                    ) : (
-                      "Wyczyść stare logi (30+ dni)"
-                    )}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => cleanLoginLogsMutation.mutate()}
+                      disabled={cleanLoginLogsMutation.isPending}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {cleanLoginLogsMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Czyszczenie...
+                        </>
+                      ) : (
+                        "Usuń stare logi (30+ dni)"
+                      )}
+                    </Button>
+                    <Button 
+                      onClick={() => setDeleteAllLogsOpen(true)}
+                      disabled={deleteAllLogsMutation.isPending}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      Usuń wszystkie logi
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -832,14 +887,7 @@ export default function AdminPage() {
                       return (
                         <TableRow key={log.id} ref={isLastElement ? lastLogElementRef : null}>
                           <TableCell>
-                            {new Date(log.createdAt).toLocaleString("pl-PL", {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                            })}
+                            {formatDateTimeWithSeconds(log.createdAt)}
                           </TableCell>
                           <TableCell>{log.email}</TableCell>
                           <TableCell>{log.userName || "-"}</TableCell>
@@ -1000,6 +1048,70 @@ export default function AdminPage() {
                     </>
                   ) : (
                     "Usuń definitywnie"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Delete Dialog */}
+        <BulkDeleteInvoices
+          open={bulkDeleteOpen}
+          onOpenChange={setBulkDeleteOpen}
+        />
+
+        {/* Delete All Logs Dialog */}
+        <Dialog open={deleteAllLogsOpen} onOpenChange={setDeleteAllLogsOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Usuń wszystkie logi logowania</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm">
+                Ta operacja usunie <strong>WSZYSTKIE</strong> logi logowania z bazy danych.
+              </p>
+              <p className="text-sm font-semibold text-destructive">
+                ⚠️ Ta operacja jest NIEODWRACALNA.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="deleteAllLogsPassword">Twoje hasło administratora</Label>
+                <Input
+                  id="deleteAllLogsPassword"
+                  type="password"
+                  placeholder="Wprowadź hasło aby potwierdzić"
+                  value={deleteAllLogsPassword}
+                  onChange={(e) => setDeleteAllLogsPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && deleteAllLogsPassword && !deleteAllLogsMutation.isPending) {
+                      deleteAllLogsMutation.mutate({ adminPassword: deleteAllLogsPassword });
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setDeleteAllLogsOpen(false);
+                    setDeleteAllLogsPassword("");
+                  }} 
+                  disabled={deleteAllLogsMutation.isPending}
+                >
+                  Anuluj
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => deleteAllLogsMutation.mutate({ adminPassword: deleteAllLogsPassword })}
+                  disabled={deleteAllLogsMutation.isPending || !deleteAllLogsPassword}
+                >
+                  {deleteAllLogsMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Usuwanie...
+                    </>
+                  ) : (
+                    "Usuń wszystkie logi"
                   )}
                 </Button>
               </div>

@@ -14,13 +14,18 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Shield, LogOut, KeyRound } from "lucide-react";
+import { User, Mail, Shield, LogOut, KeyRound, Globe, Clock } from "lucide-react";
+import { formatDateTime } from "@/lib/date-utils";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  
+  // Get user timezone
+  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const serverTimezone = "Europe/Warsaw"; // Polish timezone
   
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
@@ -117,14 +122,37 @@ export default function SettingsPage() {
                     <div>
                       <p className="text-sm font-medium">Konto utworzone</p>
                       <p className="text-sm text-muted-foreground">
-                        {new Date(user.createdAt).toLocaleDateString("pl-PL", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
+                        {formatDateTime(user.createdAt)}
                       </p>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Timezone Info Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Strefa czasowa</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Globe className="h-5 w-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Twoja strefa czasowa</p>
+                    <p className="text-sm text-muted-foreground">{userTimezone}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Strefa czasowa serwera</p>
+                    <p className="text-sm text-muted-foreground">{serverTimezone}</p>
+                  </div>
+                </div>
+                <Separator />
+                <div className="text-xs text-muted-foreground">
+                  Format daty: DD.MM.RRRR (standard polski)
                 </div>
               </CardContent>
             </Card>
@@ -206,6 +234,7 @@ export default function SettingsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
         <div className="hidden md:block">
           <Footer />
         </div>

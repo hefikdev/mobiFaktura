@@ -5,7 +5,7 @@ import { db } from "@/server/db";
 import { users, invoices, companies, loginLogs, invoiceEditHistory } from "@/server/db/schema";
 import { eq, sql, desc, gte, and, inArray, lt } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
-import { getStorageUsage, deleteFile } from "@/server/storage/minio";
+import { getStorageUsage, deleteFile, minioClient, BUCKET_NAME } from "@/server/storage/minio";
 
 export const adminRouter = createTRPCRouter({
   // Get dashboard statistics
@@ -427,6 +427,42 @@ export const adminRouter = createTRPCRouter({
     return { success: true, message: "Stare logi logowania zostały usunięte" };
   }),
 
+  // Delete all login logs
+  deleteAllLoginLogs: adminProcedure
+    .input(
+      z.object({
+        adminPassword: z.string().min(1, "Hasło jest wymagane"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify admin password
+      const [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Administrator nie został znaleziony",
+        });
+      }
+
+      const isPasswordValid = await verifyPassword(input.adminPassword, admin.passwordHash);
+      if (!isPasswordValid) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe hasło",
+        });
+      }
+
+      // Delete all logs
+      await db.delete(loginLogs);
+
+      return { success: true, message: "Wszystkie logi logowania zostały usunięte" };
+    }),
+
   // Get analytics data
   getAnalytics: adminProcedure.query(async ({ ctx }) => {
     // Total invoices by status
@@ -694,6 +730,285 @@ export const adminRouter = createTRPCRouter({
       return {
         success: true,
         invoice: updated,
+      };
+    }),
+
+  // Bulk delete invoices with verification
+  bulkDeleteInvoices: adminProcedure
+    .input(
+      z.object({
+        password: z.string().min(1, "Password is required"),
+        filters: z.object({
+          olderThanMonths: z.number().optional(),
+          year: z.number().optional(),
+          month: z.number().optional(), // 1-12
+          dateRange: z.object({
+            start: z.string().datetime().optional(),
+            end: z.string().datetime().optional(),
+          }).optional(),
+          statuses: z.array(z.enum(["pending", "in_review", "accepted", "rejected", "re_review", "all"])).optional(),
+        }),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify admin password
+      const [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Administrator not found",
+        });
+      }
+
+      const isPasswordValid = await verifyPassword(input.password, admin.passwordHash);
+      if (!isPasswordValid) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Invalid password",
+        });
+      }
+
+      // Build query conditions
+      const conditions = [];
+
+      // Older than X months
+      if (input.filters.olderThanMonths) {
+        const cutoffDate = new Date();
+        cutoffDate.setMonth(cutoffDate.getMonth() - input.filters.olderThanMonths);
+        conditions.push(lt(invoices.createdAt, cutoffDate));
+      }
+
+      // Specific year/month
+      if (input.filters.year) {
+        if (input.filters.month) {
+          // Specific year and month
+          const startDate = new Date(input.filters.year, input.filters.month - 1, 1);
+          const endDate = new Date(input.filters.year, input.filters.month, 0, 23, 59, 59, 999);
+          conditions.push(
+            and(
+              gte(invoices.createdAt, startDate),
+              lt(invoices.createdAt, new Date(endDate.getTime() + 1))
+            )!
+          );
+        } else {
+          // Only year
+          const startDate = new Date(input.filters.year, 0, 1);
+          const endDate = new Date(input.filters.year, 11, 31, 23, 59, 59, 999);
+          conditions.push(
+            and(
+              gte(invoices.createdAt, startDate),
+              lt(invoices.createdAt, new Date(endDate.getTime() + 1))
+            )!
+          );
+        }
+      }
+
+      // Date range
+      if (input.filters.dateRange?.start && input.filters.dateRange?.end) {
+        const startDate = new Date(input.filters.dateRange.start);
+        const endDate = new Date(input.filters.dateRange.end);
+        conditions.push(
+          and(
+            gte(invoices.createdAt, startDate),
+            lt(invoices.createdAt, new Date(endDate.getTime() + 86400000)) // +1 day
+          )!
+        );
+      }
+
+      // Statuses
+      if (input.filters.statuses && input.filters.statuses.length > 0 && !input.filters.statuses.includes("all")) {
+        const validStatuses = input.filters.statuses.filter(s => s !== "all") as Array<"pending" | "in_review" | "accepted" | "rejected" | "re_review">;
+        if (validStatuses.length > 0) {
+          conditions.push(inArray(invoices.status, validStatuses));
+        }
+      }
+
+      // Get invoices to delete
+      const query = conditions.length > 0 
+        ? db.select().from(invoices).where(and(...conditions))
+        : db.select().from(invoices);
+
+      const invoicesToDelete = await query;
+
+      if (invoicesToDelete.length === 0) {
+        return {
+          success: true,
+          totalFound: 0,
+          deleted: 0,
+          failed: 0,
+          errors: [],
+        };
+      }
+
+      return {
+        success: true,
+        totalFound: invoicesToDelete.length,
+        invoices: invoicesToDelete.map(inv => ({
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          imageKey: inv.imageKey,
+          status: inv.status,
+          createdAt: inv.createdAt,
+        })),
+      };
+    }),
+
+  // Delete single invoice with verification (step-by-step)
+  deleteSingleInvoice: adminProcedure
+    .input(
+      z.object({
+        invoiceId: z.string().uuid(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get invoice details
+      const [invoice] = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, input.invoiceId))
+        .limit(1);
+
+      if (!invoice) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Invoice not found: ${input.invoiceId}`,
+        });
+      }
+
+      const imageKey = invoice.imageKey;
+
+      try {
+        // Step 1: Delete from MinIO
+        await deleteFile(imageKey);
+
+        // Step 2: Verify MinIO deletion by trying to get presigned URL (should fail)
+        let minioDeleted = false;
+        try {
+          await minioClient.statObject(BUCKET_NAME, imageKey);
+          minioDeleted = false;
+        } catch (err: any) {
+          if (err.code === 'NotFound') {
+            minioDeleted = true;
+          }
+        }
+
+        if (!minioDeleted) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Failed to delete from MinIO: ${imageKey}`,
+          });
+        }
+
+        // Step 3: Delete from PostgreSQL
+        await db.delete(invoices).where(eq(invoices.id, input.invoiceId));
+
+        // Step 4: Verify PostgreSQL deletion
+        const [stillExists] = await db
+          .select()
+          .from(invoices)
+          .where(eq(invoices.id, input.invoiceId))
+          .limit(1);
+
+        if (stillExists) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Failed to delete from database: ${input.invoiceId}`,
+          });
+        }
+
+        return {
+          success: true,
+          invoiceId: input.invoiceId,
+          invoiceNumber: invoice.invoiceNumber,
+        };
+      } catch (error: any) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message || `Failed to delete invoice: ${input.invoiceId}`,
+        });
+      }
+    }),
+
+  // Verify all invoices deleted
+  verifyDeletion: adminProcedure
+    .input(
+      z.object({
+        filters: z.object({
+          olderThanMonths: z.number().optional(),
+          year: z.number().optional(),
+          month: z.number().optional(),
+          dateRange: z.object({
+            start: z.string().datetime().optional(),
+            end: z.string().datetime().optional(),
+          }).optional(),
+          statuses: z.array(z.enum(["pending", "in_review", "accepted", "rejected", "re_review", "all"])).optional(),
+        }),
+      })
+    )
+    .query(async ({ input }) => {
+      // Build same query conditions
+      const conditions = [];
+
+      if (input.filters.olderThanMonths) {
+        const cutoffDate = new Date();
+        cutoffDate.setMonth(cutoffDate.getMonth() - input.filters.olderThanMonths);
+        conditions.push(lt(invoices.createdAt, cutoffDate));
+      }
+
+      if (input.filters.year) {
+        if (input.filters.month) {
+          const startDate = new Date(input.filters.year, input.filters.month - 1, 1);
+          const endDate = new Date(input.filters.year, input.filters.month, 0, 23, 59, 59, 999);
+          conditions.push(
+            and(
+              gte(invoices.createdAt, startDate),
+              lt(invoices.createdAt, new Date(endDate.getTime() + 1))
+            )!
+          );
+        } else {
+          const startDate = new Date(input.filters.year, 0, 1);
+          const endDate = new Date(input.filters.year, 11, 31, 23, 59, 59, 999);
+          conditions.push(
+            and(
+              gte(invoices.createdAt, startDate),
+              lt(invoices.createdAt, new Date(endDate.getTime() + 1))
+            )!
+          );
+        }
+      }
+
+      if (input.filters.dateRange?.start && input.filters.dateRange?.end) {
+        const startDate = new Date(input.filters.dateRange.start);
+        const endDate = new Date(input.filters.dateRange.end);
+        conditions.push(
+          and(
+            gte(invoices.createdAt, startDate),
+            lt(invoices.createdAt, new Date(endDate.getTime() + 86400000))
+          )!
+        );
+      }
+
+      if (input.filters.statuses && input.filters.statuses.length > 0 && !input.filters.statuses.includes("all")) {
+        const validStatuses = input.filters.statuses.filter(s => s !== "all") as Array<"pending" | "in_review" | "accepted" | "rejected" | "re_review">;
+        if (validStatuses.length > 0) {
+          conditions.push(inArray(invoices.status, validStatuses));
+        }
+      }
+
+      const query = conditions.length > 0 
+        ? db.select().from(invoices).where(and(...conditions))
+        : db.select().from(invoices);
+
+      const remainingInvoices = await query;
+
+      return {
+        remaining: remainingInvoices.length,
+        allDeleted: remainingInvoices.length === 0,
       };
     }),
 });

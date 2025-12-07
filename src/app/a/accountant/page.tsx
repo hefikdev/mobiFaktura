@@ -324,6 +324,7 @@ export default function AccountantPage() {
                       className="w-full"
                       onClick={() => {
                         router.push('/a/invoices');
+                        router.refresh();
                       }}
                     >
                       Zobacz wszystkie

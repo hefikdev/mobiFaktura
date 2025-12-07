@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -87,6 +87,29 @@ export default function InvoicesPage() {
     undefined,
     { enabled: !!user && (user.role === "admin" || user.role === "accountant") }
   );
+
+  // Refetch data when page becomes visible (e.g., when navigating back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refetchInvoices();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    // Also refetch when the window regains focus
+    const handleFocus = () => {
+      refetchInvoices();
+    };
+    
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [refetchInvoices]);
 
   // Delete invoice mutation (admin only)
   const deleteInvoiceMutation = trpc.admin.deleteInvoice.useMutation({
