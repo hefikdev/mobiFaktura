@@ -97,9 +97,21 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
     }
   );
 
-  function buildFilters() {
-    const filters: any = {
-      statuses: selectedStatuses,
+  interface FilterParams {
+    statuses: ("all" | "pending" | "in_review" | "accepted" | "rejected" | "re_review")[];
+    olderThanMonths?: number;
+    year?: number;
+    month?: number;
+    dateRange?: {
+      start: string;
+      end: string;
+    };
+    companyId?: string;
+  }
+
+  function buildFilters(): FilterParams {
+    const filters: FilterParams = {
+      statuses: selectedStatuses as ("all" | "pending" | "in_review" | "accepted" | "rejected" | "re_review")[],
     };
 
     if (filterType === "older") {
@@ -172,18 +184,26 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
       setTotalToDelete(result.totalFound);
       addLog("success", `Znaleziono ${result.totalFound} faktur do usunięcia`);
       
-      result.invoices?.slice(0, 5).forEach((inv: any) => {
+      interface PreviewInvoice {
+        id: string;
+        invoiceNumber: string;
+        status: string;
+        createdAt: Date;
+      }
+      
+      result.invoices?.slice(0, 5).forEach((inv: PreviewInvoice) => {
         addLog("info", `  - ${inv.invoiceNumber} (${inv.status}) - ${formatDate(inv.createdAt)}`);
       });
       
       if (result.invoices && result.invoices.length > 5) {
         addLog("info", `  ... i ${result.invoices.length - 5} więcej`);
       }
-    } catch (error: any) {
-      addLog("error", `Błąd: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      addLog("error", `Błąd: ${errorMessage}`);
       toast({
         title: "Błąd",
-        description: error.message || "Nie udało się pobrać listy faktur",
+        description: errorMessage || "Nie udało się pobrać listy faktur",
         variant: "destructive",
       });
       setStep("idle");
@@ -223,8 +243,9 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
         
         deleted++;
         setDeletedCount(deleted);
-      } catch (error: any) {
-        addLog("error", `  ✗ BŁĄD: ${error.message}`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        addLog("error", `  ✗ BŁĄD: ${errorMessage}`);
         addLog("error", `  ✗ Faktura ${invoice.invoiceNumber} NIE została usunięta`);
         failed++;
         setFailedCount(failed);
@@ -265,8 +286,9 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
           variant: "destructive",
         });
       }
-    } catch (error: any) {
-      addLog("error", `Błąd weryfikacji: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      addLog("error", `Błąd weryfikacji: ${errorMessage}`);
       setStep("complete");
     }
     
@@ -383,7 +405,7 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Typ filtra</Label>
-                <Select value={filterType} onValueChange={(v: any) => setFilterType(v)}>
+                <Select value={filterType} onValueChange={(v: "older" | "year" | "range") => setFilterType(v)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

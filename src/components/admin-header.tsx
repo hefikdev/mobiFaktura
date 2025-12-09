@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import { LogOut, Settings, Shield, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu } from "lucide-react";
 
 interface AdminHeaderProps {
@@ -229,6 +230,7 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
             </Link>
           </Button>
           
+          <NotificationBell />
           <ThemeToggle />
 
           <DropdownMenu>

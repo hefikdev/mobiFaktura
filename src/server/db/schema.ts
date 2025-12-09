@@ -18,6 +18,16 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
   "rejected",
   "re_review",
 ]);
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "invoice_accepted",
+  "invoice_rejected",
+  "invoice_submitted",
+  "invoice_assigned",
+  "invoice_re_review",
+  "system_message",
+  "company_updated",
+  "password_changed",
+]);
 
 // Users table
 export const users = pgTable("users", {
@@ -26,6 +36,15 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   role: userRoleEnum("role").notNull().default("user"),
+  notificationSound: boolean("notification_sound").notNull().default(true),
+  notificationInvoiceAccepted: boolean("notification_invoice_accepted").notNull().default(true),
+  notificationInvoiceRejected: boolean("notification_invoice_rejected").notNull().default(true),
+  notificationInvoiceSubmitted: boolean("notification_invoice_submitted").notNull().default(true),
+  notificationInvoiceAssigned: boolean("notification_invoice_assigned").notNull().default(true),
+  notificationInvoiceReReview: boolean("notification_invoice_re_review").notNull().default(true),
+  notificationSystemMessage: boolean("notification_system_message").notNull().default(true),
+  notificationCompanyUpdated: boolean("notification_company_updated").notNull().default(true),
+  notificationPasswordChanged: boolean("notification_password_changed").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -146,16 +165,50 @@ export const loginAttempts = pgTable("login_attempts", {
     .defaultNow(),
 });
 
+// Notifications table
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  type: notificationTypeEnum("type").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").notNull().default(false),
+  invoiceId: uuid("invoice_id").references(() => invoices.id, { onDelete: "cascade" }),
+  companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   invoices: many(invoices),
   sessions: many(sessions),
+  notifications: many(notifications),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, {
     fields: [sessions.userId],
     references: [users.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  invoice: one(invoices, {
+    fields: [notifications.invoiceId],
+    references: [invoices.id],
+  }),
+  company: one(companies, {
+    fields: [notifications.companyId],
+    references: [companies.id],
   }),
 }));
 
@@ -213,5 +266,8 @@ export type LoginLog = typeof loginLogs.$inferSelect;
 export type NewLoginLog = typeof loginLogs.$inferInsert;
 export type LoginAttempt = typeof loginAttempts.$inferSelect;
 export type NewLoginAttempt = typeof loginAttempts.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
 export type UserRole = "user" | "accountant" | "admin";
-export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected";
+export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
+export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "system_message" | "company_updated" | "password_changed";

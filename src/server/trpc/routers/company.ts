@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, adminProcedure, userProcedure } from "@/server/trpc/init";
+import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { companies } from "@/server/db/schema";
+import { companies, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
+import { verifyPassword } from "@/server/auth/password";
+import { createNotification } from "@/server/lib/notifications";
 
 export const companyRouter = createTRPCRouter({
   // Get all active companies (for dropdown)
@@ -49,7 +52,7 @@ export const companyRouter = createTRPCRouter({
       return company;
     }),
 
-  // Update company (admin only)
+  // Update company (admin only with password confirmation)
   update: protectedProcedure
     .input(
       z.object({
@@ -58,20 +61,62 @@ export const companyRouter = createTRPCRouter({
         nip: z.string().optional(),
         address: z.string().optional(),
         active: z.boolean().optional(),
+        adminPassword: z.string().min(1, "Hasło administratora jest wymagane"),
       })
     )
     .mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "admin") {
-        throw new Error("Tylko administrator może edytować firmy");
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Tylko administrator może edytować firmy",
+        });
       }
 
-      const { id, ...data } = input;
+      // Verify admin password
+      const [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Administrator nie został znaleziony",
+        });
+      }
+
+      const isValidPassword = await verifyPassword(input.adminPassword, admin.passwordHash);
+      if (!isValidPassword) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe hasło administratora",
+        });
+      }
+
+      const { id, adminPassword, ...data } = input;
 
       const [updated] = await db
         .update(companies)
         .set({ ...data, updatedAt: new Date() })
         .where(eq(companies.id, id))
         .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Firma nie została znaleziona",
+        });
+      }
+
+      // Create notification for company update
+      await createNotification({
+        userId: ctx.user.id,
+        type: "company_updated",
+        title: "Firma zaktualizowana",
+        message: `Firma "${updated.name}" została zaktualizowana`,
+        companyId: updated.id,
+      });
 
       return updated;
     }),

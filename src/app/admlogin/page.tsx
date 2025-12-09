@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Footer } from "@/components/footer";
-import { Loader2, FileText, AlignCenter } from "lucide-react";
+import { Loader2, FileText, AlignCenter, BookOpen } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -201,6 +202,15 @@ export default function AdminLoginPage() {
             </CardFooter>
           </form>
         </Card>
+
+        <div className="mt-6 text-center">
+          <Link 
+            href="/docs" 
+            className="text-sm text-muted-foreground hover:text-foreground underline"
+          >
+            Dokumentacja systemu
+          </Link>
+        </div>
       </div>
     </div>
   );

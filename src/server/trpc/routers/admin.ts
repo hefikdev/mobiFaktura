@@ -2,9 +2,18 @@ import { z } from "zod";
 import { createTRPCRouter, adminProcedure } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { users, invoices, companies, loginLogs, invoiceEditHistory } from "@/server/db/schema";
+import { 
+  users, 
+  invoices, 
+  companies, 
+  loginLogs, 
+  invoiceEditHistory,
+  sessions,
+  loginAttempts,
+  notifications
+} from "@/server/db/schema";
 import { eq, sql, desc, gte, and, inArray, lt } from "drizzle-orm";
-import { hashPassword, verifyPassword } from "@/server/auth/password";
+import { hashPassword, verifyPassword, validatePassword } from "@/server/auth/password";
 import { getStorageUsage, deleteFile, minioClient, BUCKET_NAME } from "@/server/storage/minio";
 
 export const adminRouter = createTRPCRouter({
@@ -522,10 +531,11 @@ export const adminRouter = createTRPCRouter({
         totalReviewed: sql<number>`count(*)::int`,
         accepted: sql<number>`count(*) FILTER (WHERE ${invoices.status} = 'accepted')::int`,
         rejected: sql<number>`count(*) FILTER (WHERE ${invoices.status} = 'rejected')::int`,
+        avgReviewTime: sql<number>`COALESCE(AVG(EXTRACT(EPOCH FROM (${invoices.reviewedAt} - ${invoices.createdAt})) / 3600), 0)::numeric(10,1)`,
       })
       .from(invoices)
       .leftJoin(users, eq(invoices.reviewedBy, users.id))
-      .where(sql`${invoices.reviewedBy} IS NOT NULL`)
+      .where(sql`${invoices.reviewedBy} IS NOT NULL AND ${invoices.reviewedAt} IS NOT NULL`)
       .groupBy(invoices.reviewedBy, users.name)
       .orderBy(desc(sql`count(*)`));
 
@@ -549,6 +559,52 @@ export const adminRouter = createTRPCRouter({
     `);
     const avgTimeToDecision = Number((avgTimeToDecisionResult.rows[0] as any)?.avg_hours || 0);
 
+    // Monthly summaries (last 6 months)
+    const monthlySummariesResult = await db.execute(sql`
+      SELECT 
+        TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') as month,
+        TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') as month_name,
+        COUNT(*)::int as total,
+        COUNT(*) FILTER (WHERE status = 'accepted')::int as accepted,
+        COUNT(*) FILTER (WHERE status = 'rejected')::int as rejected,
+        COUNT(*) FILTER (WHERE status = 'pending')::int as pending
+      FROM ${invoices}
+      WHERE created_at >= NOW() - INTERVAL '6 months'
+      GROUP BY DATE_TRUNC('month', created_at)
+      ORDER BY DATE_TRUNC('month', created_at) DESC
+    `);
+    
+    const monthlySummaries = (monthlySummariesResult.rows as Array<{
+      month: string;
+      month_name: string;
+      total: number;
+      accepted: number;
+      rejected: number;
+      pending: number;
+    }>);
+
+    // Quarterly summaries (last 4 quarters)
+    const quarterlySummariesResult = await db.execute(sql`
+      SELECT 
+        TO_CHAR(DATE_TRUNC('quarter', created_at), 'YYYY-"Q"Q') as quarter,
+        COUNT(*)::int as total,
+        COUNT(*) FILTER (WHERE status = 'accepted')::int as accepted,
+        COUNT(*) FILTER (WHERE status = 'rejected')::int as rejected,
+        COUNT(*) FILTER (WHERE status = 'pending')::int as pending
+      FROM ${invoices}
+      WHERE created_at >= NOW() - INTERVAL '12 months'
+      GROUP BY DATE_TRUNC('quarter', created_at)
+      ORDER BY DATE_TRUNC('quarter', created_at) DESC
+    `);
+    
+    const quarterlySummaries = (quarterlySummariesResult.rows as Array<{
+      quarter: string;
+      total: number;
+      accepted: number;
+      rejected: number;
+      pending: number;
+    }>);
+
     return {
       totalInvoices: totalInvoices?.count || 0,
       acceptedInvoices: acceptedInvoices?.count || 0,
@@ -560,6 +616,8 @@ export const adminRouter = createTRPCRouter({
       accountantPerformance,
       avgTimeToReview,
       avgTimeToDecision,
+      monthlySummaries,
+      quarterlySummaries,
     };
   }),
 
@@ -683,7 +741,7 @@ export const adminRouter = createTRPCRouter({
       const previousStatus = invoice.status;
 
       // Update invoice status
-      const updateData: any = {
+      const updateData: Partial<typeof invoices.$inferInsert> = {
         status: input.newStatus,
         updatedAt: new Date(),
         lastEditedBy: ctx.user.id,
@@ -891,8 +949,8 @@ export const adminRouter = createTRPCRouter({
         try {
           await minioClient.statObject(BUCKET_NAME, imageKey);
           minioDeleted = false;
-        } catch (err: any) {
-          if (err.code === 'NotFound') {
+        } catch (err: unknown) {
+          if (err && typeof err === 'object' && 'code' in err && err.code === 'NotFound') {
             minioDeleted = true;
           }
         }
@@ -926,10 +984,11 @@ export const adminRouter = createTRPCRouter({
           invoiceId: input.invoiceId,
           invoiceNumber: invoice.invoiceNumber,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: error.message || `Failed to delete invoice: ${input.invoiceId}`,
+          message: `Failed to delete invoice: ${errorMessage}`,
         });
       }
     }),
@@ -1011,4 +1070,183 @@ export const adminRouter = createTRPCRouter({
         allDeleted: remainingInvoices.length === 0,
       };
     }),
+
+  // Change user password (admin only with password confirmation)
+  changeUserPassword: adminProcedure
+    .input(
+      z.object({
+        userId: z.string().uuid(),
+        newPassword: z.string().min(8, "Nowe hasło musi mieć minimum 8 znaków"),
+        adminPassword: z.string().min(1, "Hasło administratora jest wymagane"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify admin password
+      const [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Administrator nie został znaleziony",
+        });
+      }
+
+      const isValidPassword = await verifyPassword(input.adminPassword, admin.passwordHash);
+      if (!isValidPassword) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe hasło administratora",
+        });
+      }
+
+      // Validate new password
+      const validation = validatePassword(input.newPassword);
+      if (!validation.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: validation.message,
+        });
+      }
+
+      // Hash new password
+      const newPasswordHash = await hashPassword(input.newPassword);
+
+      // Update user password
+      await db
+        .update(users)
+        .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
+        .where(eq(users.id, input.userId));
+
+      return { success: true };
+    }),
+
+  // Get detailed database statistics for monitoring
+  getDatabaseStats: adminProcedure.query(async () => {
+    try {
+      // Get table sizes from PostgreSQL
+      const tableSizes = await db.execute(sql`
+        SELECT 
+          schemaname,
+          tablename,
+          pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size,
+          pg_total_relation_size(schemaname||'.'||tablename) AS bytes
+        FROM pg_tables
+        WHERE schemaname = 'public'
+        ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
+      `);
+      
+      // Get row counts for key tables
+      const [sessionsCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(sessions);
+      
+      const [loginLogsCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(loginLogs);
+      
+      const [loginAttemptsCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(loginAttempts);
+      
+      const [notificationsCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(notifications);
+      
+      const [invoicesCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(invoices);
+      
+      const [invoiceEditHistoryCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(invoiceEditHistory);
+
+      // Get expired sessions count
+      const now = new Date();
+      const [expiredSessionsCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(sessions)
+        .where(lt(sessions.expiresAt, now));
+
+      // Get old records that should be cleaned up
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const [oldLoginLogsCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(loginLogs)
+        .where(lt(loginLogs.createdAt, thirtyDaysAgo));
+      
+      const [oldLoginAttemptsCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(loginAttempts)
+        .where(lt(loginAttempts.updatedAt, thirtyDaysAgo));
+
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+      const [oldNotificationsCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(notifications)
+        .where(lt(notifications.createdAt, twoDaysAgo));
+
+      // Get total database size
+      const dbSizeResult = await db.execute(sql`
+        SELECT pg_database_size(current_database()) as size
+      `);
+      const dbSizeBytes = Number((dbSizeResult.rows[0] as any)?.size || 0);
+      
+      return {
+        totalDatabaseSize: {
+          bytes: dbSizeBytes,
+          megabytes: parseFloat((dbSizeBytes / (1024 * 1024)).toFixed(2)),
+          gigabytes: parseFloat((dbSizeBytes / (1024 * 1024 * 1024)).toFixed(4)),
+        },
+        tableSizes: tableSizes.rows as Array<{
+          schemaname: string;
+          tablename: string;
+          size: string;
+          bytes: number;
+        }>,
+        rowCounts: {
+          sessions: sessionsCount?.count || 0,
+          loginLogs: loginLogsCount?.count || 0,
+          loginAttempts: loginAttemptsCount?.count || 0,
+          notifications: notificationsCount?.count || 0,
+          invoices: invoicesCount?.count || 0,
+          invoiceEditHistory: invoiceEditHistoryCount?.count || 0,
+        },
+        cleanupStats: {
+          expiredSessions: expiredSessionsCount?.count || 0,
+          oldLoginLogs: oldLoginLogsCount?.count || 0,
+          oldLoginAttempts: oldLoginAttemptsCount?.count || 0,
+          oldNotifications: oldNotificationsCount?.count || 0,
+        },
+        alerts: [
+          ...(expiredSessionsCount && expiredSessionsCount.count > 1000 
+            ? [{ level: "warning" as const, message: `${expiredSessionsCount.count} expired sessions pending cleanup` }] 
+            : []),
+          ...(oldLoginLogsCount && oldLoginLogsCount.count > 10000 
+            ? [{ level: "warning" as const, message: `${oldLoginLogsCount.count} old login logs pending cleanup` }] 
+            : []),
+          ...(oldLoginAttemptsCount && oldLoginAttemptsCount.count > 5000 
+            ? [{ level: "info" as const, message: `${oldLoginAttemptsCount.count} old login attempts pending cleanup` }] 
+            : []),
+          ...(sessionsCount && sessionsCount.count > 50000 
+            ? [{ level: "critical" as const, message: `High session count: ${sessionsCount.count}. Check cleanup job.` }] 
+            : []),
+          ...(dbSizeBytes > 10 * 1024 * 1024 * 1024 
+            ? [{ level: "warning" as const, message: `Database size exceeds 10 GB` }] 
+            : []),
+        ],
+      };
+    } catch (error) {
+      console.error("Error getting database stats:", error);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get database statistics",
+      });
+    }
+  }),
 });

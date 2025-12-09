@@ -5,6 +5,7 @@ import { UserHeader } from "@/components/user-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
+import { ErrorDisplay } from "@/components/error-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -21,7 +22,7 @@ export default function UserInvoicePage({ params }: { params: Promise<{ id: stri
 }
 
 function UserInvoiceContent({ id }: { id: string }) {
-  const { data: invoice, isLoading, refetch } = trpc.invoice.getById.useQuery({ id });
+  const { data: invoice, isLoading, refetch, error } = trpc.invoice.getById.useQuery({ id });
   const { data: user } = trpc.auth.me.useQuery();
   const [imageZoomed, setImageZoomed] = useState(false);
   const [imageScale, setImageScale] = useState(1);
@@ -35,6 +36,22 @@ function UserInvoiceContent({ id }: { id: string }) {
         <main className="flex-1 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </main>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        {user?.role === "admin" ? <AdminHeader /> : <UserHeader />}
+        <main className="flex-1 p-6">
+          <ErrorDisplay
+            title="Błąd podczas ładowania faktury"
+            message={error.message}
+            error={error}
+          />
+        </main>
+        <Footer />
       </div>
     );
   }

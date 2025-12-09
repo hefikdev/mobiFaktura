@@ -321,6 +321,12 @@ export const authRouter = createTRPCRouter({
       name: ctx.user.name,
       role: ctx.user.role,
       createdAt: ctx.user.createdAt,
+      notificationSound: ctx.user.notificationSound,
+      notificationInvoiceAccepted: ctx.user.notificationInvoiceAccepted,
+      notificationInvoiceRejected: ctx.user.notificationInvoiceRejected,
+      notificationInvoiceSubmitted: ctx.user.notificationInvoiceSubmitted,
+      notificationInvoiceAssigned: ctx.user.notificationInvoiceAssigned,
+      notificationInvoiceReReview: ctx.user.notificationInvoiceReReview,
     };
   }),
 
@@ -387,4 +393,99 @@ export const authRouter = createTRPCRouter({
       },
     };
   }),
+
+  // Update notification preferences
+  updateNotificationPreferences: protectedProcedure
+    .input(
+      z.object({
+        notificationSound: z.boolean().optional(),
+        notificationInvoiceAccepted: z.boolean().optional(),
+        notificationInvoiceRejected: z.boolean().optional(),
+        notificationInvoiceSubmitted: z.boolean().optional(),
+        notificationInvoiceAssigned: z.boolean().optional(),
+        notificationInvoiceReReview: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updateData: Partial<typeof users.$inferInsert> = {};
+      
+      if (input.notificationSound !== undefined) {
+        updateData.notificationSound = input.notificationSound;
+      }
+      if (input.notificationInvoiceAccepted !== undefined) {
+        updateData.notificationInvoiceAccepted = input.notificationInvoiceAccepted;
+      }
+      if (input.notificationInvoiceRejected !== undefined) {
+        updateData.notificationInvoiceRejected = input.notificationInvoiceRejected;
+      }
+      if (input.notificationInvoiceSubmitted !== undefined) {
+        updateData.notificationInvoiceSubmitted = input.notificationInvoiceSubmitted;
+      }
+      if (input.notificationInvoiceAssigned !== undefined) {
+        updateData.notificationInvoiceAssigned = input.notificationInvoiceAssigned;
+      }
+      if (input.notificationInvoiceReReview !== undefined) {
+        updateData.notificationInvoiceReReview = input.notificationInvoiceReReview;
+      }
+
+      await db
+        .update(users)
+        .set(updateData)
+        .where(eq(users.id, ctx.user.id));
+
+      return { success: true };
+    }),
+
+  // Change password
+  changePassword: protectedProcedure
+    .input(
+      z.object({
+        currentPassword: z.string().min(1, "Obecne hasło jest wymagane"),
+        newPassword: z.string().min(8, "Nowe hasło musi mieć minimum 8 znaków"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get current user
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!user) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Użytkownik nie został znaleziony",
+        });
+      }
+
+      // Verify current password
+      const isValidPassword = await verifyPassword(input.currentPassword, user.passwordHash);
+      if (!isValidPassword) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe obecne hasło",
+        });
+      }
+
+      // Validate new password
+      const validation = validatePassword(input.newPassword);
+      if (!validation.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: validation.message,
+        });
+      }
+
+      // Hash new password
+      const newPasswordHash = await hashPassword(input.newPassword);
+
+      // Update password
+      await db
+        .update(users)
+        .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
+        .where(eq(users.id, ctx.user.id));
+
+      return { success: true };
+    }),
 });

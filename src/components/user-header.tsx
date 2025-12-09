@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import { Plus, User, LogOut, Settings, Menu } from "lucide-react";
 
 interface UserHeaderProps {
@@ -66,7 +67,8 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
 
         {/* Mobile Menu */}
         <div className="flex items-center gap-2 md:hidden">
-          
+          <NotificationBell />
+          <ThemeToggle />
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -129,6 +131,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
             </Button>
           )}
 
+          <NotificationBell />
           <ThemeToggle />
 
           <DropdownMenu>

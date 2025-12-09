@@ -12,9 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Shield, LogOut, KeyRound, Globe, Clock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { User, Mail, Shield, LogOut, KeyRound, Globe, Clock, Bell, Volume2 } from "lucide-react";
 import { formatDateTime } from "@/lib/date-utils";
 
 export default function SettingsPage() {
@@ -22,6 +25,45 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  
+  const changePasswordMutation = trpc.auth.changePassword.useMutation({
+    onSuccess: () => {
+      toast({
+        title: "Hasło zmienione",
+        description: "Twoje hasło zostało pomyślnie zmienione",
+      });
+      setPasswordDialogOpen(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const updatePreferencesMutation = trpc.auth.updateNotificationPreferences.useMutation({
+    onSuccess: () => {
+      toast({
+        title: "Zapisano",
+        description: "Preferencje powiadomień zostały zaktualizowane",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
   
   // Get user timezone
   const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -44,6 +86,22 @@ export default function SettingsPage() {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  const handleChangePassword = () => {
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Błąd",
+        description: "Nowe hasła nie są identyczne",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    changePasswordMutation.mutate({
+      currentPassword,
+      newPassword,
+    });
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -126,6 +184,141 @@ export default function SettingsPage() {
                       </p>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Notification Preferences Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Preferencje powiadomień
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sound" className="text-sm font-medium">
+                      Dźwięk powiadomień
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Odtwarzaj dźwięk przy nowych powiadomieniach
+                    </p>
+                  </div>
+                  <Switch
+                    id="sound"
+                    checked={user?.notificationSound ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationSound: checked,
+                      });
+                    }}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="accepted" className="text-sm font-medium">
+                      Faktura zaakceptowana
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Powiadom gdy faktura zostanie zaakceptowana
+                    </p>
+                  </div>
+                  <Switch
+                    id="accepted"
+                    checked={user?.notificationInvoiceAccepted ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationInvoiceAccepted: checked,
+                      });
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="rejected" className="text-sm font-medium">
+                      Faktura odrzucona
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Powiadom gdy faktura zostanie odrzucona
+                    </p>
+                  </div>
+                  <Switch
+                    id="rejected"
+                    checked={user?.notificationInvoiceRejected ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationInvoiceRejected: checked,
+                      });
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="submitted" className="text-sm font-medium">
+                      Nowa faktura przesłana
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Powiadom gdy użytkownik prześle fakturę (tylko księgowi)
+                    </p>
+                  </div>
+                  <Switch
+                    id="submitted"
+                    checked={user?.notificationInvoiceSubmitted ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationInvoiceSubmitted: checked,
+                      });
+                    }}
+                    disabled={user?.role === "user"}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="assigned" className="text-sm font-medium">
+                      Faktura przypisana
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Powiadom gdy faktura zostanie przypisana (tylko księgowi)
+                    </p>
+                  </div>
+                  <Switch
+                    id="assigned"
+                    checked={user?.notificationInvoiceAssigned ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationInvoiceAssigned: checked,
+                      });
+                    }}
+                    disabled={user?.role === "user"}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="rereview" className="text-sm font-medium">
+                      Ponowna weryfikacja
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Powiadom o fakturach wymagających ponownej weryfikacji
+                    </p>
+                  </div>
+                  <Switch
+                    id="rereview"
+                    checked={user?.notificationInvoiceReReview ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationInvoiceReReview: checked,
+                      });
+                    }}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -220,18 +413,62 @@ export default function SettingsPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Zmiana hasła</DialogTitle>
+              <DialogDescription>
+                Wprowadź obecne hasło i nowe hasło. Nowe hasło musi mieć minimum 8 znaków.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <p className="text-sm text-muted-foreground">
-                Skontaktuj się z administratorem w celu zmiany hasła
-              </p>
-              <Button 
-                className="w-full" 
-                onClick={() => setPasswordDialogOpen(false)}
-              >
-                Rozumiem
-              </Button>
+              <div className="space-y-2">
+                <Label htmlFor="current-password">Obecne hasło</Label>
+                <Input
+                  id="current-password"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Wprowadź obecne hasło"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nowe hasło</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Wprowadź nowe hasło"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Potwierdź nowe hasło</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Potwierdź nowe hasło"
+                />
+              </div>
             </div>
+            <DialogFooter>
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setPasswordDialogOpen(false);
+                  setCurrentPassword("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                }}
+                disabled={changePasswordMutation.isPending}
+              >
+                Anuluj
+              </Button>
+              <Button 
+                onClick={handleChangePassword}
+                disabled={!currentPassword || !newPassword || !confirmPassword || changePasswordMutation.isPending}
+              >
+                {changePasswordMutation.isPending ? "Zmieniam..." : "Zmień hasło"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

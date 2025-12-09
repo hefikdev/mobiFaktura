@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import { LogOut, Settings, Menu, Plus, FileText, User, BookCheck } from "lucide-react";
 
 interface AccountantHeaderProps {
@@ -64,6 +65,9 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
               <span className="sr-only">Dodaj fakturę</span>
             </Link>
           </Button>
+          
+          <NotificationBell />
+          <ThemeToggle />
           
           <Sheet>
             <SheetTrigger asChild>
@@ -175,7 +179,7 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
             </Link>
           </Button>
           
-          
+          <NotificationBell />
           <ThemeToggle />
 
           <DropdownMenu>

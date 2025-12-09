@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { TDocumentDefinitions, Content, DynamicContent } from "pdfmake/interfaces";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,9 +20,13 @@ import {
 } from "@/components/ui/dialog";
 import { Download } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { Progress } from "@/components/ui/progress";
+import pdfMake from "pdfmake/build/pdfmake";
+import * as pdfFonts from "pdfmake/build/vfs_fonts";
 import { formatDate } from "@/lib/date-utils";
+
+// Initialize pdfMake with fonts
+(pdfMake as any).vfs = pdfFonts;
 
 type ExportPeriod = "last30" | "specificMonth" | "last3Months" | "last6Months" | "thisYear" | "all";
 type ExportFormat = "csv" | "pdf";
@@ -60,8 +65,10 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
   const [exportYear, setExportYear] = useState(new Date().getFullYear().toString());
   const [exportCompany, setExportCompany] = useState<string>("all");
   const [exportStatus, setExportStatus] = useState<string>("all");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     // Calculate date range based on selected period
     const now = new Date();
     let startDate: Date | undefined;
@@ -146,10 +153,19 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
     ]);
 
     if (exportFormat === "csv") {
+      setIsGenerating(true);
+      setProgress(20);
+      
+      // Allow UI to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const csvContent = [
         headers.join(","),
         ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
       ].join("\n");
+
+      setProgress(60);
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Download CSV
       const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
@@ -161,75 +177,139 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      setProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setIsGenerating(false);
+      setProgress(0);
     } else {
-      // PDF Export using jsPDF
-      const doc = new jsPDF("landscape");
+      // PDF Export using pdfMake
+      setIsGenerating(true);
+      setProgress(10);
       
-      // Add title
-      doc.setFontSize(16);
-      doc.text("Raport Faktur - mobiFaktura", 14, 15);
+      // Allow UI to update
+      await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Add metadata
-      doc.setFontSize(10);
-      doc.text(`Data: ${new Date().toLocaleDateString("pl-PL")}`, 14, 22);
-      let periodText = "Okres: ";
+      let periodText = "";
       switch (exportPeriod) {
-        case "last30": periodText += "Ostatnie 30 dni"; break;
-        case "specificMonth": periodText += `${parseInt(exportMonth) + 1}/${exportYear}`; break;
-        case "last3Months": periodText += "Ostatnie 3 miesiące"; break;
-        case "last6Months": periodText += "Ostatnie 6 miesięcy"; break;
-        case "thisYear": periodText += "Bieżący rok"; break;
-        case "all": periodText += "Wszystkie"; break;
+        case "last30": periodText = "Ostatnie 30 dni"; break;
+        case "specificMonth": periodText = `${parseInt(exportMonth) + 1}/${exportYear}`; break;
+        case "last3Months": periodText = "Ostatnie 3 miesiące"; break;
+        case "last6Months": periodText = "Ostatnie 6 miesięcy"; break;
+        case "thisYear": periodText = "Bieżący rok"; break;
+        case "all": periodText = "Wszystkie"; break;
       }
-      doc.text(periodText, 14, 28);
-      if (exportCompany !== "all") {
-        const companyName = companies?.find(c => c.id === exportCompany)?.name || "";
-        doc.text(`Firma: ${companyName}`, 14, 34);
-      }
-      if (exportStatus !== "all") {
-        const statusText = exportStatus === "accepted" ? "Zaakceptowane" : exportStatus === "rejected" ? "Odrzucone" : exportStatus === "in_review" ? "W trakcie" : "Oczekujące";
-        doc.text(`Status: ${statusText}`, 14, exportCompany !== "all" ? 40 : 34);
-      }
-      doc.text(`Liczba faktur: ${exportInvoices.length}`, 14, exportCompany !== "all" && exportStatus !== "all" ? 46 : exportCompany !== "all" || exportStatus !== "all" ? 40 : 34);
       
-      // Add table
-      autoTable(doc, {
-        head: [headers],
-        body: rows,
-        startY: exportCompany !== "all" && exportStatus !== "all" ? 52 : exportCompany !== "all" || exportStatus !== "all" ? 46 : 40,
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [66, 66, 66], textColor: [255, 255, 255] },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        columnStyles: {
-          0: { cellWidth: 25 },
-          1: { cellWidth: 25 },
-          2: { cellWidth: 30 },
-          3: { cellWidth: 25 },
-          4: { cellWidth: 30 },
-          5: { cellWidth: 35 },
-          6: { cellWidth: 25 },
-          7: { cellWidth: 25 },
-          8: { cellWidth: "auto" }
-        },
-        didParseCell: function(data) {
-          // Color status column
-          if (data.column.index === 6 && data.section === "body") {
-            if (data.cell.text[0] === "Zaakceptowana") {
-              data.cell.styles.textColor = [34, 197, 94];
-              data.cell.styles.fontStyle = "bold";
-            } else if (data.cell.text[0] === "Odrzucona") {
-              data.cell.styles.textColor = [239, 68, 68];
-              data.cell.styles.fontStyle = "bold";
-            } else if (data.cell.text[0] === "W trakcie") {
-              data.cell.styles.textColor = [59, 130, 246];
-              data.cell.styles.fontStyle = "bold";
-            }
-          }
+      setProgress(25);
+      
+      // Build stats line
+      const statsLine = `Data: ${new Date().toLocaleDateString("pl-PL")} | Okres: ${periodText} | Liczba faktur: ${exportInvoices.length}`;
+      
+      // Build optional filter line
+      let filterLine = "";
+      if (exportCompany !== "all" || exportStatus !== "all") {
+        if (exportCompany !== "all") {
+          const companyName = companies?.find(c => c.id === exportCompany)?.name || "";
+          filterLine += `Firma: ${companyName}`;
         }
+        if (exportStatus !== "all") {
+          const statusText = exportStatus === "accepted" ? "Zaakceptowane" : exportStatus === "rejected" ? "Odrzucone" : exportStatus === "in_review" ? "W trakcie" : "Oczekujące";
+          if (filterLine) filterLine += " | ";
+          filterLine += `Status: ${statusText}`;
+        }
+      }
+      
+      setProgress(40);
+      
+      // Prepare table body
+      const tableBody = rows.map(row => {
+        return row.map((cell, index) => {
+          if (index === 6) { // Status column - make bold
+            return { text: cell, bold: true };
+          }
+          return cell;
+        });
       });
       
-      // Download PDF
-      doc.save(`faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}.pdf`);
+      setProgress(60);
+      
+      const docDefinition: TDocumentDefinitions = {
+        pageSize: 'A4',
+        pageOrientation: 'landscape',
+        pageMargins: [10, 75, 10, 40],
+        header: function(currentPage: number, pageCount: number): Content {
+          return [
+            { text: 'Raport Faktur - mobiFaktura', style: 'header', alignment: 'center' as const, margin: [0, 20, 0, 8] as [number, number, number, number] },
+            { text: statsLine, style: 'subheader', alignment: 'center' as const, margin: [0, 0, 0, 5] as [number, number, number, number] },
+            ...(filterLine ? [{ text: filterLine, style: 'subheader', alignment: 'center' as const, margin: [0, 0, 0, 15] as [number, number, number, number] }] : [{ text: '', margin: [0, 0, 0, 10] as [number, number, number, number] }])
+          ];
+        },
+        footer: function(currentPage: number, pageCount: number): Content {
+          return {
+            text: `Strona ${currentPage} z ${pageCount}`,
+            alignment: 'center',
+            style: 'footer',
+            margin: [0, 10, 0, 0]
+          };
+        },
+        content: [
+          {
+            table: {
+              headerRows: 1,
+              widths: ['auto', 'auto', 'auto', 'auto', '*', '*', 'auto', 'auto', 55],
+              body: [
+                headers.map(h => ({ text: h, style: 'tableHeader', alignment: 'center' })),
+                ...tableBody
+              ]
+            },
+            layout: {
+              fillColor: function(rowIndex: number) {
+                return rowIndex === 0 ? '#000000' : (rowIndex % 2 === 0 ? '#f5f5f5' : null);
+              },
+              hLineWidth: function() { return 0.5; },
+              vLineWidth: function() { return 0.5; },
+              hLineColor: function() { return '#000000'; },
+              vLineColor: function() { return '#000000'; }
+            }
+          }
+        ],
+        styles: {
+          header: {
+            fontSize: 20,
+            bold: true,
+            color: '#000000'
+          },
+          subheader: {
+            fontSize: 10,
+            color: '#000000'
+          },
+          tableHeader: {
+            bold: true,
+            fontSize: 10,
+            color: 'white',
+            fillColor: '#000000'
+          },
+          footer: {
+            fontSize: 8,
+            color: '#000000'
+          }
+        },
+        defaultStyle: {
+          fontSize: 9
+        }
+      };
+      
+      setProgress(80);
+      
+      // Allow UI to update before generating PDF
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      pdfMake.createPdf(docDefinition).download(`faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}.pdf`);
+      
+      setProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setIsGenerating(false);
+      setProgress(0);
     }
 
     setExportDialogOpen(false);
@@ -348,9 +428,15 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleExport} className="w-full">
+          {isGenerating && (
+            <div className="space-y-2">
+              <Label>{exportFormat === "csv" ? "Generowanie CSV..." : "Generowanie PDF..."}</Label>
+              <Progress value={progress} className="w-full" />
+            </div>
+          )}
+          <Button onClick={handleExport} className="w-full" disabled={isGenerating}>
             <Download className="mr-2 h-4 w-4" />
-            Eksportuj do {exportFormat.toUpperCase()}
+            {isGenerating ? "Generowanie..." : `Eksportuj do ${exportFormat.toUpperCase()}`}
           </Button>
         </div>
       </DialogContent>

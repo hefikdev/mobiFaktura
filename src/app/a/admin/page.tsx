@@ -35,6 +35,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
+import { ErrorDisplay } from "@/components/error-display";
 import { BulkDeleteInvoices } from "@/components/bulk-delete-invoices";
 import { formatDate, formatDateTimeWithSeconds } from "@/lib/date-utils";
 import {
@@ -98,6 +99,15 @@ export default function AdminPage() {
   const [deleteInvoiceNumber, setDeleteInvoiceNumber] = useState("");
   const [deleteInvoicePassword, setDeleteInvoicePassword] = useState("");
 
+  // Edit company dialog states
+  const [editCompanyOpen, setEditCompanyOpen] = useState(false);
+  const [editCompanyId, setEditCompanyId] = useState("");
+  const [editCompanyName, setEditCompanyName] = useState("");
+  const [editCompanyNip, setEditCompanyNip] = useState("");
+  const [editCompanyAddress, setEditCompanyAddress] = useState("");
+  const [editCompanyActive, setEditCompanyActive] = useState(true);
+  const [editCompanyPassword, setEditCompanyPassword] = useState("");
+
   // Bulk delete dialog state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
@@ -106,7 +116,7 @@ export default function AdminPage() {
   const [deleteAllLogsPassword, setDeleteAllLogsPassword] = useState("");
 
   // Queries
-  const { data: stats, isLoading: loadingStats } = trpc.admin.getStats.useQuery();
+  const { data: stats, isLoading: loadingStats, error: statsError } = trpc.admin.getStats.useQuery();
   
   // Users with infinite query
   const {
@@ -115,6 +125,7 @@ export default function AdminPage() {
     hasNextPage: hasNextUsers,
     isFetchingNextPage: isFetchingNextUsers,
     refetch: refetchUsers,
+    error: usersError,
   } = trpc.admin.getUsers.useInfiniteQuery(
     { limit: 50 },
     {
@@ -127,12 +138,12 @@ export default function AdminPage() {
 
   const users = usersData?.pages.flatMap((page) => page.items) || [];
 
-  const { data: companies, refetch: refetchCompanies } = trpc.company.listAll.useQuery(undefined, {
+  const { data: companies, refetch: refetchCompanies, error: companiesError } = trpc.company.listAll.useQuery(undefined, {
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
     staleTime: 20000,
   });
-  const { data: invoices } = trpc.admin.getAllInvoices.useQuery();
+  const { data: invoices, error: invoicesError } = trpc.admin.getAllInvoices.useQuery();
 
   // Login logs with infinite query
   const {
@@ -254,6 +265,23 @@ export default function AdminPage() {
       setNewPassword("");
       setConfirmPassword("");
       setAdminPassword("");
+    },
+    onError: (error) => {
+      toast({ title: "Błąd", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateCompanyMutation = trpc.company.update.useMutation({
+    onSuccess: () => {
+      toast({ title: "Firma zaktualizowana", description: "Dane firmy zostały pomyślnie zaktualizowane" });
+      setEditCompanyOpen(false);
+      setEditCompanyId("");
+      setEditCompanyName("");
+      setEditCompanyNip("");
+      setEditCompanyAddress("");
+      setEditCompanyActive(true);
+      setEditCompanyPassword("");
+      refetchCompanies();
     },
     onError: (error) => {
       toast({ title: "Błąd", description: error.message, variant: "destructive" });
@@ -457,6 +485,14 @@ export default function AdminPage() {
 
           {/* Users Tab */}
           <TabsContent value="users" className="space-y-4">
+            {usersError ? (
+              <ErrorDisplay
+                title="Błąd podczas ładowania użytkowników"
+                message={usersError.message}
+                error={usersError}
+              />
+            ) : (
+              <>
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Zarządzanie użytkownikami</h2>
               <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
@@ -616,6 +652,8 @@ export default function AdminPage() {
                 </Table>
               </CardContent>
             </Card>
+            </>
+            )}
           </TabsContent>
 
           {/* Reset Password Dialog */}
@@ -696,6 +734,14 @@ export default function AdminPage() {
 
           {/* Companies Tab */}
           <TabsContent value="companies" className="space-y-4">
+            {companiesError ? (
+              <ErrorDisplay
+                title="Błąd podczas ładowania firm"
+                message={companiesError.message}
+                error={companiesError}
+              />
+            ) : (
+              <>
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Zarządzanie firmami</h2>
               <Dialog open={createCompanyOpen} onOpenChange={setCreateCompanyOpen}>
@@ -771,6 +817,7 @@ export default function AdminPage() {
                       <TableHead>NIP</TableHead>
                       <TableHead>Adres</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Akcje</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -790,12 +837,30 @@ export default function AdminPage() {
                             {company.active ? "Aktywna" : "Nieaktywna"}
                           </span>
                         </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditCompanyId(company.id);
+                              setEditCompanyName(company.name);
+                              setEditCompanyNip(company.nip || "");
+                              setEditCompanyAddress(company.address || "");
+                              setEditCompanyActive(company.active);
+                              setEditCompanyOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
+            </>
+            )}
           </TabsContent>
 
           {/* Invoices Tab */}
@@ -1051,6 +1116,98 @@ export default function AdminPage() {
                   )}
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Company Dialog */}
+        <Dialog open={editCompanyOpen} onOpenChange={setEditCompanyOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edytuj firmę</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="editCompanyName">Nazwa firmy</Label>
+                <Input
+                  id="editCompanyName"
+                  value={editCompanyName}
+                  onChange={(e) => setEditCompanyName(e.target.value)}
+                  placeholder="Firma Sp. z o.o."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editCompanyNip">NIP</Label>
+                <Input
+                  id="editCompanyNip"
+                  value={editCompanyNip}
+                  onChange={(e) => setEditCompanyNip(e.target.value)}
+                  placeholder="1234567890"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editCompanyAddress">Adres</Label>
+                <Input
+                  id="editCompanyAddress"
+                  value={editCompanyAddress}
+                  onChange={(e) => setEditCompanyAddress(e.target.value)}
+                  placeholder="ul. Przykładowa 1, 00-000 Warszawa"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="editCompanyActive"
+                  checked={editCompanyActive}
+                  onChange={(e) => setEditCompanyActive(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="editCompanyActive">Firma aktywna</Label>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editCompanyPassword">Twoje hasło administratora</Label>
+                <Input
+                  id="editCompanyPassword"
+                  type="password"
+                  placeholder="Wprowadź hasło aby potwierdzić"
+                  value={editCompanyPassword}
+                  onChange={(e) => setEditCompanyPassword(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Wymagane do potwierdzenia zmian
+                </p>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  if (!editCompanyPassword) {
+                    toast({ 
+                      title: "Błąd", 
+                      description: "Hasło administratora jest wymagane", 
+                      variant: "destructive" 
+                    });
+                    return;
+                  }
+                  updateCompanyMutation.mutate({
+                    id: editCompanyId,
+                    name: editCompanyName,
+                    nip: editCompanyNip,
+                    address: editCompanyAddress,
+                    active: editCompanyActive,
+                    adminPassword: editCompanyPassword,
+                  });
+                }}
+                disabled={updateCompanyMutation.isPending || !editCompanyPassword}
+              >
+                {updateCompanyMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Aktualizowanie...
+                  </>
+                ) : (
+                  "Zapisz zmiany"
+                )}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
