@@ -120,4 +120,70 @@ export const companyRouter = createTRPCRouter({
 
       return updated;
     }),
+
+  // Delete company (admin only with password confirmation)
+  delete: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        adminPassword: z.string().min(1, "Hasło administratora jest wymagane"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Tylko administrator może usuwać firmy",
+        });
+      }
+
+      // Verify admin password
+      const [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Administrator nie został znaleziony",
+        });
+      }
+
+      const isValidPassword = await verifyPassword(input.adminPassword, admin.passwordHash);
+      if (!isValidPassword) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe hasło administratora",
+        });
+      }
+
+      // Get company name before deletion
+      const [company] = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.id, input.id))
+        .limit(1);
+
+      if (!company) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Firma nie została znaleziona",
+        });
+      }
+
+      // Delete the company
+      await db.delete(companies).where(eq(companies.id, input.id));
+
+      // Create notification for company deletion
+      await createNotification({
+        userId: ctx.user.id,
+        type: "company_updated",
+        title: "Firma usunięta",
+        message: `Firma "${company.name}" została usunięta z systemu`,
+      });
+
+      return { success: true, companyName: company.name };
+    }),
 });

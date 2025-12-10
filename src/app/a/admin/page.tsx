@@ -288,6 +288,23 @@ export default function AdminPage() {
     },
   });
 
+  const deleteCompanyMutation = trpc.company.delete.useMutation({
+    onSuccess: (data) => {
+      toast({ title: "Firma usunięta", description: `Firma "${data.companyName}" została trwale usunięta` });
+      setEditCompanyOpen(false);
+      setEditCompanyId("");
+      setEditCompanyName("");
+      setEditCompanyNip("");
+      setEditCompanyAddress("");
+      setEditCompanyActive(true);
+      setEditCompanyPassword("");
+      refetchCompanies();
+    },
+    onError: (error) => {
+      toast({ title: "Błąd", description: error.message, variant: "destructive" });
+    },
+  });
+
   const cleanLoginLogsMutation = trpc.admin.cleanOldLoginLogs.useMutation({
     onSuccess: () => {
       toast({ title: "Logi wyczyszczone", description: "Stare logi logowania (30+ dni) zostały usunięte" });
@@ -1177,37 +1194,68 @@ export default function AdminPage() {
                   Wymagane do potwierdzenia zmian
                 </p>
               </div>
-              <Button
-                className="w-full"
-                onClick={() => {
-                  if (!editCompanyPassword) {
-                    toast({ 
-                      title: "Błąd", 
-                      description: "Hasło administratora jest wymagane", 
-                      variant: "destructive" 
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    if (!editCompanyPassword) {
+                      toast({ 
+                        title: "Błąd", 
+                        description: "Hasło administratora jest wymagane", 
+                        variant: "destructive" 
+                      });
+                      return;
+                    }
+                    updateCompanyMutation.mutate({
+                      id: editCompanyId,
+                      name: editCompanyName,
+                      nip: editCompanyNip,
+                      address: editCompanyAddress,
+                      active: editCompanyActive,
+                      adminPassword: editCompanyPassword,
                     });
-                    return;
-                  }
-                  updateCompanyMutation.mutate({
-                    id: editCompanyId,
-                    name: editCompanyName,
-                    nip: editCompanyNip,
-                    address: editCompanyAddress,
-                    active: editCompanyActive,
-                    adminPassword: editCompanyPassword,
-                  });
-                }}
-                disabled={updateCompanyMutation.isPending || !editCompanyPassword}
-              >
-                {updateCompanyMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Aktualizowanie...
-                  </>
-                ) : (
-                  "Zapisz zmiany"
-                )}
-              </Button>
+                  }}
+                  disabled={updateCompanyMutation.isPending || !editCompanyPassword}
+                >
+                  {updateCompanyMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Aktualizowanie...
+                    </>
+                  ) : (
+                    "Zapisz zmiany"
+                  )}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (!editCompanyPassword) {
+                      toast({ 
+                        title: "Błąd", 
+                        description: "Hasło administratora jest wymagane", 
+                        variant: "destructive" 
+                      });
+                      return;
+                    }
+                    if (confirm(`Czy na pewno chcesz trwale usunąć firmę "${editCompanyName}"? Ta operacja jest nieodwracalna!`)) {
+                      deleteCompanyMutation.mutate({
+                        id: editCompanyId,
+                        adminPassword: editCompanyPassword,
+                      });
+                    }
+                  }}
+                  disabled={deleteCompanyMutation.isPending || !editCompanyPassword}
+                >
+                  {deleteCompanyMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Usuwanie...
+                    </>
+                  ) : (
+                    "Usuń firmę"
+                  )}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

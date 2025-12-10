@@ -52,13 +52,7 @@ export default function LoginPage() {
       });
       // Redirect based on role
       if (data.user.role === "admin") {
-        // Redirect admin to admin login page
-        toast({
-          title: "Użyj panelu administratora",
-          description: "Zaloguj się przez /admlogin",
-          variant: "destructive",
-        });
-        return;
+        router.push("/a/admin");
       } else if (data.user.role === "accountant") {
         router.push("/a/accountant");
       } else {
@@ -80,6 +74,24 @@ export default function LoginPage() {
       
       toast({
         title: "Błąd logowania",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const devAdminLoginMutation = trpc.auth.devAdminLogin.useMutation({
+    onSuccess: (data) => {
+      toast({
+        title: "Zalogowano jako Dev Admin",
+        description: "Tryb developerski aktywny",
+      });
+      router.push("/a/admin");
+      router.refresh();
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
         description: error.message,
         variant: "destructive",
       });
@@ -158,6 +170,33 @@ export default function LoginPage() {
                   Zbyt wiele nieudanych prób logowania.
                 </p>
               )}
+
+              {process.env.NODE_ENV === "development" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => devAdminLoginMutation.mutate()}
+                  disabled={devAdminLoginMutation.isPending}
+                >
+                  {devAdminLoginMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Logowanie...
+                    </>
+                  ) : (
+                    <>
+                      🔧 Zaloguj jako Developer
+                    </>
+                  )}
+                </Button>
+              )}
+
+              <div className="text-center text-sm text-muted-foreground">
+                <Link href="/docs" className="hover:text-foreground underline">
+                  Dokumentacja systemu
+                </Link>
+              </div>
             </CardFooter>
           </form>
         </Card>

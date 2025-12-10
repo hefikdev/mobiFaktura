@@ -99,7 +99,7 @@ async function seed() {
     console.log("\n📝 You can now login with:");
     console.log("   User: user@test.pl / TestUser123!");
     console.log("   Accountant: ksiegowy@test.pl / TestAccountant123!");
-    console.log("   Admin: admin@test.pl / AdminSecure123! (login at /admlogin)");
+    console.log("   Admin: admin@test.pl / AdminSecure123! (login at /login)");
   } catch (error) {
     console.error("❌ Error seeding database:", error);
     throw error;

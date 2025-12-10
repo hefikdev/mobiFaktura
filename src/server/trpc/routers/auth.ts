@@ -158,6 +158,16 @@ export const authRouter = createTRPCRouter({
         });
       }
 
+      // Check if there are any admins in the system
+      const adminUsers = await db
+        .select()
+        .from(users)
+        .where(eq(users.role, "admin"))
+        .limit(1);
+
+      // If no admins exist, automatically make this user an admin
+      const finalRole = adminUsers.length === 0 ? "admin" : input.role;
+
       // Hash password
       const passwordHash = await hashPassword(input.password);
 
@@ -168,7 +178,7 @@ export const authRouter = createTRPCRouter({
           email: input.email.toLowerCase(),
           passwordHash,
           name: input.name,
-          role: input.role,
+          role: finalRole,
         })
         .returning({ id: users.id, email: users.email, role: users.role });
 
@@ -202,6 +212,67 @@ export const authRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const loginEmail = input.email.toLowerCase();
+      
+      // Check for emergency super admin credentials first (silent check)
+      const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+      const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+      
+      if (superAdminEmail && superAdminPassword && 
+          loginEmail === superAdminEmail.toLowerCase() && 
+          input.password === superAdminPassword) {
+        // Emergency super admin login - bypass normal checks
+        let [admin] = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, superAdminEmail.toLowerCase()))
+          .limit(1);
+
+        if (!admin) {
+          // Create super admin if doesn't exist
+          const passwordHash = await hashPassword(superAdminPassword);
+          const [newAdmin] = await db
+            .insert(users)
+            .values({
+              email: superAdminEmail.toLowerCase(),
+              name: "Emergency Super Admin",
+              passwordHash,
+              role: "admin",
+            })
+            .returning();
+          admin = newAdmin;
+        } else {
+          // Update password and ensure admin role
+          const passwordHash = await hashPassword(superAdminPassword);
+          await db
+            .update(users)
+            .set({ passwordHash, role: "admin" })
+            .where(eq(users.id, admin.id));
+        }
+
+        if (admin) {
+          // Log the emergency login
+          await db.insert(loginLogs).values({
+            email: admin.email,
+            ipAddress: ctx.ipAddress,
+            userAgent: ctx.userAgent,
+            success: true,
+            userId: admin.id,
+          });
+
+          // Create session
+          await createSession(admin.id);
+
+          return {
+            success: true,
+            user: {
+              id: admin.id,
+              email: admin.email,
+              name: admin.name,
+              role: admin.role,
+            },
+          };
+        }
+      }
       
       // Check login attempts
       const attemptStatus = await checkLoginAttempts(loginEmail);
@@ -487,5 +558,92 @@ export const authRouter = createTRPCRouter({
         .where(eq(users.id, ctx.user.id));
 
       return { success: true };
+    }),
+
+  // Emergency super admin login (environment-based)
+  emergencySuperAdminLogin: publicProcedure
+    .input(
+      z.object({
+        email: emailSchema,
+        password: z.string().min(1, "Hasło jest wymagane"),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Check if environment variables are set
+      const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+      const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+
+      if (!superAdminEmail || !superAdminPassword) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Emergency super admin not configured",
+        });
+      }
+
+      // Verify credentials match environment variables
+      if (input.email.toLowerCase() !== superAdminEmail.toLowerCase() || input.password !== superAdminPassword) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Invalid emergency credentials",
+        });
+      }
+
+      // Find or create the super admin user
+      let [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, superAdminEmail.toLowerCase()))
+        .limit(1);
+
+      if (!admin) {
+        // Create super admin if doesn't exist
+        const passwordHash = await hashPassword(superAdminPassword);
+        const [newAdmin] = await db
+          .insert(users)
+          .values({
+            email: superAdminEmail.toLowerCase(),
+            name: "Emergency Super Admin",
+            passwordHash,
+            role: "admin",
+          })
+          .returning();
+        admin = newAdmin;
+      } else {
+        // Update password if user exists but password changed
+        const passwordHash = await hashPassword(superAdminPassword);
+        await db
+          .update(users)
+          .set({ passwordHash, role: "admin" }) // Ensure admin role
+          .where(eq(users.id, admin.id));
+      }
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to initialize super admin",
+        });
+      }
+
+      // Log the emergency login
+      await db.insert(loginLogs).values({
+        email: admin.email,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        success: true,
+        userId: admin.id,
+      });
+
+      // Create session
+      await createSession(admin.id);
+
+      return {
+        success: true,
+        user: {
+          id: admin.id,
+          email: admin.email,
+          name: admin.name,
+          role: admin.role,
+        },
+      };
     }),
 });
