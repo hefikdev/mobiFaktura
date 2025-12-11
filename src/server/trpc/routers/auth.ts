@@ -3,6 +3,7 @@ import {
   createTRPCRouter,
   publicProcedure,
   protectedProcedure,
+  authProcedure,
 } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
@@ -125,7 +126,7 @@ async function resetLoginAttempts(identifier: string): Promise<void> {
 
 export const authRouter = createTRPCRouter({
   // Register new user
-  register: publicProcedure
+  register: authProcedure
     .input(
       z.object({
         email: emailSchema,
@@ -202,8 +203,8 @@ export const authRouter = createTRPCRouter({
       };
     }),
 
-  // Login
-  login: publicProcedure
+  // Login (with stricter rate limiting)
+  login: authProcedure
     .input(
       z.object({
         email: emailSchema,

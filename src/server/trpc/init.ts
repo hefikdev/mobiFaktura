@@ -6,6 +6,14 @@ import { ZodError } from "zod";
 import { getCurrentSession } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { headers } from "next/headers";
+import { 
+  globalRateLimit, 
+  authRateLimit, 
+  writeRateLimit, 
+  readRateLimit,
+  checkRateLimit 
+} from "@/server/lib/rate-limit";
+import { trpcLogger, logError } from "@/lib/logger";
 
 // Context creation
 export const createTRPCContext = cache(async () => {
@@ -50,10 +58,72 @@ const t = initTRPC.context<Context>().create({
 // Router and procedure helpers
 export const createTRPCRouter = t.router;
 
-// Public procedure (no auth required)
-export const publicProcedure = t.procedure;
+// Logging middleware
+const loggingMiddleware = t.middleware(async ({ path, type, next, ctx }) => {
+  const start = Date.now();
+  const userId = 'user' in ctx && ctx.user ? ctx.user.id : undefined;
+  
+  trpcLogger.info({
+    type: 'request_start',
+    procedure: path,
+    procedureType: type,
+    userId,
+    ip: ctx.ipAddress,
+  });
 
-// Protected procedure (requires authentication)
+  try {
+    const result = await next();
+    const duration = Date.now() - start;
+    
+    trpcLogger.info({
+      type: 'request_success',
+      procedure: path,
+      procedureType: type,
+      userId,
+      duration: `${duration}ms`,
+      ip: ctx.ipAddress,
+    });
+    
+    return result;
+  } catch (error) {
+    const duration = Date.now() - start;
+    
+    trpcLogger.error({
+      type: 'request_error',
+      procedure: path,
+      procedureType: type,
+      userId,
+      duration: `${duration}ms`,
+      ip: ctx.ipAddress,
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        code: error instanceof TRPCError ? error.code : undefined,
+      } : String(error),
+    });
+    
+    throw error;
+  }
+});
+
+// Public procedure (no auth required) with rate limiting
+export const publicProcedure = t.procedure
+  .use(loggingMiddleware)
+  .use(async ({ ctx, next }) => {
+    // Apply global rate limit to all public procedures
+    const identifier = `${ctx.ipAddress}:public`;
+    try {
+      await checkRateLimit(identifier, globalRateLimit);
+    } catch (error) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: error instanceof Error ? error.message : "Zbyt wiele żądań",
+      });
+    }
+    return next({ ctx });
+  });
+
+// Protected procedure (requires authentication) with rate limiting
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   if (!ctx.session || !ctx.user) {
     throw new TRPCError({
@@ -61,6 +131,18 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
       message: "Musisz być zalogowany",
     });
   }
+  
+  // Apply global rate limit to authenticated users
+  const identifier = `${ctx.ipAddress}:user:${ctx.user.id}`;
+  try {
+    await checkRateLimit(identifier, globalRateLimit);
+  } catch (error) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: error instanceof Error ? error.message : "Zbyt wiele żądań",
+    });
+  }
+  
   return next({
     ctx: {
       session: ctx.session,
@@ -107,3 +189,45 @@ export const adminProcedure = protectedProcedure.use(
     return next({ ctx });
   }
 );
+
+// Auth procedure (for login/register) with stricter rate limiting
+export const authProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  const identifier = `${ctx.ipAddress}:auth`;
+  try {
+    await checkRateLimit(identifier, authRateLimit);
+  } catch (error) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "Zbyt wiele prób logowania. Spróbuj ponownie za chwilę.",
+    });
+  }
+  return next({ ctx });
+});
+
+// Write procedure (for mutations) with moderate rate limiting
+export const writeProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  const identifier = `${ctx.ipAddress}:user:${ctx.user.id}:write`;
+  try {
+    await checkRateLimit(identifier, writeRateLimit);
+  } catch (error) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "Zbyt wiele operacji zapisu. Spróbuj ponownie za chwilę.",
+    });
+  }
+  return next({ ctx });
+});
+
+// Read procedure (for queries) with generous rate limiting
+export const readProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  const identifier = `${ctx.ipAddress}:user:${ctx.user.id}:read`;
+  try {
+    await checkRateLimit(identifier, readRateLimit);
+  } catch (error) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "Zbyt wiele żądań. Spróbuj ponownie za chwilę.",
+    });
+  }
+  return next({ ctx });
+});

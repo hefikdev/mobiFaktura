@@ -81,10 +81,62 @@ services:
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-mobifaktura_session}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "3000:3000"
+    volumes:
+      - app_logs:/app/logs
     networks:
       - mobifaktura_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backup Service
+  backup:
+    image: postgres:16-alpine
+    container_name: mobifaktura_backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-mobifaktura}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mobifaktura_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-mobifaktura}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-mobifaktura_minio}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-mobifaktura_minio_secret}
+      MINIO_BUCKET: ${MINIO_BUCKET:-invoices}
+      BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 2 * * *}
+    volumes:
+      - backup_data:/backups
+      - ./scripts/backups:/scripts:ro
+    networks:
+      - mobifaktura_network
+    entrypoint: /bin/sh
+    command: >
+      -c "
+      apk add --no-cache bash curl dcron &&
+      curl -o /usr/local/bin/mc https://dl.min.io/client/mc/release/linux-amd64/mc &&
+      chmod +x /usr/local/bin/mc &&
+      chmod +x /scripts/*.sh &&
+      echo \"$${BACKUP_CRON_SCHEDULE} /scripts/backup-postgres.sh >> /var/log/backup-postgres.log 2>&1\" > /etc/crontabs/root &&
+      echo \"$${BACKUP_CRON_SCHEDULE} /scripts/backup-minio.sh >> /var/log/backup-minio.log 2>&1\" >> /etc/crontabs/root &&
+      echo 'Backup service started. Cron schedule: $${BACKUP_CRON_SCHEDULE}' &&
+      echo 'Running initial backup...' &&
+      /scripts/backup-postgres.sh &&
+      /scripts/backup-minio.sh &&
+      echo 'Initial backup completed. Cron service starting...' &&
+      crond -f -l 2
+      "
 
 networks:
   mobifaktura_network:
@@ -93,3 +145,5 @@ networks:
 volumes:
   postgres_data:
   minio_data:
+  backup_data:
+  app_logs:

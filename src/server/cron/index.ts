@@ -7,11 +7,15 @@ import {
 import { db } from "@/server/db";
 import { notifications } from "@/server/db/schema";
 import { lt } from "drizzle-orm";
+import { logCron, logError } from "@/lib/logger";
 
 /**
  * Clean old notifications (older than 2 days)
  */
 export async function cleanOldNotifications() {
+  const start = Date.now();
+  logCron('cleanup_old_notifications', 'started');
+  
   try {
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
     
@@ -19,9 +23,14 @@ export async function cleanOldNotifications() {
       .delete(notifications)
       .where(lt(notifications.createdAt, twoDaysAgo));
 
-    console.log(`[CRON] Deleted old notifications (older than 2 days)`);
+    const duration = Date.now() - start;
+    logCron('cleanup_old_notifications', 'completed', duration, {
+      deletedBefore: twoDaysAgo.toISOString(),
+    });
   } catch (error) {
-    console.error("[CRON] Error deleting old notifications:", error);
+    const duration = Date.now() - start;
+    logCron('cleanup_old_notifications', 'failed', duration);
+    logError(error, { job: 'cleanup_old_notifications' });
   }
 }
 

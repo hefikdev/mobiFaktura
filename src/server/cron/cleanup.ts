@@ -2,12 +2,16 @@ import { db } from "@/server/db";
 import { loginLogs, sessions, loginAttempts, invoices } from "@/server/db/schema";
 import { lt } from "drizzle-orm";
 import { minioClient, BUCKET_NAME } from "@/server/storage/minio";
+import { logCron, logError } from "@/lib/logger";
 
 /**
  * Clean up login logs older than 30 days
  * This function is called automatically by the cron job
  */
 export async function cleanOldLoginLogs() {
+  const start = Date.now();
+  logCron('cleanup_login_logs', 'started');
+  
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -16,10 +20,16 @@ export async function cleanOldLoginLogs() {
       .delete(loginLogs)
       .where(lt(loginLogs.createdAt, thirtyDaysAgo));
 
-    console.log(`[CRON] Login logs cleanup completed at ${new Date().toISOString()}`);
+    const duration = Date.now() - start;
+    logCron('cleanup_login_logs', 'completed', duration, {
+      deletedBefore: thirtyDaysAgo.toISOString(),
+    });
+    
     return { success: true, deletedAt: new Date() };
   } catch (error) {
-    console.error("[CRON] Error cleaning login logs:", error);
+    const duration = Date.now() - start;
+    logCron('cleanup_login_logs', 'failed', duration);
+    logError(error, { job: 'cleanup_login_logs' });
     return { success: false, error };
   }
 }
@@ -29,6 +39,9 @@ export async function cleanOldLoginLogs() {
  * This function is called automatically by the cron job
  */
 export async function cleanExpiredSessions() {
+  const start = Date.now();
+  logCron('cleanup_expired_sessions', 'started');
+  
   try {
     const now = new Date();
 
@@ -36,10 +49,14 @@ export async function cleanExpiredSessions() {
       .delete(sessions)
       .where(lt(sessions.expiresAt, now));
 
-    console.log(`[CRON] Expired sessions cleanup completed at ${new Date().toISOString()}`);
+    const duration = Date.now() - start;
+    logCron('cleanup_expired_sessions', 'completed', duration);
+    
     return { success: true, deletedAt: new Date() };
   } catch (error) {
-    console.error("[CRON] Error cleaning expired sessions:", error);
+    const duration = Date.now() - start;
+    logCron('cleanup_expired_sessions', 'failed', duration);
+    logError(error, { job: 'cleanup_expired_sessions' });
     return { success: false, error };
   }
 }
@@ -49,6 +66,9 @@ export async function cleanExpiredSessions() {
  * This function is called automatically by the cron job
  */
 export async function cleanOldLoginAttempts() {
+  const start = Date.now();
+  logCron('cleanup_login_attempts', 'started');
+  
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -57,10 +77,16 @@ export async function cleanOldLoginAttempts() {
       .delete(loginAttempts)
       .where(lt(loginAttempts.updatedAt, thirtyDaysAgo));
 
-    console.log(`[CRON] Old login attempts cleanup completed at ${new Date().toISOString()}`);
+    const duration = Date.now() - start;
+    logCron('cleanup_login_attempts', 'completed', duration, {
+      deletedBefore: thirtyDaysAgo.toISOString(),
+    });
+    
     return { success: true, deletedAt: new Date() };
   } catch (error) {
-    console.error("[CRON] Error cleaning login attempts:", error);
+    const duration = Date.now() - start;
+    logCron('cleanup_login_attempts', 'failed', duration);
+    logError(error, { job: 'cleanup_login_attempts' });
     return { success: false, error };
   }
 }
@@ -70,6 +96,9 @@ export async function cleanOldLoginAttempts() {
  * WARNING: This is a read-only audit function - logs orphans but doesn't delete them
  */
 export async function auditOrphanedFiles() {
+  const start = Date.now();
+  logCron('audit_orphaned_files', 'started');
+  
   try {
     const stream = minioClient.listObjectsV2(BUCKET_NAME, '', true);
     const minioFiles: string[] = [];
@@ -91,16 +120,26 @@ export async function auditOrphanedFiles() {
     // Find orphans
     const orphans = minioFiles.filter(f => !dbFileSet.has(f));
     
+    const duration = Date.now() - start;
+    
     if (orphans.length > 0) {
-      console.warn(`[CRON] Found ${orphans.length} orphaned files in MinIO`);
-      console.warn(`[CRON] Orphaned files:`, orphans);
+      logCron('audit_orphaned_files', 'completed', duration, {
+        orphanCount: orphans.length,
+        totalFiles: minioFiles.length,
+        orphans: orphans.slice(0, 10), // Log first 10 only
+      });
     } else {
-      console.log(`[CRON] No orphaned files found in MinIO`);
+      logCron('audit_orphaned_files', 'completed', duration, {
+        orphanCount: 0,
+        totalFiles: minioFiles.length,
+      });
     }
     
     return { success: true, orphanCount: orphans.length, orphans };
   } catch (error) {
-    console.error("[CRON] Error auditing orphaned files:", error);
+    const duration = Date.now() - start;
+    logCron('audit_orphaned_files', 'failed', duration);
+    logError(error, { job: 'audit_orphaned_files' });
     return { success: false, error };
   }
 }
