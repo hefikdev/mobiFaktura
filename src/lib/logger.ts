@@ -1,3 +1,4 @@
+import 'server-only';
 import pino from 'pino';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
@@ -18,6 +19,12 @@ if (!existsSync(logsDir)) {
 // Create logger instance with structured logging
 export const logger = pino({
   level: process.env.LOG_LEVEL || (isProduction ? 'info' : 'debug'),
+  
+  // Base fields included in every log
+  base: {
+    env: process.env.NODE_ENV,
+    service: 'mobifaktura',
+  },
   
   // Production: JSON logs to file
   // Development: Pretty formatted logs to console
@@ -61,22 +68,6 @@ export const logger = pino({
       ],
     },
   }),
-
-  // Base fields included in every log
-  base: {
-    env: process.env.NODE_ENV,
-    service: 'mobifaktura',
-  },
-
-  // Timestamp format
-  timestamp: () => `,"time":"${new Date().toISOString()}"`,
-
-  // Format error objects properly
-  formatters: {
-    level: (label: string) => {
-      return { level: label };
-    },
-  },
 
   // Redact sensitive information
   redact: {

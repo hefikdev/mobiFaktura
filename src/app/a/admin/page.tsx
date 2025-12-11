@@ -49,6 +49,7 @@ import {
   Download,
   HardDrive,
   KeyRound,
+  Bell,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -114,6 +115,12 @@ export default function AdminPage() {
   // Delete all logs dialog state
   const [deleteAllLogsOpen, setDeleteAllLogsOpen] = useState(false);
   const [deleteAllLogsPassword, setDeleteAllLogsPassword] = useState("");
+
+  // Send notification dialog state
+  const [sendNotificationOpen, setSendNotificationOpen] = useState(false);
+  const [notificationTitle, setNotificationTitle] = useState("");
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [notificationRole, setNotificationRole] = useState<"all" | "user" | "accountant" | "admin">("all");
 
   // Queries
   const { data: stats, isLoading: loadingStats, error: statsError } = trpc.admin.getStats.useQuery();
@@ -344,6 +351,39 @@ export default function AdminPage() {
     });
   };
 
+  const sendNotificationMutation = trpc.notification.sendSystemNotification.useMutation({
+    onSuccess: (data) => {
+      toast({ 
+        title: "Powiadomienia wysłane", 
+        description: data.message 
+      });
+      setSendNotificationOpen(false);
+      setNotificationTitle("");
+      setNotificationMessage("");
+      setNotificationRole("all");
+    },
+    onError: (error) => {
+      toast({ title: "Błąd", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSendNotification = () => {
+    if (!notificationTitle.trim() || !notificationMessage.trim()) {
+      toast({ 
+        title: "Błąd", 
+        description: "Tytuł i treść powiadomienia są wymagane", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    sendNotificationMutation.mutate({
+      title: notificationTitle,
+      message: notificationMessage,
+      userRole: notificationRole,
+    });
+  };
+
   // Role-based access control - after all hooks
   if (loadingUser) {
     return (
@@ -467,29 +507,6 @@ export default function AdminPage() {
           </Card>
         </div>
 
-        {/* Bulk Delete Button */}
-        <div className="mb-6">
-          <Card className="border-destructive">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-destructive">Strefa Zagrożenia</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Masowe usuwanie faktur z bazy danych i MinIO
-                  </p>
-                </div>
-                <Button
-                  variant="destructive"
-                  onClick={() => setBulkDeleteOpen(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Masowe usuwanie faktur
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Tabs for different management sections */}
         <Tabs defaultValue="users" className="space-y-4">
           <div className="flex justify-between items-center mb-4">
@@ -497,6 +514,7 @@ export default function AdminPage() {
               <TabsTrigger value="users">Użytkownicy</TabsTrigger>
               <TabsTrigger value="companies">Firmy</TabsTrigger>
               <TabsTrigger value="logs">Logi logowania</TabsTrigger>
+              <TabsTrigger value="other">Inne</TabsTrigger>
             </TabsList>
           </div>
 
@@ -511,7 +529,7 @@ export default function AdminPage() {
             ) : (
               <>
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Zarządzanie użytkownikami</h2>
+              <h2 className="text-xl font-semibold"></h2>
               <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -760,7 +778,7 @@ export default function AdminPage() {
             ) : (
               <>
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Zarządzanie firmami</h2>
+              <h2 className="text-xl font-semibold"></h2>
               <Dialog open={createCompanyOpen} onOpenChange={setCreateCompanyOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -1002,6 +1020,116 @@ export default function AdminPage() {
                     Brak logów logowania w wybranym okresie
                   </p>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Other Tab */}
+          <TabsContent value="other" className="space-y-4">
+            <h2 className="text-xl font-semibold">Inne</h2>
+            
+            {/* Send Notification Card */}
+            <Card className="border-blue-500">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-blue-600">Powiadomienia systemowe</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Wyślij powiadomienie do wszystkich użytkowników lub wybranej grupy
+                    </p>
+                  </div>
+                  <Dialog open={sendNotificationOpen} onOpenChange={setSendNotificationOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50">
+                        <Bell className="mr-2 h-4 w-4" />
+                        Wyślij powiadomienie
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Wyślij powiadomienie systemowe</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="notification-role">Odbiorcy</Label>
+                          <Select
+                            value={notificationRole}
+                            onValueChange={(value: "all" | "user" | "accountant" | "admin") => setNotificationRole(value)}
+                          >
+                            <SelectTrigger id="notification-role">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Wszyscy użytkownicy</SelectItem>
+                              <SelectItem value="user">Tylko użytkownicy</SelectItem>
+                              <SelectItem value="accountant">Tylko księgowe</SelectItem>
+                              <SelectItem value="admin">Tylko administratorzy</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="notification-title">Tytuł</Label>
+                          <Input
+                            id="notification-title"
+                            value={notificationTitle}
+                            onChange={(e) => setNotificationTitle(e.target.value)}
+                            placeholder="Tytuł powiadomienia"
+                            maxLength={255}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="notification-message">Treść</Label>
+                          <textarea
+                            id="notification-message"
+                            className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={notificationMessage}
+                            onChange={(e) => setNotificationMessage(e.target.value)}
+                            placeholder="Treść powiadomienia..."
+                          />
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => setSendNotificationOpen(false)}
+                            disabled={sendNotificationMutation.isPending}
+                          >
+                            Anuluj
+                          </Button>
+                          <Button
+                            onClick={handleSendNotification}
+                            disabled={sendNotificationMutation.isPending}
+                          >
+                            {sendNotificationMutation.isPending && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Wyślij
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bulk Delete Invoices Card */}
+            <Card className="border-destructive">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-destructive">Masowe usuwanie faktur</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Masowe usuwanie faktur z bazy danych i MinIO - operacja nieodwracalna
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Masowe usuwanie
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

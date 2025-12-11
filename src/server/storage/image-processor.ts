@@ -22,7 +22,7 @@ export function validateImageDataUrl(dataUrl: string): void {
   ];
   const typeMatch = dataUrl.match(/^data:(image\/[a-z-]+);base64,/);
   
-  if (!typeMatch || !allowedTypes.includes(typeMatch[1])) {
+  if (!typeMatch || !typeMatch[1] || !allowedTypes.includes(typeMatch[1])) {
     throw new Error("Invalid image type - supported formats: JPEG, PNG, WebP, HEIC, HEIF, AVIF, TIFF, BMP, GIF");
   }
 

@@ -21,9 +21,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
-import { LogOut, Settings, Shield, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu } from "lucide-react";
+import { LogOut, Settings, Shield, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 
 interface AdminHeaderProps {
   showAddButton?: boolean;
@@ -33,6 +33,7 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
   const router = useRouter();
   const { data: user, dataUpdatedAt } = trpc.auth.me.useQuery();
   const [lastSync, setLastSync] = useState<string>("");
+  const { theme, setTheme } = useTheme();
   
   useEffect(() => {
     if (dataUpdatedAt) {
@@ -138,9 +139,32 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                   </Link>
                 </Button>
                 
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm">Motyw</span>
-                  <ThemeToggle />
+                <div className="border-t border-b py-2 space-y-1">
+                  <p className="text-sm font-medium px-2 mb-2">Motyw</p>
+                  <Button
+                    variant={theme === "light" ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => setTheme("light")}
+                  >
+                    <Sun className="mr-2 h-4 w-4" />
+                    Jasny
+                  </Button>
+                  <Button
+                    variant={theme === "dark" ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => setTheme("dark")}
+                  >
+                    <Moon className="mr-2 h-4 w-4" />
+                    Ciemny
+                  </Button>
+                  <Button
+                    variant={theme === "system" ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => setTheme("system")}
+                  >
+                    <Settings className="mr-2 h-4 w-4" />
+                    Systemowy
+                  </Button>
                 </div>
                 
                 <Button
@@ -231,7 +255,6 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
           </Button>
           
           <NotificationBell />
-          <ThemeToggle />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -258,6 +281,21 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                   Ustawienia
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs">Motyw</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setTheme("light")}>
+                <Sun className="mr-2 h-4 w-4" />
+                Jasny
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("dark")}>
+                <Moon className="mr-2 h-4 w-4" />
+                Ciemny
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("system")}>
+                <Settings className="mr-2 h-4 w-4" />
+                Systemowy
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => logoutMutation.mutate()}
                 disabled={logoutMutation.isPending}

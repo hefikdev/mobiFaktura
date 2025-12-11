@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { logError } from "@/lib/logger";
 
 interface Props {
   children: React.ReactNode;
@@ -29,16 +28,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error with context
-    logError(error, {
-      type: 'react_error_boundary',
+    // Log error to console (client-side)
+    console.error("Error caught by boundary:", {
+      error,
+      message: error.message,
+      stack: error.stack,
       componentStack: errorInfo.componentStack,
     });
 
-    // Log to console in development
-    if (process.env.NODE_ENV === "development") {
-      console.error("Error caught by boundary:", error, errorInfo);
-    }
+    // In production, you might want to send this to a logging service
+    // For now, we only log to console as this is a client component
   }
 
   render() {
