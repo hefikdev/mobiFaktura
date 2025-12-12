@@ -12,56 +12,59 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+
 import { useToast } from "@/components/ui/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { User, Mail, Shield, LogOut, KeyRound, Globe, Clock, Bell, Volume2 } from "lucide-react";
+import { User, Mail, Shield, LogOut, Globe, Clock, Bell, Volume2 } from "lucide-react";
 import { formatDateTime } from "@/lib/date-utils";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   
-  const changePasswordMutation = trpc.auth.changePassword.useMutation({
-    onSuccess: () => {
-      toast({
-        title: "Hasło zmienione",
-        description: "Twoje hasło zostało pomyślnie zmienione",
-      });
-      setPasswordDialogOpen(false);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    },
-    onError: (error) => {
-      toast({
-        title: "Błąd",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const utils = trpc.useUtils();
   
   const updatePreferencesMutation = trpc.auth.updateNotificationPreferences.useMutation({
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await utils.auth.me.cancel();
+      
+      // Snapshot the previous value
+      const previousUser = utils.auth.me.getData();
+      
+      // Optimistically update to the new value
+      if (previousUser) {
+        utils.auth.me.setData(undefined, {
+          ...previousUser,
+          ...variables,
+        });
+      }
+      
+      // Return context with the snapshot
+      return { previousUser };
+    },
     onSuccess: () => {
       toast({
         title: "Zapisano",
         description: "Preferencje powiadomień zostały zaktualizowane",
       });
     },
-    onError: (error) => {
+    onError: (error, variables, context) => {
+      // Rollback to previous value on error
+      if (context?.previousUser) {
+        utils.auth.me.setData(undefined, context.previousUser);
+      }
       toast({
         title: "Błąd",
         description: error.message,
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure sync
+      utils.auth.me.invalidate();
     },
   });
   
@@ -87,22 +90,6 @@ export default function SettingsPage() {
     .toUpperCase()
     .slice(0, 2);
 
-  const handleChangePassword = () => {
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Błąd",
-        description: "Nowe hasła nie są identyczne",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    changePasswordMutation.mutate({
-      currentPassword,
-      newPassword,
-    });
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {user?.role === "admin" ? (
@@ -114,8 +101,6 @@ export default function SettingsPage() {
       )}
 
       <main className="flex-1 p-4">
-        <h2 className="text-xl font-semibold mb-4">Ustawienia</h2>
-
         {isLoading ? (
           <Card>
             <CardContent className="py-12 text-center">
@@ -127,7 +112,7 @@ export default function SettingsPage() {
             {/* Profile Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Profil</CardTitle>
+                <CardTitle></CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-4">
@@ -371,23 +356,6 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            {/* Password Change Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Bezpieczeństwo</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setPasswordDialogOpen(true)}
-                >
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  Zmień hasło
-                </Button>
-              </CardContent>
-            </Card>
-
             {/* Logout Card */}
             <Card>
               <CardHeader>
@@ -407,70 +375,6 @@ export default function SettingsPage() {
             </Card>
           </div>
         ) : null}
-
-        {/* Password Change Dialog */}
-        <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Zmiana hasła</DialogTitle>
-              <DialogDescription>
-                Wprowadź obecne hasło i nowe hasło. Nowe hasło musi mieć minimum 8 znaków.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="current-password">Obecne hasło</Label>
-                <Input
-                  id="current-password"
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Wprowadź obecne hasło"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-password">Nowe hasło</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Wprowadź nowe hasło"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Potwierdź nowe hasło</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Potwierdź nowe hasło"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  setPasswordDialogOpen(false);
-                  setCurrentPassword("");
-                  setNewPassword("");
-                  setConfirmPassword("");
-                }}
-                disabled={changePasswordMutation.isPending}
-              >
-                Anuluj
-              </Button>
-              <Button 
-                onClick={handleChangePassword}
-                disabled={!currentPassword || !newPassword || !confirmPassword || changePasswordMutation.isPending}
-              >
-                {changePasswordMutation.isPending ? "Zmieniam..." : "Zmień hasło"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         <div className="hidden md:block">
           <Footer />

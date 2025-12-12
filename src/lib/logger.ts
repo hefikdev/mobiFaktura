@@ -25,49 +25,6 @@ export const logger = pino({
     env: process.env.NODE_ENV,
     service: 'mobifaktura',
   },
-  
-  // Production: JSON logs to file
-  // Development: Pretty formatted logs to console
-  ...(!isProduction ? {
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss',
-        ignore: 'pid,hostname',
-        singleLine: false,
-      },
-    },
-  } : {
-    transport: {
-      targets: [
-        // Console output (JSON)
-        {
-          target: 'pino/file',
-          level: 'info',
-          options: { destination: 1 }, // stdout
-        },
-        // File output (all logs)
-        {
-          target: 'pino/file',
-          level: 'debug',
-          options: { 
-            destination: join(logsDir, 'app.log'),
-            mkdir: true,
-          },
-        },
-        // Error logs separate file
-        {
-          target: 'pino/file',
-          level: 'error',
-          options: { 
-            destination: join(logsDir, 'error.log'),
-            mkdir: true,
-          },
-        },
-      ],
-    },
-  }),
 
   // Redact sensitive information
   redact: {

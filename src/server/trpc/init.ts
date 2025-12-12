@@ -151,7 +151,7 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   });
 });
 
-// Accountant procedure (requires accountant role or admin)
+// Accountant procedure (requires accountant role or admin) with rate limiting
 export const accountantProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
     if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
@@ -160,6 +160,34 @@ export const accountantProcedure = protectedProcedure.use(
         message: "Tylko dla księgowych",
       });
     }
+    
+    // Apply write rate limit for regular accountant operations
+    const identifier = `${ctx.ipAddress}:accountant:${ctx.user.id}`;
+    try {
+      await checkRateLimit(identifier, writeRateLimit);
+    } catch (error) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: "Zbyt wiele operacji. Spróbuj ponownie za chwilę.",
+      });
+    }
+    
+    return next({ ctx });
+  }
+);
+
+// Accountant unlimited procedure (for bulk operations like batch reviews)
+// No rate limiting - for operations that need to process many items
+export const accountantUnlimitedProcedure = protectedProcedure.use(
+  async ({ ctx, next }) => {
+    if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Tylko dla księgowych",
+      });
+    }
+    
+    // No rate limiting for bulk operations
     return next({ ctx });
   }
 );
@@ -177,7 +205,7 @@ export const userProcedure = protectedProcedure.use(
   }
 );
 
-// Admin procedure (requires admin role)
+// Admin procedure (requires admin role) with rate limiting for regular operations
 export const adminProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
     if (ctx.user.role !== "admin") {
@@ -186,6 +214,34 @@ export const adminProcedure = protectedProcedure.use(
         message: "Tylko dla administratorów",
       });
     }
+    
+    // Apply write rate limit for regular admin operations
+    const identifier = `${ctx.ipAddress}:admin:${ctx.user.id}`;
+    try {
+      await checkRateLimit(identifier, writeRateLimit);
+    } catch (error) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: "Zbyt wiele operacji. Spróbuj ponownie za chwilę.",
+      });
+    }
+    
+    return next({ ctx });
+  }
+);
+
+// Admin unlimited procedure (for bulk operations like bulk delete)
+// No rate limiting - these operations are already protected by password verification
+export const adminUnlimitedProcedure = protectedProcedure.use(
+  async ({ ctx, next }) => {
+    if (ctx.user.role !== "admin") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Tylko dla administratorów",
+      });
+    }
+    
+    // No rate limiting for bulk operations
     return next({ ctx });
   }
 );

@@ -56,9 +56,6 @@ export default function AnalyticsPage() {
             <BarChart3 className="h-6 w-6" />
             Zaawansowana Analityka
           </h2>
-          <p className="text-muted-foreground mt-1">
-            Szczegółowe statystyki i wykresy systemu
-          </p>
         </div>
 
         {loadingStats ? (

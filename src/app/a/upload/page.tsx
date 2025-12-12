@@ -23,10 +23,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
 import { Camera, Loader2, X, QrCode, SwitchCamera } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
+import { useOnline } from "@/lib/use-online";
+import { OfflineUploadDialog } from "@/components/offline-banner";
 
 export default function UploadPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { isOnline, refresh } = useOnline();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
@@ -38,6 +41,7 @@ export default function UploadPage() {
   const [qrCameras, setQrCameras] = useState<{ id: string; label: string }[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<string>("");
   const [isScanning, setIsScanning] = useState(false);
+  const [showOfflineDialog, setShowOfflineDialog] = useState(false);
 
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
@@ -231,6 +235,12 @@ export default function UploadPage() {
     (e: React.FormEvent) => {
       e.preventDefault();
 
+      // Check if online before submitting
+      if (!isOnline) {
+        setShowOfflineDialog(true);
+        return;
+      }
+
       if (!imageDataUrl) {
         toast({
           title: "Błąd",
@@ -275,7 +285,7 @@ export default function UploadPage() {
         justification: justification.trim(),
       });
     },
-    [imageDataUrl, invoiceNumber, ksefNumber, companyId, justification, createMutation, toast]
+    [isOnline, imageDataUrl, invoiceNumber, ksefNumber, companyId, justification, createMutation, toast]
   );
 
   return (
@@ -481,6 +491,12 @@ export default function UploadPage() {
       <div className="md:hidden">
         <Footer />
       </div>
+      
+      <OfflineUploadDialog
+        open={showOfflineDialog}
+        onClose={() => setShowOfflineDialog(false)}
+        onRefresh={refresh}
+      />
     </div>
   );
 }

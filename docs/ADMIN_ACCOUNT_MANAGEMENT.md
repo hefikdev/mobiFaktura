@@ -2,21 +2,21 @@
 
 ## Overview
 
-This document describes the multi-layered admin account safety system implemented in mobiFaktura to prevent lockout scenarios and ensure administrative access under all circumstances.
+This document describes the secure admin account safety system implemented in mobiFaktura to prevent lockout scenarios and ensure administrative access under all circumstances.
 
 ## Problem Scenarios Addressed
 
 1. **No admins exist** - Fresh install or all admins deleted
 2. **Admin forgot password** - Cannot reset without another admin
 3. **Only one admin exists** - Single point of failure
-4. **Login system broken** - Database issues or code bugs
+4. **Database issues** - Admin accounts corrupted or inaccessible
 5. **Emergency data access needed** - Critical business continuity
 
 ## Implemented Solutions
 
-### 🔒 Layer 1: Environment-Based Super Admin (PRIMARY)
+### 🔒 Layer 1: Environment-Based Super Admin (PRIMARY & ONLY SECURE METHOD)
 
-**Most Reliable - Always Works**
+**Most Reliable - Bypasses Database Entirely**
 
 Set up emergency super admin credentials in your `.env` file:
 
@@ -28,26 +28,35 @@ SUPER_ADMIN_PASSWORD=YourSecurePassword123!
 
 **How to Use:**
 1. Set up super admin credentials in `.env` file
-2. Use CLI emergency admin tool: `npm run create-emergency-admin`
-3. Or login via regular login at `/login` with super admin credentials
-4. System will authenticate if credentials match `.env` values
+2. Login via regular login at `/login` with super admin credentials
+3. System will authenticate if credentials match `.env` values
+4. If account doesn't exist in database, it will be created automatically
 
 **Note:** Emergency super admin works silently through the regular login flow - no special UI required for security reasons.
 
 **Features:**
-- ✅ Works even if database is corrupted
+- ✅ **Bypasses database entirely** - Uses .env credentials directly
+- ✅ Works even if database is corrupted or unavailable
 - ✅ Creates account if it doesn't exist
 - ✅ Updates password if account exists
 - ✅ Forces admin role on the account
-- ✅ No database queries needed beforehand
+- ✅ No security vulnerabilities from CLI scripts or other methods
+- ✅ Simple, auditable, secure
 
 **When to Use:**
 - All admin accounts are locked out
 - Forgot all admin passwords
 - Database corruption affecting admin accounts
 - Emergency access needed immediately
+- Any admin access emergency
 
-**Note:** Admin login is now unified with the main login page at `/login`. All users (regular, accountant, admin) use the same login page.
+**Security Benefits:**
+- No additional attack vectors (no CLI scripts)
+- Credentials stored securely in .env (never in version control)
+- Simple implementation = fewer bugs
+- Direct authentication without database dependencies
+
+**Note:** Admin login is unified with the main login page at `/login`. All users (regular, accountant, admin) use the same login page.
 
 ---
 
@@ -80,49 +89,7 @@ const finalRole = adminCount === 0 ? "admin" : requestedRole;
 
 ---
 
-### 🔧 Layer 3: CLI Emergency Admin Tool (BACKUP)
-
-**Database-Level Recovery**
-
-Use this command-line tool when you have direct database access but cannot login:
-
-**Basic Usage:**
-```bash
-npm run create-emergency-admin
-```
-
-**Interactive Mode:**
-```bash
-$ npm run create-emergency-admin
-🚨 Emergency Admin Creation Tool
-
-Enter admin email: recovery@admin.com
-Enter admin password (min 8 chars): SecurePass123!
-
-✅ Emergency admin created successfully!
-```
-
-**Environment Variable Mode:**
-```bash
-ADMIN_EMAIL=recovery@admin.com ADMIN_PASSWORD=SecurePass123! npm run create-emergency-admin
-```
-
-**Features:**
-- ✅ Creates new admin or updates existing user to admin
-- ✅ Works with direct database access
-- ✅ Bypasses all application logic
-- ✅ Interactive or automated via environment variables
-- ✅ Resets password for existing accounts
-
-**When to Use:**
-- Login system is completely broken
-- Need command-line recovery
-- Automated deployment/recovery scripts
-- Server-side only access
-
----
-
-### 🔐 Layer 4: Admin Password Reset (EXISTING)
+### � Layer 3: Admin Password Reset (ADMINISTRATIVE)
 
 **Admin-to-Admin Support**
 
@@ -139,7 +106,9 @@ Admins can reset passwords for any user including other admins:
 **When to Use:**
 - Admin forgot their password but another admin is available
 - User account recovery
-- Password reset for any role
+- **Password reset for any role** (users cannot change their own passwords)
+
+**Important:** Users cannot change their own passwords for security reasons. All password changes must be performed by administrators through this interface.
 
 ---
 
@@ -151,12 +120,7 @@ Admins can reset passwords for any user including other admins:
 - ⚠️ Use strong, unique password
 - ⚠️ Rotate credentials periodically
 - ⚠️ Limit access to production `.env` files
-
-### CLI Emergency Tool
-- ⚠️ Requires direct server/database access
-- ⚠️ Should be run only by authorized personnel
-- ⚠️ Log all emergency admin creations
-- ⚠️ Audit emergency access regularly
+- ✅ **Only secure method** - No CLI scripts or additional attack vectors
 
 ### Zero-Admin Auto-Promotion
 - ✅ Safe - only activates when NO admins exist
@@ -215,7 +179,7 @@ Admins can reset passwords for any user including other admins:
 ### Scenario 2: Only One Admin, Password Forgotten
 1. Go to `/login`
 2. Use emergency super admin credentials from `.env`
-3. Click "🚨 Emergency Super Admin Login"
+3. Login directly (no special button needed)
 4. Once logged in, reset your original admin password
 
 ### Scenario 3: No Admins Exist (Zero Admin State)
@@ -223,14 +187,7 @@ Admins can reset passwords for any user including other admins:
 2. System automatically promotes to admin
 3. Login and manage system
 
-### Scenario 4: Login System Completely Broken
-1. SSH into server
-2. Run: `npm run create-emergency-admin`
-3. Enter credentials or set via environment variables
-4. Fix login system code
-5. Login with emergency admin
-
-### Scenario 5: Database Corruption
+### Scenario 4: Database Corruption
 1. Restore database from backup
 2. If backup doesn't have admins, use Scenario 3 or 4
 3. Use super admin login to verify access
@@ -246,7 +203,7 @@ Admins can reset passwords for any user including other admins:
 SUPER_ADMIN_EMAIL=test@superadmin.com
 SUPER_ADMIN_PASSWORD=TestPass123!
 
-# Navigate to /login and use emergency login button
+# Navigate to /login and login with these credentials
 ```
 
 ### Test 2: Zero-Admin Promotion
@@ -255,12 +212,6 @@ SUPER_ADMIN_PASSWORD=TestPass123!
 DELETE FROM users WHERE role = 'admin';
 
 -- Register new account - should become admin automatically
-```
-
-### Test 3: CLI Emergency Tool
-```bash
-npm run create-emergency-admin
-# Follow prompts
 ```
 
 ---
@@ -272,7 +223,6 @@ npm run create-emergency-admin
 **Alert when:**
 - Admin count < 2
 - Emergency super admin login used
-- CLI emergency admin tool used
 - Zero-admin auto-promotion triggers
 - Admin account deleted
 
@@ -280,7 +230,7 @@ npm run create-emergency-admin
 - All admin role changes
 - Emergency access usage
 - Failed emergency login attempts
-- Admin password resets
+- Admin password resets by admins
 
 ---
 
@@ -301,10 +251,10 @@ npm run create-emergency-admin
 
 | Scenario | Solution | Access Level Required |
 |----------|----------|----------------------|
-| Forgot password (admins exist) | Layer 4: Admin reset | Another admin |
+| Forgot password (admins exist) | Layer 3: Admin reset | Another admin |
 | Last admin locked out | Layer 1: Super admin | `.env` file access |
 | No admins exist | Layer 2: Auto-promotion | None (public register) |
-| Login broken | Layer 3: CLI tool | Server/database access |
+| Database corrupted | Layer 1: Super admin | `.env` file access |
 | Fresh install | Layer 2: Auto-promotion | None (public register) |
 
 ---
@@ -313,9 +263,8 @@ npm run create-emergency-admin
 
 - `src/server/trpc/routers/auth.ts` - Added emergency login & zero-admin check
 - `src/app/login/page.tsx` - Unified login with emergency and developer admin options
-- `scripts/create-emergency-admin.ts` - CLI recovery tool
 - `src/server/lib/admin-utils.ts` - Admin utility functions
-- `package.json` - Added `create-emergency-admin` script
+- `src/app/a/settings/page.tsx` - Removed self-service password change (admin-only now)
 
 ---
 

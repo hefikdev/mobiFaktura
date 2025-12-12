@@ -18,8 +18,10 @@ export function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-real-ip", clientIp);
 
-  // Allow public paths
-  if (publicPaths.some((path) => pathname.startsWith(path))) {
+  // Check if the path is public
+  const isPublicPath = pathname === "/" || publicPaths.some((path) => pathname.startsWith(path));
+
+  if (isPublicPath) {
     // If logged in, redirect away from login/register
     if (sessionCookie) {
       return NextResponse.redirect(new URL("/a/dashboard", request.url));

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createTRPCRouter, adminProcedure } from "@/server/trpc/init";
+import { createTRPCRouter, adminProcedure, adminUnlimitedProcedure } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { 
@@ -791,8 +791,8 @@ export const adminRouter = createTRPCRouter({
       };
     }),
 
-  // Bulk delete invoices with verification
-  bulkDeleteInvoices: adminProcedure
+  // Bulk delete invoices with verification (no rate limit)
+  bulkDeleteInvoices: adminUnlimitedProcedure
     .input(
       z.object({
         password: z.string().min(1, "Password is required"),
@@ -916,8 +916,8 @@ export const adminRouter = createTRPCRouter({
       };
     }),
 
-  // Delete single invoice with verification (step-by-step)
-  deleteSingleInvoice: adminProcedure
+  // Delete single invoice with verification (step-by-step, no rate limit)
+  deleteSingleInvoice: adminUnlimitedProcedure
     .input(
       z.object({
         invoiceId: z.string().uuid(),

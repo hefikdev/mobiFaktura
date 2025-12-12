@@ -14,9 +14,14 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Loader2, FileText, Plus } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
+import { useOnline } from "@/lib/use-online";
+import { OfflineUploadDialog } from "@/components/offline-banner";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { isOnline, refresh } = useOnline();
+  const [showOfflineDialog, setShowOfflineDialog] = useState(false);
 
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
@@ -45,12 +50,23 @@ export default function DashboardPage() {
       <main className="flex-1 p-4">
         {user.role === "user" && (
           <div className="mb-6 max-w-4xl mx-auto">
-            <Button asChild size="lg" className="w-full h-20 text-lg font-semibold">
-              <Link href="/a/upload">
+            {isOnline ? (
+              <Button asChild size="lg" className="w-full h-20 text-lg font-semibold">
+                <Link href="/a/upload">
+                  <Plus className="mr-2 h-6 w-6" />
+                  Dodaj fakturę
+                </Link>
+              </Button>
+            ) : (
+              <Button 
+                size="lg" 
+                className="w-full h-20 text-lg font-semibold"
+                onClick={() => setShowOfflineDialog(true)}
+              >
                 <Plus className="mr-2 h-6 w-6" />
                 Dodaj fakturę
-              </Link>
-            </Button>
+              </Button>
+            )}
           </div>
         )}
         {isLoading ? (
@@ -100,6 +116,12 @@ export default function DashboardPage() {
       <div className="md:hidden">
         <Footer />
       </div>
+      
+      <OfflineUploadDialog
+        open={showOfflineDialog}
+        onClose={() => setShowOfflineDialog(false)}
+        onRefresh={refresh}
+      />
     </div>
   );
 }

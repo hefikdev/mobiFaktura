@@ -9,7 +9,8 @@ export default async function AuthLayout({
   const session = await getCurrentSession();
 
   if (!session) {
-    redirect("/login");
+    // Redirect to logout handler to clear cookies
+    redirect("/api/auth/logout");
   }
 
   return (

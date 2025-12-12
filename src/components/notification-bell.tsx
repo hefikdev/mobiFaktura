@@ -19,7 +19,8 @@ import { pl } from "date-fns/locale";
 export function NotificationBell() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [previousCount, setPreviousCount] = useState(0);
+  const [previousCount, setPreviousCount] = useState<number | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const utils = trpc.useUtils();
 
@@ -38,23 +39,101 @@ export function NotificationBell() {
     { enabled: open, refetchInterval: open ? 5000 : false }
   );
 
+  // Refetch notifications when bell is clicked and dropdown opens
+  useEffect(() => {
+    if (open) {
+      utils.notification.getAll.invalidate();
+      utils.notification.getUnreadCount.invalidate();
+    }
+  }, [open, utils]);
+
+  // Initialize audio element on first user interaction
+  useEffect(() => {
+    const initAudio = () => {
+      if (!audioRef.current && !isInitialized) {
+        console.log("🔊 Initializing notification sound...");
+        audioRef.current = new Audio("/notification-sound.mp3");
+        audioRef.current.volume = 0.5;
+        
+        // Add event listeners for debugging
+        audioRef.current.addEventListener('loadeddata', () => {
+          console.log("✅ Notification sound loaded successfully");
+        });
+        
+        audioRef.current.addEventListener('error', (e) => {
+          console.error("❌ Failed to load notification sound:", e);
+        });
+        
+        // Preload the audio
+        audioRef.current.load();
+        setIsInitialized(true);
+      }
+    };
+
+    // Initialize on any user interaction
+    const events = ['click', 'keydown', 'touchstart'];
+    events.forEach(event => {
+      document.addEventListener(event, initAudio, { once: true });
+    });
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, initAudio);
+      });
+    };
+  }, [isInitialized]);
+
   // Play sound when new notification arrives
   useEffect(() => {
-    if (soundEnabled && unreadCount > previousCount && previousCount > 0) {
+    const isFirstRender = previousCount === null;
+    const shouldPlay = soundEnabled && previousCount !== null && unreadCount > previousCount;
+    
+    console.log("🔔 Notification check:", {
+      soundEnabled,
+      unreadCount,
+      previousCount,
+      isFirstRender,
+      shouldPlay,
+      audioInitialized: !!audioRef.current
+    });
+
+    if (shouldPlay) {
+      console.log("🎵 NEW NOTIFICATION! Attempting to play sound...");
+      
       if (audioRef.current) {
-        audioRef.current.play().catch(() => {
-          // Ignore errors if sound can't play
+        // Reset and play
+        audioRef.current.currentTime = 0;
+        audioRef.current.play()
+          .then(() => {
+            console.log("✅ Notification sound played successfully!");
+          })
+          .catch((error) => {
+            console.error("❌ Failed to play notification sound:", error);
+            console.log("Trying to reinitialize audio...");
+            
+            // Try to reinitialize and play again
+            audioRef.current = new Audio("/notification-sound.mp3");
+            audioRef.current.volume = 0.5;
+            audioRef.current.play().catch(e => {
+              console.error("❌ Second attempt also failed:", e);
+            });
+          });
+      } else {
+        console.warn("⚠️ Audio not initialized yet. Initializing now...");
+        audioRef.current = new Audio("/notification-sound.mp3");
+        audioRef.current.volume = 0.5;
+        audioRef.current.play().catch(e => {
+          console.error("❌ Emergency initialization failed:", e);
         });
       }
     }
+    
+    // Set previous count after first render
+    if (isFirstRender) {
+      console.log("📊 First render - setting initial count:", unreadCount);
+    }
     setPreviousCount(unreadCount);
   }, [unreadCount, previousCount, soundEnabled]);
-
-  // Initialize audio element
-  useEffect(() => {
-    audioRef.current = new Audio("/notification-sound.mp3");
-    audioRef.current.volume = 0.5;
-  }, []);
 
   const markAsReadMutation = trpc.notification.markAsRead.useMutation({
     onSuccess: () => {
