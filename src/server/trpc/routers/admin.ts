@@ -1195,7 +1195,8 @@ export const adminRouter = createTRPCRouter({
       const dbSizeResult = await db.execute(sql`
         SELECT pg_database_size(current_database()) as size
       `);
-      const dbSizeBytes = Number((dbSizeResult.rows[0] as any)?.size || 0);
+      
+      const dbSizeBytes = Number(dbSizeResult.rows[0]?.size || 0);
       
       return {
         totalDatabaseSize: {

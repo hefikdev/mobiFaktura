@@ -16,6 +16,11 @@ export async function cleanOldLoginLogs() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    // Safety check: ensure date is valid and in the past
+    if (isNaN(thirtyDaysAgo.getTime()) || thirtyDaysAgo >= new Date()) {
+      throw new Error('Invalid cleanup date calculated');
+    }
+
     const result = await db
       .delete(loginLogs)
       .where(lt(loginLogs.createdAt, thirtyDaysAgo));
@@ -45,6 +50,11 @@ export async function cleanExpiredSessions() {
   try {
     const now = new Date();
 
+    // Safety check: ensure we're only deleting expired sessions (not future ones)
+    if (isNaN(now.getTime())) {
+      throw new Error('Invalid current date');
+    }
+
     const result = await db
       .delete(sessions)
       .where(lt(sessions.expiresAt, now));
@@ -72,6 +82,11 @@ export async function cleanOldLoginAttempts() {
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Safety check: ensure date is valid and in the past
+    if (isNaN(thirtyDaysAgo.getTime()) || thirtyDaysAgo >= new Date()) {
+      throw new Error('Invalid cleanup date calculated');
+    }
 
     const result = await db
       .delete(loginAttempts)

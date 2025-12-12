@@ -87,7 +87,7 @@ export function OfflineUploadDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-background rounded-lg shadow-lg max-w-md w-full p-6 space-y-4">
         <div className="flex items-start gap-4">
           <div className="rounded-full bg-destructive/10 p-3">

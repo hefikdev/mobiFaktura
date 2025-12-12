@@ -42,6 +42,7 @@ export default function UploadPage() {
   const [selectedCamera, setSelectedCamera] = useState<string>("");
   const [isScanning, setIsScanning] = useState(false);
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
@@ -198,16 +199,24 @@ export default function UploadPage() {
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
+  const processFile = useCallback(
+    (file: File) => {
       // Validate file type
       if (!file.type.startsWith("image/")) {
         toast({
           title: "Błąd",
           description: "Proszę wybrać plik graficzny",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file size (10MB limit)
+      const MAX_SIZE = 10 * 1024 * 1024;
+      if (file.size > MAX_SIZE) {
+        toast({
+          title: "Błąd",
+          description: "Plik jest za duży. Maksymalny rozmiar to 10MB",
           variant: "destructive",
         });
         return;
@@ -222,6 +231,46 @@ export default function UploadPage() {
       reader.readAsDataURL(file);
     },
     [toast]
+  );
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      processFile(file);
+    },
+    [processFile]
+  );
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0 && files[0]) {
+        processFile(files[0]);
+      }
+    },
+    [processFile]
   );
 
   const handleClearImage = useCallback(() => {
@@ -328,14 +377,26 @@ export default function UploadPage() {
               </Card>
             ) : (
               <Card
-                className="border-dashed border-2 cursor-pointer hover:border-primary transition-colors"
+                className={`border-dashed border-2 cursor-pointer hover:border-primary transition-colors ${
+                  isDragging ? "border-primary bg-primary/5" : ""
+                }`}
                 onClick={handleImageCapture}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
               >
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <Camera className="h-16 w-16 text-muted-foreground mb-4" />
-                  <p className="text-lg font-medium">Zrób zdjęcie faktury</p>
-                  <p className="text-sm text-muted-foreground">
+                <CardContent className="flex flex-col items-center justify-center py-12 sm:py-16">
+                  <Camera className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground mb-4" />
+                  <p className="text-base sm:text-lg font-medium text-center">Zrób zdjęcie faktury</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground text-center">
                     Kliknij, aby aktywować aparat
+                  </p>
+                  <p className="text-xs sm:text-sm text-muted-foreground text-center mt-2">
+                    lub przeciągnij i upuść plik
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 text-center mt-1">
+                    (maks. 10MB)
                   </p>
                 </CardContent>
               </Card>

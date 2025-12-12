@@ -39,38 +39,86 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
-      // Convert data URL to buffer
-      const originalBuffer = dataUrlToBuffer(input.imageDataUrl);
+      // Convert data URL to buffer with validation
+      let originalBuffer: Buffer;
+      try {
+        originalBuffer = dataUrlToBuffer(input.imageDataUrl);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Nieprawidłowy format pliku",
+        });
+      }
       
-      // Compress image to 80% JPEG quality
-      const compressedBuffer = await compressImage(originalBuffer);
+      // Compress image to 80% JPEG quality with validation
+      let compressedBuffer: Buffer;
+      try {
+        compressedBuffer = await compressImage(originalBuffer);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Nie udało się przetworzyć obrazu",
+        });
+      }
 
       // Generate unique object key
       const timestamp = Date.now();
       const objectKey = `${ctx.user.id}/${timestamp}.jpg`;
 
-      // Upload compressed image to MinIO
-      await uploadFile(compressedBuffer, objectKey, "image/jpeg");
-
-      // Create invoice record
-      const [invoice] = await db
-        .insert(invoices)
-        .values({
-          userId: ctx.user.id,
-          companyId: input.companyId,
-          imageKey: objectKey,
-          invoiceNumber: input.invoiceNumber,
-          ksefNumber: input.ksefNumber || null,
-          justification: input.justification,
-          status: "pending",
-        })
-        .returning();
-
-      if (!invoice) {
-        await deleteFile(objectKey);
+      // Upload compressed image to MinIO first
+      let minioUploadSuccess = false;
+      try {
+        await uploadFile(compressedBuffer, objectKey, "image/jpeg");
+        minioUploadSuccess = true;
+      } catch (error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Nie udało się utworzyć faktury",
+          message: "Nie udało się przesłać pliku do systemu przechowywania",
+        });
+      }
+
+      // Create invoice record in database
+      let invoice;
+      try {
+        const [createdInvoice] = await db
+          .insert(invoices)
+          .values({
+            userId: ctx.user.id,
+            companyId: input.companyId,
+            imageKey: objectKey,
+            invoiceNumber: input.invoiceNumber,
+            ksefNumber: input.ksefNumber || null,
+            justification: input.justification,
+            status: "pending",
+          })
+          .returning();
+        
+        invoice = createdInvoice;
+      } catch (error) {
+        // Rollback: Delete file from MinIO if database insert fails
+        if (minioUploadSuccess) {
+          try {
+            await deleteFile(objectKey);
+          } catch (deleteError) {
+            // Log but don't throw - original error is more important
+            console.error("Failed to rollback MinIO file after DB error:", deleteError);
+          }
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Nie udało się utworzyć faktury w bazie danych",
+        });
+      }
+
+      // Verify both operations succeeded
+      if (!invoice || !minioUploadSuccess) {
+        // This should never happen due to earlier checks, but added for safety
+        if (minioUploadSuccess) {
+          await deleteFile(objectKey);
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Nie udało się utworzyć faktury - błąd synchronizacji",
         });
       }
 

@@ -51,17 +51,16 @@ export function NotificationBell() {
   useEffect(() => {
     const initAudio = () => {
       if (!audioRef.current && !isInitialized) {
-        console.log("🔊 Initializing notification sound...");
         audioRef.current = new Audio("/notification-sound.mp3");
         audioRef.current.volume = 0.5;
         
-        // Add event listeners for debugging
+        // Add event listeners for error handling
         audioRef.current.addEventListener('loadeddata', () => {
-          console.log("✅ Notification sound loaded successfully");
+          // Audio loaded successfully
         });
         
         audioRef.current.addEventListener('error', (e) => {
-          console.error("❌ Failed to load notification sound:", e);
+          console.error("Failed to load notification sound:", e);
         });
         
         // Preload the audio
@@ -87,51 +86,28 @@ export function NotificationBell() {
   useEffect(() => {
     const isFirstRender = previousCount === null;
     const shouldPlay = soundEnabled && previousCount !== null && unreadCount > previousCount;
-    
-    console.log("🔔 Notification check:", {
-      soundEnabled,
-      unreadCount,
-      previousCount,
-      isFirstRender,
-      shouldPlay,
-      audioInitialized: !!audioRef.current
-    });
 
     if (shouldPlay) {
-      console.log("🎵 NEW NOTIFICATION! Attempting to play sound...");
-      
       if (audioRef.current) {
         // Reset and play
         audioRef.current.currentTime = 0;
         audioRef.current.play()
-          .then(() => {
-            console.log("✅ Notification sound played successfully!");
-          })
           .catch((error) => {
-            console.error("❌ Failed to play notification sound:", error);
-            console.log("Trying to reinitialize audio...");
+            console.error("Failed to play notification sound:", error);
             
             // Try to reinitialize and play again
             audioRef.current = new Audio("/notification-sound.mp3");
             audioRef.current.volume = 0.5;
-            audioRef.current.play().catch(e => {
-              console.error("❌ Second attempt also failed:", e);
-            });
+            audioRef.current.play().catch(console.error);
           });
       } else {
-        console.warn("⚠️ Audio not initialized yet. Initializing now...");
         audioRef.current = new Audio("/notification-sound.mp3");
         audioRef.current.volume = 0.5;
-        audioRef.current.play().catch(e => {
-          console.error("❌ Emergency initialization failed:", e);
-        });
+        audioRef.current.play().catch(console.error);
       }
     }
     
     // Set previous count after first render
-    if (isFirstRender) {
-      console.log("📊 First render - setting initial count:", unreadCount);
-    }
     setPreviousCount(unreadCount);
   }, [unreadCount, previousCount, soundEnabled]);
 
@@ -202,7 +178,7 @@ export function NotificationBell() {
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+            <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-primary-foreground text-xs rounded-full flex items-center justify-center">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}

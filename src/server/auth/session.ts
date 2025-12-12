@@ -11,7 +11,7 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "fallback-secret-change-in-production"
 );
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "mobifaktura_session";
-const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+const SESSION_DURATION = 60 * 24 * 60 * 60 * 1000; // 60 days (2 months)
 
 interface SessionPayload {
   sessionId: string;

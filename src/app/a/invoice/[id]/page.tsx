@@ -363,7 +363,7 @@ export default function InvoiceReviewPage() {
   const handleAdminStatusChange = () => {
     setShowAdminStatusDialog(true);
     if (invoice) {
-      setNewAdminStatus(invoice.status as any);
+      setNewAdminStatus(invoice.status as "pending" | "accepted" | "rejected");
     }
   };
 
@@ -703,8 +703,8 @@ export default function InvoiceReviewPage() {
                   </>
                 ) : (
                   <>
-                    <Check className="h-8 w-8 md:h-12 md:w-12 stroke-[3] text-white" />
-                    <span className="font-bold text-white text-sm md:text-base">Zaakceptuj</span>
+                    <Check className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
+                    <span className="font-bold text-sm md:text-base">Zaakceptuj</span>
                   </>
                 )}
               </Button>
@@ -1015,7 +1015,7 @@ export default function InvoiceReviewPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="newStatus">Nowy status *</Label>
-              <Select value={newAdminStatus} onValueChange={(value) => setNewAdminStatus(value as any)}>
+              <Select value={newAdminStatus} onValueChange={(value) => setNewAdminStatus(value as "pending" | "accepted" | "rejected")}>
                 <SelectTrigger id="newStatus">
                   <SelectValue placeholder="Wybierz nowy status" />
                 </SelectTrigger>

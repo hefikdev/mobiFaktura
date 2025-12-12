@@ -62,28 +62,18 @@ export async function compressImage(buffer: Buffer): Promise<Buffer> {
       throw new Error("Unsupported image format");
     }
 
+    // Always convert to JPEG format for consistency
+    // Use higher quality for smaller images, compression for larger ones
     const sizeKB = buffer.length / 1024;
+    const quality = sizeKB < 500 ? 95 : 80;
     
-    // If image is already small (< 500KB) and dimensions are reasonable (< 2000px)
-    // Just convert to JPEG without quality reduction
-    if (sizeKB < 500 && metadata.width && metadata.width <= 2000) {
-      return await sharp(buffer)
-        .jpeg({
-          quality: 95, // Higher quality for small images
-          progressive: true,
-          mozjpeg: true,
-        })
-        .toBuffer();
-    }
-    
-    // For larger images, apply compression
     return await sharp(buffer)
       .resize(2000, null, {
         fit: "inside",
         withoutEnlargement: true,
       })
       .jpeg({
-        quality: 80,
+        quality,
         progressive: true,
         mozjpeg: true,
       })
