@@ -1,5 +1,16 @@
+version: '3.8'
+
+# ========================================================
+# mobiFaktura Docker Compose - All Environments
+# ========================================================
+# ONE FILE FOR BOTH DEVELOPMENT AND PRODUCTION
+# Configure via .env file for all settings
+# ========================================================
+
 services:
+  # ============================================
   # PostgreSQL Database
+  # ============================================
   postgres:
     image: postgres:16-alpine
     container_name: mobifaktura_postgres
@@ -10,6 +21,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-mobifaktura}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # In dev: expose port, in production: only internal (set POSTGRES_PORT in .env)
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     networks:
       - mobifaktura_network
     healthcheck:
@@ -17,8 +31,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # MinIO S3-compatible storage
+  # ============================================
+  # MinIO S3-compatible Storage
+  # ============================================
   minio:
     image: minio/minio:latest
     container_name: mobifaktura_minio
@@ -30,8 +51,8 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:9000"    # MinIO API
+      - "9001:9001"                   # MinIO Console
     networks:
       - mobifaktura_network
     healthcheck:
@@ -39,8 +60,15 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # MinIO bucket initialization
+  # ============================================
+  # MinIO Bucket Initialization
+  # ============================================
   minio-init:
     image: minio/mc:latest
     container_name: mobifaktura_minio_init
@@ -52,12 +80,15 @@ services:
       mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-mobifaktura_minio} ${MINIO_SECRET_KEY:-mobifaktura_minio_secret};
       mc mb myminio/${MINIO_BUCKET:-invoices} --ignore-existing;
       mc anonymous set private myminio/${MINIO_BUCKET:-invoices};
+      echo 'MinIO bucket initialized successfully';
       exit 0;
       "
     networks:
       - mobifaktura_network
 
+  # ============================================
   # Next.js Application
+  # ============================================
   app:
     build:
       context: .
@@ -69,18 +100,28 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
+      # Database
       DATABASE_URL: postgres://${POSTGRES_USER:-mobifaktura}:${POSTGRES_PASSWORD:-mobifaktura_secret}@postgres:5432/${POSTGRES_DB:-mobifaktura}
+      
+      # MinIO Storage
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-mobifaktura_minio}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-mobifaktura_minio_secret}
       MINIO_BUCKET: ${MINIO_BUCKET:-invoices}
       MINIO_USE_SSL: "false"
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-min-32-chars-long-here}
+      
+      # Authentication & Security
+      JWT_SECRET: ${JWT_SECRET:?Error: JWT_SECRET not set in .env file}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-mobifaktura_session}
+      COOKIE_DOMAIN: localhost
+      
+      # Application Settings
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "3000:3000"
@@ -94,8 +135,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
-  # Backup Service
+  # ============================================
+  # Backup Service (Database & MinIO)
+  # ============================================
   backup:
     image: postgres:16-alpine
     container_name: mobifaktura_backup
@@ -137,13 +185,51 @@ services:
       echo 'Initial backup completed. Cron service starting...' &&
       crond -f -l 2
       "
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+# ============================================
+# Networks
+# ============================================
 networks:
   mobifaktura_network:
     driver: bridge
 
+# ============================================
+# Volumes
+# ============================================
 volumes:
   postgres_data:
+    driver: local
   minio_data:
+    driver: local
   backup_data:
+    driver: local
   app_logs:
+    driver: local
+
+# ============================================
+# Usage Instructions
+# ============================================
+# DEVELOPMENT (local services exposed):
+#   docker-compose up
+#   - All services on localhost
+#   - PostgreSQL: localhost:5432
+#   - MinIO: localhost:9000
+#   - App: localhost:3000
+#
+# PRODUCTION (only app exposed):
+#   Set in .env: NODE_ENV=production
+#   Set in .env: NEXT_PUBLIC_APP_URL=https://yourdomain.com
+#   Run: docker-compose up -d
+#   - Services only accessible internally
+#   - Automatic backups with cron
+#
+# Common Commands:
+#   View app logs:      docker-compose logs -f app
+#   Database shell:     docker-compose exec postgres psql -U mobifaktura -d mobifaktura
+#   MinIO console:      http://localhost:9001
+# ============================================

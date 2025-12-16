@@ -28,6 +28,11 @@ export const createTRPCContext = cache(async () => {
   
   // Extract user agent
   const userAgent = headersList.get("user-agent") || "unknown";
+  
+  // Extract CSRF-related headers
+  const origin = headersList.get("origin");
+  const referer = headersList.get("referer");
+  const host = headersList.get("host");
 
   return {
     db,
@@ -35,6 +40,9 @@ export const createTRPCContext = cache(async () => {
     user: sessionData?.user,
     ipAddress,
     userAgent,
+    origin,
+    referer,
+    host,
   };
 });
 
@@ -57,6 +65,49 @@ const t = initTRPC.context<Context>().create({
 
 // Router and procedure helpers
 export const createTRPCRouter = t.router;
+
+// CSRF Protection middleware
+const csrfMiddleware = t.middleware(async ({ ctx, next, type }) => {
+  // Only check CSRF for mutations (mutations change state, queries don't)
+  if (type === "query") {
+    return next();
+  }
+  
+  // For mutations, verify origin matches host (prevents CSRF attacks)
+  const { origin, host } = ctx;
+  
+  // If origin header exists, validate it
+  if (origin) {
+    try {
+      const originUrl = new URL(origin);
+      const hostName = host?.split(":")[0] || "";
+      
+      // Check if the origin hostname matches the request host
+      if (!originUrl.hostname.includes(hostName)) {
+        trpcLogger.warn({
+          type: "csrf_attempt",
+          origin,
+          host,
+          ip: ctx.ipAddress,
+        });
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "CSRF validation failed",
+        });
+      }
+    } catch (error) {
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Invalid CSRF origin",
+      });
+    }
+  }
+  
+  return next();
+});
 
 // Logging middleware
 const loggingMiddleware = t.middleware(async ({ path, type, next, ctx }) => {
@@ -106,9 +157,10 @@ const loggingMiddleware = t.middleware(async ({ path, type, next, ctx }) => {
   }
 });
 
-// Public procedure (no auth required) with rate limiting
+// Public procedure (no auth required) with rate limiting and CSRF protection
 export const publicProcedure = t.procedure
   .use(loggingMiddleware)
+  .use(csrfMiddleware)
   .use(async ({ ctx, next }) => {
     // Apply global rate limit to all public procedures
     const identifier = `${ctx.ipAddress}:public`;
@@ -123,33 +175,39 @@ export const publicProcedure = t.procedure
     return next({ ctx });
   });
 
-// Protected procedure (requires authentication) with rate limiting
-export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
-  if (!ctx.session || !ctx.user) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Musisz być zalogowany",
+// Protected procedure (requires authentication) with rate limiting and CSRF protection
+export const protectedProcedure = t.procedure
+  .use(loggingMiddleware)
+  .use(csrfMiddleware)
+  .use(async ({ ctx, next }) => {
+    if (!ctx.session || !ctx.user) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Musisz być zalogowany",
+      });
+    }
+    
+    // Apply global rate limit to authenticated users
+    const identifier = `${ctx.ipAddress}:user:${ctx.user.id}`;
+    try {
+      await checkRateLimit(identifier, globalRateLimit);
+    } catch (error) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: error instanceof Error ? error.message : "Zbyt wiele żądań",
+      });
+    }
+    
+    return next({
+      ctx: {
+        session: ctx.session,
+        user: ctx.user,
+        origin: ctx.origin,
+        referer: ctx.referer,
+        host: ctx.host,
+      },
     });
-  }
-  
-  // Apply global rate limit to authenticated users
-  const identifier = `${ctx.ipAddress}:user:${ctx.user.id}`;
-  try {
-    await checkRateLimit(identifier, globalRateLimit);
-  } catch (error) {
-    throw new TRPCError({
-      code: "TOO_MANY_REQUESTS",
-      message: error instanceof Error ? error.message : "Zbyt wiele żądań",
-    });
-  }
-  
-  return next({
-    ctx: {
-      session: ctx.session,
-      user: ctx.user,
-    },
   });
-});
 
 // Accountant procedure (requires accountant role or admin) with rate limiting
 export const accountantProcedure = protectedProcedure.use(

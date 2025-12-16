@@ -7,9 +7,16 @@ import { sessions, users } from "@/server/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import type { User, Session } from "@/server/db/schema";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-secret-change-in-production"
-);
+// Validate JWT_SECRET on startup
+if (!process.env.JWT_SECRET) {
+  throw new Error(
+    `JWT_SECRET environment variable is not set!\n` +
+    `Generate a secure secret with:\n` +
+    `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+  );
+}
+
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "mobifaktura_session";
 const SESSION_DURATION = 60 * 24 * 60 * 60 * 1000; // 60 days (2 months)
 
@@ -62,12 +69,15 @@ export async function createSession(userId: string): Promise<void> {
 
   // Set cookie
   const cookieStore = await cookies();
+  const isProduction = process.env.NODE_ENV === "production";
+  
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
     expires: expiresAt,
     path: "/",
+    domain: process.env.COOKIE_DOMAIN,
   });
 }
 
