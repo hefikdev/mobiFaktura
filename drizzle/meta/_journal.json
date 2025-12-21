@@ -50,6 +50,41 @@
       "when": 1733270001000,
       "tag": "0008_add_login_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1733270002000,
+      "tag": "0009_add_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1733270003000,
+      "tag": "0010_add_re_review_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1733270004000,
+      "tag": "0011_add_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1733270005000,
+      "tag": "0012_add_notification_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1734800000000,
+      "tag": "0013_add_kwota",
+      "breakpoints": true
     }
   ]
 }

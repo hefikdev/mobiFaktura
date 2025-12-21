@@ -6,6 +6,7 @@ import {
   varchar,
   boolean,
   pgEnum,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -96,6 +97,7 @@ export const invoices = pgTable("invoices", {
   // User-provided data
   invoiceNumber: varchar("invoice_number", { length: 100 }).notNull(),
   ksefNumber: varchar("ksef_number", { length: 100 }), // KSEF number (letters and numbers)
+  kwota: numeric("kwota", { precision: 12, scale: 2 }), // Invoice amount
   description: text("description"),
   justification: text("justification"), // Reason for invoice submission
   

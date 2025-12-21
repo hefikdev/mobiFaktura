@@ -35,6 +35,7 @@ export default function UploadPage() {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [ksefNumber, setKsefNumber] = useState("");
+  const [kwota, setKwota] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [justification, setJustification] = useState("");
   const [showQrScanner, setShowQrScanner] = useState(false);
@@ -326,15 +327,19 @@ export default function UploadPage() {
         return;
       }
 
+      // Normalize kwota: replace comma with dot, remove spaces, parse to float
+      const normalizedKwota = kwota ? parseFloat(kwota.replace(/,/g, '.').replace(/\s/g, '')) : undefined;
+      
       createMutation.mutate({
         imageDataUrl,
         invoiceNumber: invoiceNumber.trim(),
         ksefNumber: ksefNumber.trim() || undefined,
+        kwota: normalizedKwota,
         companyId,
         justification: justification.trim(),
       });
     },
-    [isOnline, imageDataUrl, invoiceNumber, ksefNumber, companyId, justification, createMutation, toast]
+    [isOnline, imageDataUrl, invoiceNumber, ksefNumber, kwota, companyId, justification, createMutation, toast]
   );
 
   return (
@@ -482,6 +487,25 @@ export default function UploadPage() {
                 </CardContent>
               </Card>
             )}
+          </div>
+
+          {/* Kwota (Amount) */}
+          <div className="space-y-2">
+            <Label htmlFor="kwota">
+              Kwota
+            </Label>
+            <Input
+              id="kwota"
+              type="text"
+              inputMode="decimal"
+              value={kwota}
+              onChange={(e) => {
+                // Allow only numbers, comma, dot, and spaces
+                const value = e.target.value.replace(/[^0-9.,\s]/g, '');
+                setKwota(value);
+              }}
+              placeholder="np. 1234,56 lub 1234.56"
+            />
           </div>
 
           {/* Company Selection */}

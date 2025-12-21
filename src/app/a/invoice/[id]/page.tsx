@@ -487,7 +487,7 @@ export default function InvoiceReviewPage() {
                 variant="outline" 
                 size="icon" 
                 onClick={() => {
-                  router.push("/a/invoices");
+                  router.back();
                   router.refresh();
                 }}
                 title="Powrót"
@@ -610,6 +610,11 @@ export default function InvoiceReviewPage() {
                     <p className="text-sm">
                       <Building2 className="h-4 w-4 inline mr-1" />
                       {invoice.company.name}
+                    </p>
+                  )}
+                  {invoice.kwota && (
+                    <p className="text-sm mt-1 font-semibold">
+                      Kwota: {parseFloat(invoice.kwota).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', ',')} PLN
                     </p>
                   )}
                 </div>

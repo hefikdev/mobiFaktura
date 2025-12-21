@@ -20,6 +20,7 @@ export const invoiceRouter = createTRPCRouter({
         imageDataUrl: z.string().min(1, "Zdjęcie jest wymagane"),
         invoiceNumber: z.string().min(1, "Numer faktury jest wymagany"),
         ksefNumber: z.string().optional(),
+        kwota: z.number().positive("Kwota musi być większa od zera").optional(),
         companyId: z.string().uuid("Firma jest wymagana"),
         justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków"),
       })
@@ -88,6 +89,7 @@ export const invoiceRouter = createTRPCRouter({
             imageKey: objectKey,
             invoiceNumber: input.invoiceNumber,
             ksefNumber: input.ksefNumber || null,
+            kwota: input.kwota?.toString() || null,
             justification: input.justification,
             status: "pending",
           })
