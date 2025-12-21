@@ -6,7 +6,7 @@ import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorDisplay } from "@/components/error-display";
-import { Loader2, TrendingUp, FileText, CheckCircle, XCircle, Clock, BarChart3 } from "lucide-react";
+import { Loader2, TrendingUp, FileText, CheckCircle, XCircle, Clock, BarChart3, Wallet, DollarSign } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -33,6 +33,8 @@ export default function AnalyticsPage() {
       retry: 1,
     }
   );
+  
+  const { data: budgetStats, isLoading: loadingBudget } = trpc.saldo.getSaldoStats.useQuery();
 
   if (loadingUser) {
     return (
@@ -50,12 +52,14 @@ export default function AnalyticsPage() {
     <div className="min-h-screen flex flex-col bg-background">
       <AdminHeader />
 
-      <main className="flex-1 p-6">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <BarChart3 className="h-6 w-6" />
-            Zaawansowana Analityka
-          </h2>
+      <main className="flex-1 container mx-auto px-4 md:px-6 lg:px-8 py-6 max-w-7xl">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <BarChart3 className="h-6 w-6" />
+              Zaawansowana Analityka
+            </h2>
+          </div>
         </div>
 
         {loadingStats ? (
@@ -127,6 +131,40 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Budget Statistics Section */}
+            {budgetStats && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="border dark:border-border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Całkowite Saldo</span>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-2xl font-bold">{budgetStats.totalSaldo.toFixed(2)} PLN</p>
+                    </div>
+                    <div className="border dark:border-border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Użytkowników</span>
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-2xl font-bold">{budgetStats.totalUsers}</p>
+                    </div>
+                    <div className="border dark:border-border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Dodatnie Saldo</span>
+                        <TrendingUp className="h-4 w-4 text-green-500" />
+                      </div>
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-500">{budgetStats.positiveBalance}</p>
+                    </div>
+                    <div className="border dark:border-border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Ujemne Saldo</span>
+                        <XCircle className="h-4 w-4 text-red-500" />
+                      </div>
+                      <p className="text-2xl font-bold text-red-600 dark:text-red-500">{budgetStats.negativeBalance}</p>
+                    </div>
+                  </div>
+            )}
 
             {/* Status Distribution Pie Chart */}
             <Card>

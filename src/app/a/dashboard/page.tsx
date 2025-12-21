@@ -8,6 +8,7 @@ import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
 import { InvoiceListItem } from "@/components/invoice-list-item";
+import { SaldoDisplay } from "@/components/saldo-display";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -49,25 +50,30 @@ export default function DashboardPage() {
 
       <main className="flex-1 p-4">
         {user.role === "user" && (
-          <div className="mb-6 max-w-4xl mx-auto">
-            {isOnline ? (
-              <Button asChild size="lg" className="w-full h-20 text-lg font-semibold">
-                <Link href="/a/upload">
+          <>
+            <div className="mb-6 max-w-4xl mx-auto">
+              <SaldoDisplay />
+            </div>
+            <div className="mb-6 max-w-4xl mx-auto">
+              {isOnline ? (
+                <Button asChild size="lg" className="w-full h-20 text-lg font-semibold">
+                  <Link href="/a/upload">
+                    <Plus className="mr-2 h-6 w-6" />
+                    Dodaj fakturę
+                  </Link>
+                </Button>
+              ) : (
+                <Button 
+                  size="lg" 
+                  className="w-full h-20 text-lg font-semibold"
+                  onClick={() => setShowOfflineDialog(true)}
+                >
                   <Plus className="mr-2 h-6 w-6" />
                   Dodaj fakturę
-                </Link>
-              </Button>
-            ) : (
-              <Button 
-                size="lg" 
-                className="w-full h-20 text-lg font-semibold"
-                onClick={() => setShowOfflineDialog(true)}
-              >
-                <Plus className="mr-2 h-6 w-6" />
-                Dodaj fakturę
-              </Button>
-            )}
-          </div>
+                </Button>
+              )}
+            </div>
+          </>
         )}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">

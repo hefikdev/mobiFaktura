@@ -7,6 +7,7 @@ import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { InvoiceListItem } from "@/components/invoice-list-item";
+import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,6 +24,9 @@ import {
   ArrowUpDown,
   Clock,
   CheckCircle,
+  Wallet,
+  DollarSign,
+  XCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -33,6 +37,8 @@ export default function AccountantPage() {
   const [sortBy, setSortBy] = useState<"date">("date");
   const [filterStatus, setFilterStatus] = useState<"all" | "accepted" | "rejected" | "re_review">("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<any>(null);
+  const [showBudgetDialog, setShowBudgetDialog] = useState(false);
 
   // Refs for infinite scroll
   const pendingObserver = useRef<IntersectionObserver>();
@@ -55,7 +61,7 @@ export default function AccountantPage() {
     { limit: 50 },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      refetchInterval: 1000,
+      refetchInterval: 800,
       refetchOnWindowFocus: true,
       staleTime: 0,
     }
@@ -72,15 +78,42 @@ export default function AccountantPage() {
     { limit: 10 },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      refetchInterval: 30000,
+      refetchInterval: 800,
       refetchOnWindowFocus: true,
       staleTime: 20000,
+    }
+  );
+  
+  // Budget requests - pending
+  const { data: budgetRequests, isLoading: loadingBudgetRequests, refetch: refetchBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
+    { status: "pending", limit: 10, offset: 0 },
+    {
+      refetchInterval: 800,
+      refetchOnWindowFocus: true,
+    }
+  );
+
+  // Budget requests - reviewed (approved/rejected)
+  const { data: reviewedBudgetRequests, refetch: refetchReviewedBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
+    { status: "all", limit: 10, offset: 0 },
+    {
+      refetchInterval: 800,
+      refetchOnWindowFocus: true,
     }
   );
 
   // Flatten paginated data
   const pendingInvoices = pendingData?.pages.flatMap((page) => page.items) || [];
   const reviewedInvoices = reviewedData?.pages.flatMap((page) => page.items) || [];
+  
+  // Filter and sort reviewed budget requests
+  const sortedReviewedBudgetRequests = reviewedBudgetRequests
+    ?.filter((req) => req.status === "approved" || req.status === "rejected")
+    ?.sort((a, b) => {
+      const dateA = a.reviewedAt ? new Date(a.reviewedAt).getTime() : 0;
+      const dateB = b.reviewedAt ? new Date(b.reviewedAt).getTime() : 0;
+      return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+    }) || [];
 
   // Update last sync time whenever pending invoices are fetched
   useEffect(() => {
@@ -166,11 +199,9 @@ export default function AccountantPage() {
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
                 Do zatwierdzenia
-                {pendingInvoices && (
-                  <span className="ml-auto text-sm font-normal text-muted-foreground">
-                    ({pendingInvoices.length})
-                  </span>
-                )}
+                <span className="ml-auto text-sm font-normal text-muted-foreground">
+                  ({(pendingInvoices?.length || 0) + (budgetRequests?.length || 0)})
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
@@ -178,9 +209,47 @@ export default function AccountantPage() {
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : sortedPendingInvoices && sortedPendingInvoices.length > 0 ? (
+              ) : (sortedPendingInvoices && sortedPendingInvoices.length > 0) || (budgetRequests && budgetRequests.length > 0) ? (
                 <ScrollArea className="h-full">
                   <div>
+                    {/* Budget Requests */}
+                    {budgetRequests && budgetRequests.length > 0 && (
+                      <div className="border-b-2 border-orange-200 dark:border-orange-900/50">
+                        {budgetRequests.map((request) => (
+                          <div
+                            key={`budget-${request.id}`}
+                            className="py-4 px-4 border-b last:border-b-0 hover:bg-orange-50/50 dark:hover:bg-orange-950/30 cursor-pointer transition-colors"
+                            onClick={() => {
+                              setSelectedBudgetRequest(request);
+                              setShowBudgetDialog(true);
+                            }}
+                          >
+                            <div className="flex items-center gap-4">
+                              {/* Left side - User Name and Date */}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-base truncate mb-2">{request.userName}</p>
+                                <p className="text-sm text-muted-foreground mb-1.5">
+                                  {format(new Date(request.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
+   
+                              </p>
+                            </div>
+                              
+                              {/* Right side - Amount info */}
+                              <div className="shrink-0 text-right">
+                                <p className="text-sm font-bold text-orange-600 dark:text-orange-400">
+                                  +{request.requestedAmount.toFixed(2)} PLN
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Saldo: {request.currentSaldo.toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Invoices */}
                     {sortedPendingInvoices.map((invoice, index) => {
                       if (index === sortedPendingInvoices.length - 1) {
                         return (
@@ -222,7 +291,7 @@ export default function AccountantPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-6">
                   <Clock className="h-12 w-12 mb-4" />
-                  <p>Brak faktur do zatwierdzenia</p>
+                  <p>Brak faktur i prośb do zatwierdzenia</p>
                 </div>
               )}
             </CardContent>
@@ -235,11 +304,9 @@ export default function AccountantPage() {
                 <CardTitle className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5" />
                   Rozpatrzone
-                  {reviewedInvoices && (
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      ({filteredAndSortedInvoices.length}/{reviewedInvoices.length})
-                    </span>
-                  )}
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    ({filteredAndSortedInvoices.length + sortedReviewedBudgetRequests.length}/{reviewedInvoices.length + sortedReviewedBudgetRequests.length})
+                  </span>
                 </CardTitle>
                 
                 {/* Filter and Sorting controls */}
@@ -273,11 +340,60 @@ export default function AccountantPage() {
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : filteredAndSortedInvoices && filteredAndSortedInvoices.length > 0 ? (
+              ) : filteredAndSortedInvoices && filteredAndSortedInvoices.length > 0 || sortedReviewedBudgetRequests.length > 0 ? (
                 <>
                   <ScrollArea className="flex-1">
-                    <div>
-                      {filteredAndSortedInvoices.map((invoice, index) => {
+                    <div>                      {/* Reviewed Budget Requests */}
+                      {sortedReviewedBudgetRequests.length > 0 && (
+                        <div className="border-b-2 border-muted">
+                          {sortedReviewedBudgetRequests.map((request) => (
+                            <div
+                              key={`reviewed-budget-${request.id}`}
+                              className="py-4 px-4 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
+                              onClick={() => {
+                                setSelectedBudgetRequest(request);
+                                setShowBudgetDialog(true);
+                              }}
+                            >
+                              <div className="flex items-center gap-4">
+                                {/* Status icon on far left */}
+                                <div className="flex items-center shrink-0">
+                                  {request.status === "approved" ? (
+                                    <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
+                                  ) : (
+                                    <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" />
+                                  )}
+                                </div>
+                                
+                                {/* Left side - User Name and Date */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-base truncate mb-2">{request.userName}</p>
+                                  <p className="text-sm text-muted-foreground mb-1.5">
+                                    {format(new Date(request.reviewedAt || request.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground/70 truncate">{request.userEmail}</p>
+                                </div>
+                                
+                                {/* Right side - Amount info */}
+                                <div className="shrink-0 text-right">
+                                  <p className={`text-sm font-bold ${
+                                    request.status === "approved" 
+                                      ? "text-green-600 dark:text-green-500" 
+                                      : "text-red-600 dark:text-red-500"
+                                  }`}>
+                                    {request.status === "approved" ? "+" : ""}{request.requestedAmount.toFixed(2)} PLN
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {request.status === "approved" ? "Przyznano" : "Odrzucono"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Reviewed Invoices */}                      {filteredAndSortedInvoices.map((invoice, index) => {
                         if (index === filteredAndSortedInvoices.length - 1) {
                           return (
                             <div key={invoice.id} ref={lastReviewedElementRef}>
@@ -347,6 +463,16 @@ export default function AccountantPage() {
       <div className="md:hidden">
         <Footer />
       </div>
+
+      <BudgetRequestReviewDialog
+        request={selectedBudgetRequest}
+        open={showBudgetDialog}
+        onOpenChange={setShowBudgetDialog}
+        onSuccess={() => {
+          refetchBudgetRequests();
+          refetchReviewedBudgetRequests();
+        }}
+      />
     </div>
   );
 }

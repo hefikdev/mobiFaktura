@@ -7,6 +7,8 @@ import {
   boolean,
   pgEnum,
   numeric,
+  integer,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -25,6 +27,10 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "invoice_submitted",
   "invoice_assigned",
   "invoice_re_review",
+  "budget_request_submitted",
+  "budget_request_approved",
+  "budget_request_rejected",
+  "saldo_adjusted",
   "system_message",
   "company_updated",
   "password_changed",
@@ -43,9 +49,14 @@ export const users = pgTable("users", {
   notificationInvoiceSubmitted: boolean("notification_invoice_submitted").notNull().default(true),
   notificationInvoiceAssigned: boolean("notification_invoice_assigned").notNull().default(true),
   notificationInvoiceReReview: boolean("notification_invoice_re_review").notNull().default(true),
+  notificationBudgetRequestSubmitted: boolean("notification_budget_request_submitted").notNull().default(true),
+  notificationBudgetRequestApproved: boolean("notification_budget_request_approved").notNull().default(true),
+  notificationBudgetRequestRejected: boolean("notification_budget_request_rejected").notNull().default(true),
+  notificationSaldoAdjusted: boolean("notification_saldo_adjusted").notNull().default(true),
   notificationSystemMessage: boolean("notification_system_message").notNull().default(true),
   notificationCompanyUpdated: boolean("notification_company_updated").notNull().default(true),
   notificationPasswordChanged: boolean("notification_password_changed").notNull().default(true),
+  saldo: numeric("saldo", { precision: 12, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -185,11 +196,78 @@ export const notifications = pgTable("notifications", {
   readAt: timestamp("read_at", { withTimezone: true }),
 });
 
+// Saldo Transactions table - tracks all balance changes
+export const saldoTransactions = pgTable("saldo_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  balanceBefore: numeric("balance_before", { precision: 12, scale: 2 }).notNull(),
+  balanceAfter: numeric("balance_after", { precision: 12, scale: 2 }).notNull(),
+  transactionType: varchar("transaction_type", { length: 50 }).notNull(), // 'adjustment', 'invoice_deduction', 'invoice_refund'
+  referenceId: uuid("reference_id"), // invoice id if related to invoice
+  notes: text("notes"),
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Invoice Deletion Requests table - users/accountants request invoice deletion
+export const invoiceDeletionRequests = pgTable("invoice_deletion_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id")
+    .notNull()
+    .references(() => invoices.id, { onDelete: "cascade" }),
+  requestedBy: uuid("requested_by")
+    .notNull()
+    .references(() => users.id),
+  reason: text("reason").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
+  reviewedBy: uuid("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  statusIdx: index("idx_deletion_requests_status").on(table.status),
+  invoiceIdx: index("idx_deletion_requests_invoice").on(table.invoiceId),
+}));
+
+// Budget Requests table - users request budget increases
+export const budgetRequests = pgTable("budget_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  requestedAmount: numeric("requested_amount", { precision: 12, scale: 2 }).notNull(),
+  justification: text("justification").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
+  reviewedBy: uuid("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   invoices: many(invoices),
   sessions: many(sessions),
   notifications: many(notifications),
+  saldoTransactions: many(saldoTransactions),
+  budgetRequests: many(budgetRequests),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
@@ -253,6 +331,32 @@ export const invoiceEditHistoryRelations = relations(invoiceEditHistory, ({ one 
   }),
 }));
 
+export const saldoTransactionsRelations = relations(saldoTransactions, ({ one }) => ({
+  user: one(users, {
+    fields: [saldoTransactions.userId],
+    references: [users.id],
+  }),
+  createdByUser: one(users, {
+    fields: [saldoTransactions.createdBy],
+    references: [users.id],
+  }),
+  invoice: one(invoices, {
+    fields: [saldoTransactions.referenceId],
+    references: [invoices.id],
+  }),
+}));
+
+export const budgetRequestsRelations = relations(budgetRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [budgetRequests.userId],
+    references: [users.id],
+  }),
+  reviewer: one(users, {
+    fields: [budgetRequests.reviewedBy],
+    references: [users.id],
+  }),
+}));
+
 // Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -270,6 +374,12 @@ export type LoginAttempt = typeof loginAttempts.$inferSelect;
 export type NewLoginAttempt = typeof loginAttempts.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+export type SaldoTransaction = typeof saldoTransactions.$inferSelect;
+export type NewSaldoTransaction = typeof saldoTransactions.$inferInsert;
+export type BudgetRequest = typeof budgetRequests.$inferSelect;
+export type NewBudgetRequest = typeof budgetRequests.$inferInsert;
 export type UserRole = "user" | "accountant" | "admin";
 export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
-export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "system_message" | "company_updated" | "password_changed";
+export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";
+export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund";
+export type BudgetRequestStatus = "pending" | "approved" | "rejected";

@@ -7,7 +7,7 @@ import {
 } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { invoices, users, companies, invoiceEditHistory } from "@/server/db/schema";
+import { invoices, users, companies, invoiceEditHistory, saldoTransactions } from "@/server/db/schema";
 import { eq, desc, and, ne, or, isNull, lt } from "drizzle-orm";
 import { uploadFile, getPresignedUrl, deleteFile } from "@/server/storage/minio";
 import { compressImage, dataUrlToBuffer } from "@/server/storage/image-processor";
@@ -79,23 +79,65 @@ export const invoiceRouter = createTRPCRouter({
       }
 
       // Create invoice record in database
-      let invoice;
+      let invoice: typeof invoices.$inferSelect | undefined;
       try {
-        const [createdInvoice] = await db
-          .insert(invoices)
-          .values({
-            userId: ctx.user.id,
-            companyId: input.companyId,
-            imageKey: objectKey,
-            invoiceNumber: input.invoiceNumber,
-            ksefNumber: input.ksefNumber || null,
-            kwota: input.kwota?.toString() || null,
-            justification: input.justification,
-            status: "pending",
-          })
-          .returning();
-        
-        invoice = createdInvoice;
+        // Use transaction to create invoice and update saldo atomically
+        await db.transaction(async (tx) => {
+          // Create the invoice
+          const [createdInvoice] = await tx
+            .insert(invoices)
+            .values({
+              userId: ctx.user.id,
+              companyId: input.companyId,
+              imageKey: objectKey,
+              invoiceNumber: input.invoiceNumber,
+              ksefNumber: input.ksefNumber || null,
+              kwota: input.kwota?.toString() || null,
+              justification: input.justification,
+              status: "pending",
+            })
+            .returning();
+          
+          if (!createdInvoice) {
+            throw new Error("Failed to create invoice");
+          }
+          
+          invoice = createdInvoice;
+
+          // Deduct saldo if kwota is provided
+          if (input.kwota && input.kwota > 0) {
+            // Get current user saldo
+            const [currentUser] = await tx
+              .select({ saldo: users.saldo })
+              .from(users)
+              .where(eq(users.id, ctx.user.id))
+              .limit(1);
+
+            const balanceBefore = currentUser?.saldo ? parseFloat(currentUser.saldo) : 0;
+            const balanceAfter = balanceBefore - input.kwota;
+
+            // Update user saldo
+            await tx
+              .update(users)
+              .set({ 
+                saldo: balanceAfter.toFixed(2),
+                updatedAt: new Date(),
+              })
+              .where(eq(users.id, ctx.user.id));
+
+            // Create saldo transaction record
+            await tx.insert(saldoTransactions).values({
+              userId: ctx.user.id,
+              amount: (-input.kwota).toFixed(2),
+              balanceBefore: balanceBefore.toFixed(2),
+              balanceAfter: balanceAfter.toFixed(2),
+              transactionType: "invoice_deduction",
+              referenceId: createdInvoice.id,
+              notes: `Odliczenie za fakturę ${input.invoiceNumber}`,
+              createdBy: ctx.user.id,
+            });
+          }
+        });
       } catch (error) {
         // Rollback: Delete file from MinIO if database insert fails
         if (minioUploadSuccess) {
@@ -557,10 +599,11 @@ export const invoiceRouter = createTRPCRouter({
         id: z.string().uuid(),
         invoiceNumber: z.string().optional(),
         description: z.string().optional(),
+        kwota: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, invoiceNumber, description } = input;
+      const { id, invoiceNumber, description, kwota } = input;
 
       const [invoice] = await db
         .select()
@@ -593,8 +636,9 @@ export const invoiceRouter = createTRPCRouter({
       // Check if there are actual changes
       const hasInvoiceNumberChange = invoiceNumber !== undefined && invoiceNumber !== invoice.invoiceNumber;
       const hasDescriptionChange = description !== undefined && description !== invoice.description;
+      const hasKwotaChange = kwota !== undefined && kwota !== invoice.kwota;
 
-      if (!hasInvoiceNumberChange && !hasDescriptionChange) {
+      if (!hasInvoiceNumberChange && !hasDescriptionChange && !hasKwotaChange) {
         // No changes, return without saving
         return { success: true, noChanges: true };
       }
@@ -606,6 +650,7 @@ export const invoiceRouter = createTRPCRouter({
         updatedAt: Date;
         invoiceNumber?: string;
         description?: string;
+        kwota?: string;
       } = {
         lastEditedBy: ctx.user.id,
         lastEditedAt: new Date(),
@@ -617,6 +662,9 @@ export const invoiceRouter = createTRPCRouter({
       }
       if (hasDescriptionChange) {
         updateData.description = description;
+      }
+      if (hasKwotaChange) {
+        updateData.kwota = kwota;
       }
 
       // Update invoice with transaction safety

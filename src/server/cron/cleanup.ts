@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { loginLogs, sessions, loginAttempts, invoices } from "@/server/db/schema";
-import { lt } from "drizzle-orm";
+import { lt, eq } from "drizzle-orm";
 import { minioClient, BUCKET_NAME } from "@/server/storage/minio";
 import { logCron, logError } from "@/lib/logger";
 
@@ -155,6 +155,41 @@ export async function auditOrphanedFiles() {
     const duration = Date.now() - start;
     logCron('audit_orphaned_files', 'failed', duration);
     logError(error, { job: 'audit_orphaned_files' });
+    return { success: false, error };
+  }
+}
+
+/**
+ * Reset invoices stuck in "in_review" status back to "pending"
+ * This function is called automatically by the cron job at night
+ * It helps prevent invoices from being stuck if a reviewer doesn't complete the review
+ */
+export async function resetStuckInReviewInvoices() {
+  const start = Date.now();
+  logCron('reset_stuck_in_review_invoices', 'started');
+  
+  try {
+    // Find all invoices that are stuck in "in_review" status
+    const result = await db
+      .update(invoices)
+      .set({
+        status: "pending",
+        currentReviewer: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(invoices.status, "in_review"))
+      .returning({ id: invoices.id, invoiceNumber: invoices.invoiceNumber });
+
+    const duration = Date.now() - start;
+    logCron('reset_stuck_in_review_invoices', 'completed', duration, {
+      resetCount: result.length,
+    });
+    
+    return { success: true, resetCount: result.length, invoices: result };
+  } catch (error) {
+    const duration = Date.now() - start;
+    logCron('reset_stuck_in_review_invoices', 'failed', duration);
+    logError(error, { job: 'reset_stuck_in_review_invoices' });
     return { success: false, error };
   }
 }

@@ -2,7 +2,8 @@ import {
   cleanOldLoginLogs, 
   cleanExpiredSessions, 
   cleanOldLoginAttempts,
-  auditOrphanedFiles 
+  auditOrphanedFiles,
+  resetStuckInReviewInvoices
 } from "./cleanup";
 import { db } from "@/server/db";
 import { notifications } from "@/server/db/schema";
@@ -62,6 +63,7 @@ export function initCronJobs() {
       cleanExpiredSessions();
       cleanOldLoginAttempts();
       auditOrphanedFiles();
+      resetStuckInReviewInvoices();
       
       // Schedule next run (24 hours)
       setInterval(() => {
@@ -70,6 +72,7 @@ export function initCronJobs() {
         cleanExpiredSessions();
         cleanOldLoginAttempts();
         auditOrphanedFiles();
+        resetStuckInReviewInvoices();
       }, 24 * 60 * 60 * 1000);
     }, msUntilNextRun);
   };

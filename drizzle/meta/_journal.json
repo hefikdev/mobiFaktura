@@ -85,6 +85,48 @@
       "when": 1734800000000,
       "tag": "0013_add_kwota",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1734800001000,
+      "tag": "0014_add_saldo_system",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1734800002000,
+      "tag": "0015_add_budget_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1734800003000,
+      "tag": "0016_add_budget_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1734800004000,
+      "tag": "0017_add_refresh_interval",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1734800005000,
+      "tag": "0018_drop_refresh_interval",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1734800006000,
+      "tag": "0019_add_invoice_deletion_requests",
+      "breakpoints": true
     }
   ]
 }

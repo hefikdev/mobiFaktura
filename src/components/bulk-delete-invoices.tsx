@@ -395,6 +395,9 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
                     Faktury zostaną trwale usunięte z bazy danych PostgreSQL oraz systemu MinIO.
                     Proces zostanie zweryfikowany po każdym usunięciu.
                   </p>
+                  <p className="text-sm text-amber-600 dark:text-amber-500 mt-2">
+                    ⚠️ Zalecane wykonanie gdy brak aktywności innych użytkowników w celu uniknięcia konfliktów.
+                  </p>
                 </div>
               </div>
             </CardContent>

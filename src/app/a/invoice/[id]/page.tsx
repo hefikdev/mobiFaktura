@@ -72,11 +72,14 @@ export default function InvoiceReviewPage() {
   const [newAdminStatus, setNewAdminStatus] = useState<"pending" | "accepted" | "rejected">("pending");
   const [adminStatusReason, setAdminStatusReason] = useState("");
   const [isEditingInvoiceNumber, setIsEditingInvoiceNumber] = useState(false);
+  const [isEditingKwota, setIsEditingKwota] = useState(false);
   const invoiceNumberInputRef = useRef<HTMLDivElement>(null);
+  const kwotaInputRef = useRef<HTMLDivElement>(null);
   
   // Form state
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [description, setDescription] = useState("");
+  const [kwota, setKwota] = useState("");
 
   const { data: invoice, isLoading, refetch } = trpc.invoice.getById.useQuery(
     { id: invoiceId },
@@ -165,6 +168,7 @@ export default function InvoiceReviewPage() {
     if (invoice) {
       setInvoiceNumber(invoice.invoiceNumber || "");
       setDescription(invoice.description || "");
+      setKwota(invoice.kwota || "");
     }
   }, [invoice]);
 
@@ -177,15 +181,21 @@ export default function InvoiceReviewPage() {
         setIsEditingInvoiceNumber(false);
         handleSave();
       }
+      if (isEditingKwota && 
+          kwotaInputRef.current && 
+          !kwotaInputRef.current.contains(event.target as Node)) {
+        setIsEditingKwota(false);
+        handleSave();
+      }
     };
 
-    if (isEditingInvoiceNumber) {
+    if (isEditingInvoiceNumber || isEditingKwota) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isEditingInvoiceNumber, invoiceNumber, description]);
+  }, [isEditingInvoiceNumber, isEditingKwota, invoiceNumber, description, kwota]);
 
   const updateMutation = trpc.invoice.updateInvoiceData.useMutation({
     onSuccess: async (data) => {
@@ -261,12 +271,14 @@ export default function InvoiceReviewPage() {
     // Only save if there are actual changes
     const hasInvoiceNumberChange = invoiceNumber !== invoice?.invoiceNumber;
     const hasDescriptionChange = description !== invoice?.description;
+    const hasKwotaChange = kwota !== invoice?.kwota;
     
-    if (hasInvoiceNumberChange || hasDescriptionChange) {
+    if (hasInvoiceNumberChange || hasDescriptionChange || hasKwotaChange) {
       updateMutation.mutate({
         id: invoiceId,
         invoiceNumber: hasInvoiceNumberChange ? (invoiceNumber || undefined) : undefined,
         description: hasDescriptionChange ? (description || undefined) : undefined,
+        kwota: hasKwotaChange ? (kwota || undefined) : undefined,
       });
     }
   };
@@ -287,11 +299,12 @@ export default function InvoiceReviewPage() {
     }
     
     // Auto-save current changes first
-    if (invoiceNumber !== invoice.invoiceNumber || description !== invoice.description) {
+    if (invoiceNumber !== invoice.invoiceNumber || description !== invoice.description || kwota !== invoice.kwota) {
       await updateMutation.mutateAsync({
         id: invoiceId,
         invoiceNumber: invoiceNumber || undefined,
         description: description || undefined,
+        kwota: kwota || undefined,
       });
     }
     
@@ -612,11 +625,32 @@ export default function InvoiceReviewPage() {
                       {invoice.company.name}
                     </p>
                   )}
-                  {invoice.kwota && (
-                    <p className="text-sm mt-1 font-semibold">
-                      Kwota: {parseFloat(invoice.kwota).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', ',')} PLN
-                    </p>
-                  )}
+                  <div className="mt-1" ref={kwotaInputRef}>
+                    {isEditingKwota ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">Kwota:</span>
+                        <Input
+                          type="text"
+                          value={kwota}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            // Allow only numbers and decimal point
+                            if (/^\d*\.?\d{0,2}$/.test(value)) {
+                              setKwota(value);
+                            }
+                          }}
+                          className="w-32 h-7 text-sm font-semibold"
+                          placeholder="0.00"
+                          autoFocus
+                        />
+                        <span className="text-sm font-semibold">PLN</span>
+                      </div>
+                    ) : (
+                      <p className="text-sm font-semibold">
+                        Kwota: {kwota ? parseFloat(kwota).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', ',') : '0,00'} PLN
+                      </p>
+                    )}
+                  </div>
                 </div>
                 
               </CardHeader>
@@ -729,11 +763,13 @@ export default function InvoiceReviewPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (isEditingInvoiceNumber) {
+                    if (isEditingInvoiceNumber || isEditingKwota) {
                       setIsEditingInvoiceNumber(false);
+                      setIsEditingKwota(false);
                       handleSave();
                     } else {
                       setIsEditingInvoiceNumber(true);
+                      setIsEditingKwota(true);
                       // Scroll to invoice number input
                       setTimeout(() => {
                         invoiceNumberInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -742,7 +778,7 @@ export default function InvoiceReviewPage() {
                   }}
                   className="hidden lg:flex w-full items-center gap-1 mt-3"
                 >
-                  <span>{isEditingInvoiceNumber ? 'Zapisz' : 'Edytuj'}</span>
+                  <span>{(isEditingInvoiceNumber || isEditingKwota) ? 'Zapisz' : 'Edytuj'}</span>
                 </Button>
               )}
               <div className="hidden lg:flex flex-row gap-2 mt-3">

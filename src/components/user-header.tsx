@@ -22,8 +22,9 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/notification-bell";
-import { Plus, User, LogOut, Settings, Menu, Moon, Sun } from "lucide-react";
+import { Plus, User, LogOut, Settings, Menu, Moon, Sun, Wallet } from "lucide-react";
 import { useTheme } from "next-themes";
+import { Badge } from "@/components/ui/badge";
 
 interface UserHeaderProps {
   showAddButton?: boolean;
@@ -32,6 +33,7 @@ interface UserHeaderProps {
 export function UserHeader({ showAddButton = true }: UserHeaderProps) {
   const router = useRouter();
   const { data: user, dataUpdatedAt } = trpc.auth.me.useQuery();
+  const { data: saldoData } = trpc.saldo.getMySaldo.useQuery();
   const [lastSync, setLastSync] = useState<string>("");
   const { theme, setTheme } = useTheme();
   
@@ -56,6 +58,8 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
     .toUpperCase()
     .slice(0, 2);
 
+  const saldo = saldoData?.saldo || 0;
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center justify-between px-4">
@@ -68,6 +72,16 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
 
         {/* Mobile Menu */}
         <div className="flex items-center gap-2 md:hidden">
+          {/* Saldo Badge */}
+          <Link href="/a/saldo-history">
+            <Badge
+              variant={saldo > 0 ? "default" : saldo < 0 ? "destructive" : "secondary"}
+              className="cursor-pointer"
+            >
+              <Wallet className="h-3 w-3 mr-1" />
+              {saldo.toFixed(2)} PLN
+            </Badge>
+          </Link>
           <NotificationBell />
           <Sheet>
             <SheetTrigger asChild>
@@ -145,6 +159,17 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-2">
+          {/* Saldo Badge */}
+          <Link href="/a/saldo-history">
+            <Badge
+              variant={saldo > 0 ? "default" : saldo < 0 ? "destructive" : "secondary"}
+              className="cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              <Wallet className="h-3 w-3 mr-1" />
+              {saldo.toFixed(2)} PLN
+            </Badge>
+          </Link>
+
           {showAddButton && (
             <Button asChild size="icon" variant="ghost">
               <Link href="/a/upload">

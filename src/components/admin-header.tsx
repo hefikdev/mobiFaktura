@@ -21,8 +21,10 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notification-bell";
-import { LogOut, Settings, Shield, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun } from "lucide-react";
+import { RequestBudgetDialog } from "@/components/request-budget-dialog";
+import { LogOut, Settings, Shield, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun, Wallet } from "lucide-react";
 import { useTheme } from "next-themes";
 
 interface AdminHeaderProps {
@@ -32,8 +34,28 @@ interface AdminHeaderProps {
 export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
   const router = useRouter();
   const { data: user, dataUpdatedAt } = trpc.auth.me.useQuery();
+  const { data: saldoData } = trpc.saldo.getMySaldo.useQuery(undefined, {
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+  });
   const [lastSync, setLastSync] = useState<string>("");
+  const [cachedSaldo, setCachedSaldo] = useState<number | null>(null);
   const { theme, setTheme } = useTheme();
+  
+  // Cache saldo for offline access
+  useEffect(() => {
+    if (saldoData?.saldo !== undefined) {
+      localStorage.setItem("cached_saldo", saldoData.saldo.toString());
+      setCachedSaldo(saldoData.saldo);
+    } else {
+      const cached = localStorage.getItem("cached_saldo");
+      if (cached !== null) {
+        setCachedSaldo(parseFloat(cached));
+      }
+    }
+  }, [saldoData]);
+  
+  const displaySaldo = saldoData?.saldo ?? cachedSaldo;
   
   useEffect(() => {
     if (dataUpdatedAt) {
@@ -68,6 +90,19 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
 
         {/* Mobile Menu */}
         <div className="flex items-center gap-2 lg:hidden">
+          {/* Saldo Badge */}
+          {displaySaldo !== null && (
+            <Link href="/a/saldo-history">
+              <Badge
+                variant={displaySaldo > 0 ? "default" : displaySaldo < 0 ? "destructive" : "secondary"}
+                className="cursor-pointer"
+              >
+                <Wallet className="h-3 w-3 mr-1" />
+                {displaySaldo.toFixed(2)} PLN
+              </Badge>
+            </Link>
+          )}
+          
           {showAddButton && (
             <Button asChild size="icon" variant="ghost">
               <Link href="/a/upload">
@@ -90,10 +125,17 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                   <Avatar className="h-10 w-10">
                     <AvatarFallback>{initials || "A"}</AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className="flex-1">
                     <p className="font-medium">{user?.name}</p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                     <p className="text-xs text-muted-foreground">Administrator</p>
+                    {displaySaldo !== null && (
+                      <p className={`text-xs font-semibold mt-1 ${
+                        displaySaldo < 0 ? "text-red-600" : "text-green-600"
+                      }`}>
+                        {displaySaldo < 0 ? "- " : ""}{Math.abs(displaySaldo).toFixed(2)} PLN
+                      </p>
+                    )}
                   </div>
                 </div>
                 
@@ -131,6 +173,24 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                     Analityka
                   </Link>
                 </Button>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/saldo">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Zarządzaj Saldo
+                  </Link>
+                </Button>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/budget-requests">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Prośby o budżet
+                  </Link>
+                </Button>
+                
+                <div className="border-t pt-3">
+                  <RequestBudgetDialog />
+                </div>
                 
                 <Button asChild variant="outline" className="justify-start">
                   <Link href="/a/settings">
@@ -189,6 +249,19 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
 
         {/* Desktop Menu */}
         <div className="hidden lg:flex items-center gap-2">
+          {/* Saldo Badge */}
+          {saldoData && (
+            <Link href="/a/saldo-history">
+              <Badge
+                variant={saldoData.saldo > 0 ? "default" : saldoData.saldo < 0 ? "destructive" : "secondary"}
+                className="cursor-pointer"
+              >
+                <Wallet className="h-3 w-3 mr-1" />
+                {saldoData.saldo.toFixed(2)} PLN
+              </Badge>
+            </Link>
+          )}
+          
           {showAddButton && (
             <Button asChild size="icon" variant="ghost">
               <Link href="/a/upload">
@@ -253,6 +326,28 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
               Analityka
             </Link>
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-xs"
+          >
+            <Link href="/a/saldo">
+              <Wallet className="mr-1 h-3 w-3" />
+              Saldo
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-xs"
+          >
+            <Link href="/a/budget-requests">
+              <Plus className="mr-1 h-3 w-3" />
+              Prośby
+            </Link>
+          </Button>
           
           <NotificationBell />
 
@@ -273,6 +368,13 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                 <p className="text-xs font-normal text-muted-foreground">
                   Administrator
                 </p>
+                {saldoData && (
+                  <p className={`text-xs font-semibold mt-1 ${
+                    saldoData.saldo < 0 ? "text-red-600" : "text-green-600"
+                  }`}>
+                    {saldoData.saldo < 0 ? "- " : ""}{Math.abs(saldoData.saldo).toFixed(2)} PLN
+                  </p>
+                )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
@@ -281,6 +383,10 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                   Ustawienia
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-2">
+                <RequestBudgetDialog />
+              </div>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs">Motyw</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => setTheme("light")}>

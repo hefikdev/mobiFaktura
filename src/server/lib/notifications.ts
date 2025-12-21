@@ -125,3 +125,59 @@ export async function notifyPasswordChanged(userId: string) {
     message: "Twoje hasło zostało pomyślnie zmienione. Jeśli to nie Ty, natychmiast skontaktuj się z administratorem.",
   });
 }
+
+export async function notifyBudgetRequestSubmitted(
+  accountantIds: string[],
+  userName: string,
+  requestedAmount: number
+) {
+  const promises = accountantIds.map((accountantId) =>
+    createNotification({
+      userId: accountantId,
+      type: "budget_request_submitted",
+      title: "Nowa prośba o zwiększenie budżetu",
+      message: `Użytkownik ${userName} prosi o zwiększenie budżetu o ${requestedAmount.toFixed(2)} PLN.`,
+    })
+  );
+
+  return Promise.all(promises);
+}
+
+export async function notifyBudgetRequestApproved(
+  userId: string,
+  approvedAmount: number
+) {
+  return createNotification({
+    userId,
+    type: "budget_request_approved",
+    title: "Prośba o budżet zatwierdzona",
+    message: `Twoja prośba o zwiększenie budżetu o ${approvedAmount.toFixed(2)} PLN została zatwierdzona.`,
+  });
+}
+
+export async function notifyBudgetRequestRejected(
+  userId: string,
+  rejectedAmount: number,
+  reason: string
+) {
+  return createNotification({
+    userId,
+    type: "budget_request_rejected",
+    title: "Prośba o budżet odrzucona",
+    message: `Twoja prośba o zwiększenie budżetu o ${rejectedAmount.toFixed(2)} PLN została odrzucona. Powód: ${reason}`,
+  });
+}
+
+export async function notifySaldoAdjusted(
+  userId: string,
+  amount: number,
+  newBalance: number
+) {
+  const action = amount > 0 ? "zwiększone" : "zmniejszone";
+  return createNotification({
+    userId,
+    type: "saldo_adjusted",
+    title: "Saldo zostało dostosowane",
+    message: `Twoje saldo zostało ${action} o ${Math.abs(amount).toFixed(2)} PLN. Nowe saldo: ${newBalance.toFixed(2)} PLN.`,
+  });
+}

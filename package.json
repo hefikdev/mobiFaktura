@@ -24,6 +24,7 @@
     "restore:minio": "docker exec -it mobifaktura_backup /scripts/restore-minio.sh"
   },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
