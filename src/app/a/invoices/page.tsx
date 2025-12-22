@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { SearchInput } from "@/components/search-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -216,10 +217,9 @@ export default function InvoicesPage() {
             {/* Search and Filter Controls */}
             <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
               <div className="flex-1 min-w-[200px]">
-                <Input
-                  placeholder="Szukaj faktur..."
+                <SearchInput
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={setSearchQuery}
                   className="w-full"
                 />
               </div>
@@ -450,7 +450,7 @@ export default function InvoicesPage() {
         </Card>
 
         {filteredInvoices.length > 0 && (
-          <div className="mt-4 text-sm text-muted-foreground text-center">
+          <div className="mt-4 text-sm text-muted-foreground text-center dark:text-gray-300">
             Wyświetlono {filteredInvoices.length} z {allInvoices?.length || 0} faktur
           </div>
         )}

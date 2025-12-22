@@ -172,8 +172,15 @@ export function NotificationBell() {
     }
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (newOpen && unreadCount > 0) {
+      markAllAsReadMutation.mutate();
+    }
+    setOpen(newOpen);
+  };
+
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />

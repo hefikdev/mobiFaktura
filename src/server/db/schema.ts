@@ -248,6 +248,7 @@ export const budgetRequests = pgTable("budget_requests", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   requestedAmount: numeric("requested_amount", { precision: 12, scale: 2 }).notNull(),
+  currentBalanceAtRequest: numeric("current_balance_at_request", { precision: 12, scale: 2 }).notNull(),
   justification: text("justification").notNull(),
   status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
   reviewedBy: uuid("reviewed_by").references(() => users.id),

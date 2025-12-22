@@ -1250,4 +1250,59 @@ export const adminRouter = createTRPCRouter({
       });
     }
   }),
+
+  // Bulk delete ALL notifications (admin only, for clearing purposes)
+  bulkDeleteAllNotifications: adminProcedure
+    .input(
+      z.object({
+        password: z.string().min(1, "Password is required"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify admin password
+      const [admin] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!admin) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Administrator not found",
+        });
+      }
+
+      const isPasswordValid = await verifyPassword(input.password, admin.passwordHash);
+      if (!isPasswordValid) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe hasło administratora",
+        });
+      }
+
+      try {
+        // Count total notifications before deletion
+        const [countResult] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(notifications);
+
+        const totalCount = countResult?.count || 0;
+
+        // Delete all notifications
+        await db.delete(notifications);
+
+        return {
+          success: true,
+          message: `Pomyślnie usunięto ${totalCount} powiadomień z bazy danych`,
+          deletedCount: totalCount,
+        };
+      } catch (error) {
+        console.error("Error deleting all notifications:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Nie udało się usunąć powiadomień",
+        });
+      }
+    }),
 });

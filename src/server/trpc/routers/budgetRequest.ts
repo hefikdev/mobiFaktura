@@ -29,8 +29,11 @@ const reviewBudgetRequestSchema = z.object({
 const getBudgetRequestsSchema = z.object({
   status: z.enum(["pending", "approved", "rejected", "all"]).optional().default("all"),
   userId: z.string().uuid().optional(),
-  limit: z.number().min(1).max(100).default(50),
-  offset: z.number().min(0).default(0),
+  cursor: z.number().optional(),
+  limit: z.number().min(1).max(200).default(50),
+  search: z.string().optional(),
+  sortBy: z.enum(["createdAt", "requestedAmount", "status"]).default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export const budgetRequestRouter = createTRPCRouter({
@@ -57,11 +60,28 @@ export const budgetRequestRouter = createTRPCRouter({
         });
       }
 
+      // Get current user balance
+      const [user] = await db
+        .select({ saldo: users.saldo })
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!user) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Użytkownik nie został znaleziony",
+        });
+      }
+
+      const currentBalance = parseFloat(user.saldo || "0");
+
       const [request] = await db
         .insert(budgetRequests)
         .values({
           userId: ctx.user.id,
           requestedAmount: input.requestedAmount.toFixed(2),
+          currentBalanceAtRequest: currentBalance.toFixed(2),
           justification: input.justification,
           status: "pending",
         })
@@ -122,27 +142,53 @@ export const budgetRequestRouter = createTRPCRouter({
 
   // Get all budget requests (accountant/admin)
   getAll: accountantProcedure
-    .input(getBudgetRequestsSchema)
+    .input(getBudgetRequestsSchema.optional())
     .query(async ({ input }) => {
+      const limit = input?.limit || 50;
+      const cursor = input?.cursor || 0;
+      const status = input?.status || "all";
+      const userId = input?.userId;
+      const search = input?.search;
+      const sortBy = input?.sortBy || "createdAt";
+      const sortOrder = input?.sortOrder || "desc";
+      
       let conditions = [];
 
-      if (input.status !== "all") {
-        conditions.push(eq(budgetRequests.status, input.status));
+      if (status !== "all") {
+        conditions.push(eq(budgetRequests.status, status));
       }
 
-      if (input.userId) {
-        conditions.push(eq(budgetRequests.userId, input.userId));
+      if (userId) {
+        conditions.push(eq(budgetRequests.userId, userId));
+      }
+
+      // Apply search filter
+      if (search && search.trim()) {
+        const searchTerm = `%${search.toLowerCase()}%`;
+        conditions.push(
+          sql`(LOWER(${users.name}) LIKE ${searchTerm} OR LOWER(${users.email}) LIKE ${searchTerm} OR LOWER(${budgetRequests.justification}) LIKE ${searchTerm})`
+        );
       }
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-      const requests = await db
+      // Apply sorting
+      let orderByClause;
+      if (sortBy === "requestedAmount") {
+        orderByClause = sortOrder === "asc" ? budgetRequests.requestedAmount : desc(budgetRequests.requestedAmount);
+      } else if (sortBy === "status") {
+        orderByClause = sortOrder === "asc" ? budgetRequests.status : desc(budgetRequests.status);
+      } else {
+        orderByClause = sortOrder === "asc" ? budgetRequests.createdAt : desc(budgetRequests.createdAt);
+      }
+
+      const result = await db
         .select({
           id: budgetRequests.id,
           userId: budgetRequests.userId,
           userName: users.name,
           userEmail: users.email,
-          currentSaldo: users.saldo,
+          currentBalanceAtRequest: budgetRequests.currentBalanceAtRequest,
           requestedAmount: budgetRequests.requestedAmount,
           justification: budgetRequests.justification,
           status: budgetRequests.status,
@@ -153,15 +199,21 @@ export const budgetRequestRouter = createTRPCRouter({
         .from(budgetRequests)
         .innerJoin(users, eq(budgetRequests.userId, users.id))
         .where(whereClause)
-        .orderBy(desc(budgetRequests.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
+        .orderBy(orderByClause)
+        .limit(limit + 1)
+        .offset(cursor);
 
-      return requests.map(req => ({
-        ...req,
-        requestedAmount: req.requestedAmount ? parseFloat(req.requestedAmount) : 0,
-        currentSaldo: req.currentSaldo ? parseFloat(req.currentSaldo) : 0,
-      }));
+      const hasMore = result.length > limit;
+      const items = hasMore ? result.slice(0, limit) : result;
+
+      return {
+        items: items.map(req => ({
+          ...req,
+          requestedAmount: req.requestedAmount ? parseFloat(req.requestedAmount) : 0,
+          currentBalanceAtRequest: req.currentBalanceAtRequest != null ? parseFloat(req.currentBalanceAtRequest) : 0,
+        })),
+        nextCursor: hasMore ? cursor + limit : undefined,
+      };
     }),
 
   // Get pending requests count (accountant/admin)
@@ -370,9 +422,9 @@ export const budgetRequestRouter = createTRPCRouter({
           amount: amount.toFixed(2),
           balanceBefore: balanceBefore.toFixed(2),
           balanceAfter: balanceAfter.toFixed(2),
-          transactionType: "adjustment",
+          transactionType: "zasilenie",
           referenceId: request.id,
-          notes: `Zatwierdzenie prośby o budżet: ${requestJustification.substring(0, 100)}...`,
+          notes: `${requestJustification.substring(0, 100)}`,
           createdBy: ctx.user.id,
         }).returning({ id: saldoTransactions.id });
 
@@ -580,5 +632,82 @@ export const budgetRequestRouter = createTRPCRouter({
         deletedCount: deletedRequests.length,
         message: `Usunięto ${deletedRequests.length} próśb o budżet`,
       };
+    }),
+
+  // Export budget requests (accountant/admin)
+  exportBudgetRequests: accountantProcedure
+    .input(getBudgetRequestsSchema.optional())
+    .query(async ({ input }) => {
+      const status = input?.status || "all";
+      const userId = input?.userId;
+      const search = input?.search;
+      const sortBy = input?.sortBy || "createdAt";
+      const sortOrder = input?.sortOrder || "desc";
+
+      let conditions = [];
+
+      if (status !== "all") {
+        conditions.push(eq(budgetRequests.status, status));
+      }
+
+      if (userId) {
+        conditions.push(eq(budgetRequests.userId, userId));
+      }
+
+      // Apply search filter
+      if (search && search.trim()) {
+        const searchTerm = `%${search.toLowerCase()}%`;
+        conditions.push(
+          sql`(LOWER(${users.name}) LIKE ${searchTerm} OR LOWER(${users.email}) LIKE ${searchTerm} OR LOWER(${budgetRequests.justification}) LIKE ${searchTerm})`
+        );
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      // Apply sorting
+      let orderByClause;
+      if (sortBy === "requestedAmount") {
+        orderByClause = sortOrder === "asc" ? budgetRequests.requestedAmount : desc(budgetRequests.requestedAmount);
+      } else if (sortBy === "status") {
+        orderByClause = sortOrder === "asc" ? budgetRequests.status : desc(budgetRequests.status);
+      } else {
+        orderByClause = sortOrder === "asc" ? budgetRequests.createdAt : desc(budgetRequests.createdAt);
+      }
+
+      const result = await db
+        .select({
+          id: budgetRequests.id,
+          userId: budgetRequests.userId,
+          userName: users.name,
+          userEmail: users.email,
+          requestedAmount: budgetRequests.requestedAmount,
+          currentBalanceAtRequest: budgetRequests.currentBalanceAtRequest,
+          justification: budgetRequests.justification,
+          status: budgetRequests.status,
+          rejectionReason: budgetRequests.rejectionReason,
+          createdAt: budgetRequests.createdAt,
+          reviewedAt: budgetRequests.reviewedAt,
+          reviewerName: sql<string>`reviewer.name`,
+        })
+        .from(budgetRequests)
+        .leftJoin(users, eq(budgetRequests.userId, users.id))
+        .leftJoin(sql`users as reviewer`, eq(budgetRequests.reviewedBy, sql`reviewer.id`))
+        .where(whereClause)
+        .orderBy(orderByClause);
+
+      return result.map(req => ({
+        id: req.id,
+        userId: req.userId,
+        userName: req.userName,
+        userEmail: req.userEmail,
+        requestedAmount: req.requestedAmount ? parseFloat(req.requestedAmount) : 0,
+        currentBalanceAtRequest: req.currentBalanceAtRequest ? parseFloat(req.currentBalanceAtRequest) : 0,
+        justification: req.justification,
+        status: req.status,
+        rejectionReason: req.rejectionReason,
+        createdAt: req.createdAt,
+        reviewedAt: req.reviewedAt,
+        reviewerName: req.reviewerName,
+      }));
     }),
 });

@@ -24,7 +24,7 @@ interface BudgetRequestReviewDialogProps {
     userId: string;
     userName: string;
     userEmail: string;
-    currentSaldo: number;
+    currentBalanceAtRequest: number;
     requestedAmount: number;
     justification: string;
     status: string;
@@ -137,10 +137,10 @@ export function BudgetRequestReviewDialog({
             <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="font-medium">Obecne saldo</span>
+                  <span className="font-medium">Stan salda przy złożeniu</span>
                 </div>
-                <p className={`text-lg font-bold ${request.currentSaldo < 0 ? "text-red-600 dark:text-red-500" : "text-foreground"}`}>
-                  {request.currentSaldo.toFixed(2)} PLN
+                <p className={`text-lg font-bold ${request.currentBalanceAtRequest < 0 ? "text-red-600 dark:text-red-500" : "text-foreground"}`}>
+                  {request.currentBalanceAtRequest.toFixed(2)} PLN
                 </p>
               </div>
               <div className="space-y-1">
@@ -160,7 +160,7 @@ export function BudgetRequestReviewDialog({
                   Saldo pracownika po zatwierdzeniu:
                 </span>
                 <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {(request.currentSaldo + request.requestedAmount).toFixed(2)} PLN
+                  {(request.currentBalanceAtRequest + request.requestedAmount).toFixed(2)} PLN
                 </span>
               </div>
             </div>
@@ -200,7 +200,7 @@ export function BudgetRequestReviewDialog({
               <Button
                 onClick={handleApprove}
                 disabled={reviewMutation.isPending}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 text-white dark:text-white"
               >
                 {reviewMutation.isPending && reviewMutation.variables?.action === "approve" ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

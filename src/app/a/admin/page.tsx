@@ -38,6 +38,7 @@ import { Footer } from "@/components/footer";
 import { ErrorDisplay } from "@/components/error-display";
 import { BulkDeleteInvoices } from "@/components/bulk-delete-invoices";
 import { BulkDeleteBudgetRequests } from "@/components/bulk-delete-budget-requests";
+import { BulkDeleteNotifications } from "@/components/bulk-delete-notifications";
 import { formatDate, formatDateTimeWithSeconds } from "@/lib/date-utils";
 import {
   Users,
@@ -113,6 +114,7 @@ export default function AdminPage() {
   // Bulk delete dialog state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteBudgetRequestsOpen, setBulkDeleteBudgetRequestsOpen] = useState(false);
+  const [bulkDeleteNotificationsOpen, setBulkDeleteNotificationsOpen] = useState(false);
 
   // Delete all logs dialog state
   const [deleteAllLogsOpen, setDeleteAllLogsOpen] = useState(false);
@@ -903,15 +905,8 @@ export default function AdminPage() {
 
           {/* Deletion Requests Tab */}
           <TabsContent value="deletion-requests" className="space-y-4">
-            <h2 className="text-xl font-semibold">Prośby o usunięcie faktur</h2>
             <Card>
-              <CardHeader>
-                <CardTitle>Oczekujące prośby</CardTitle>
-              </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Przeglądaj i zarządzaj prośbami użytkowników o usunięcie faktur. Prośby wymagają zatwierdzenia administratora.
-                </p>
                 <div className="mt-4 text-center text-muted-foreground">
                   <p className="text-sm">Funkcja prośb o usunięcie jest dostępna w panelu księgowej i użytkownika</p>
                   <p className="text-xs mt-2">Prośby będą wyświetlane tutaj gdy użytkownicy/księgowe je utworzą</p>
@@ -980,14 +975,6 @@ export default function AdminPage() {
                       ) : (
                         "Usuń stare logi (30+ dni)"
                       )}
-                    </Button>
-                    <Button 
-                      onClick={() => setDeleteAllLogsOpen(true)}
-                      disabled={deleteAllLogsMutation.isPending}
-                      variant="destructive"
-                      size="sm"
-                    >
-                      Usuń wszystkie logi
                     </Button>
                   </div>
                 </div>
@@ -1171,6 +1158,49 @@ export default function AdminPage() {
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Masowe usuwanie
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bulk Delete Notifications Card */}
+            <Card className="border-destructive">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-destructive">Masowe usuwanie powiadomień</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Usuń wszystkie powiadomienia z bazy danych dla wszystkich użytkowników
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setBulkDeleteNotificationsOpen(true)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Usuń powiadomienia
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Delete All Login Logs Card */}
+            <Card className="border-destructive">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-destructive">Usuń wszystkie logi logowania</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Usuń wszystkie logi logowania z bazy danych - operacja nieodwracalna
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setDeleteAllLogsOpen(true)}
+                    disabled={deleteAllLogsMutation.isPending}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Usuń wszystkie logi
                   </Button>
                 </div>
               </CardContent>
@@ -1441,6 +1471,12 @@ export default function AdminPage() {
         <BulkDeleteBudgetRequests
           open={bulkDeleteBudgetRequestsOpen}
           onOpenChange={setBulkDeleteBudgetRequestsOpen}
+        />
+
+        {/* Bulk Delete Notifications Dialog */}
+        <BulkDeleteNotifications
+          open={bulkDeleteNotificationsOpen}
+          onOpenChange={setBulkDeleteNotificationsOpen}
         />
 
         {/* Delete All Logs Dialog */}

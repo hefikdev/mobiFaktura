@@ -85,8 +85,8 @@ export default function AccountantPage() {
   );
   
   // Budget requests - pending
-  const { data: budgetRequests, isLoading: loadingBudgetRequests, refetch: refetchBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
-    { status: "pending", limit: 10, offset: 0 },
+  const { data: budgetRequestsData, isLoading: loadingBudgetRequests, refetch: refetchBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
+    { status: "pending", limit: 10, cursor: 0 },
     {
       refetchInterval: 800,
       refetchOnWindowFocus: true,
@@ -94,8 +94,8 @@ export default function AccountantPage() {
   );
 
   // Budget requests - reviewed (approved/rejected)
-  const { data: reviewedBudgetRequests, refetch: refetchReviewedBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
-    { status: "all", limit: 10, offset: 0 },
+  const { data: reviewedBudgetRequestsData, refetch: refetchReviewedBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
+    { status: "all", limit: 10, cursor: 0 },
     {
       refetchInterval: 800,
       refetchOnWindowFocus: true,
@@ -105,15 +105,16 @@ export default function AccountantPage() {
   // Flatten paginated data
   const pendingInvoices = pendingData?.pages.flatMap((page) => page.items) || [];
   const reviewedInvoices = reviewedData?.pages.flatMap((page) => page.items) || [];
+  const budgetRequests = budgetRequestsData?.items || [];
   
   // Filter and sort reviewed budget requests
-  const sortedReviewedBudgetRequests = reviewedBudgetRequests
-    ?.filter((req) => req.status === "approved" || req.status === "rejected")
-    ?.sort((a, b) => {
+  const sortedReviewedBudgetRequests = (reviewedBudgetRequestsData?.items || [])
+    .filter((req) => req.status === "approved" || req.status === "rejected")
+    .sort((a, b) => {
       const dateA = a.reviewedAt ? new Date(a.reviewedAt).getTime() : 0;
       const dateB = b.reviewedAt ? new Date(b.reviewedAt).getTime() : 0;
       return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
-    }) || [];
+    });
 
   // Update last sync time whenever pending invoices are fetched
   useEffect(() => {

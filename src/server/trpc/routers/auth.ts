@@ -399,6 +399,9 @@ export const authRouter = createTRPCRouter({
       notificationInvoiceSubmitted: ctx.user.notificationInvoiceSubmitted,
       notificationInvoiceAssigned: ctx.user.notificationInvoiceAssigned,
       notificationInvoiceReReview: ctx.user.notificationInvoiceReReview,
+      notificationBudgetRequestSubmitted: ctx.user.notificationBudgetRequestSubmitted,
+      notificationBudgetRequestApproved: ctx.user.notificationBudgetRequestApproved,
+      notificationBudgetRequestRejected: ctx.user.notificationBudgetRequestRejected,
     };
   }),
 
@@ -476,6 +479,9 @@ export const authRouter = createTRPCRouter({
         notificationInvoiceSubmitted: z.boolean().optional(),
         notificationInvoiceAssigned: z.boolean().optional(),
         notificationInvoiceReReview: z.boolean().optional(),
+        notificationBudgetRequestSubmitted: z.boolean().optional(),
+        notificationBudgetRequestApproved: z.boolean().optional(),
+        notificationBudgetRequestRejected: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -498,6 +504,15 @@ export const authRouter = createTRPCRouter({
       }
       if (input.notificationInvoiceReReview !== undefined) {
         updateData.notificationInvoiceReReview = input.notificationInvoiceReReview;
+      }
+      if (input.notificationBudgetRequestSubmitted !== undefined) {
+        updateData.notificationBudgetRequestSubmitted = input.notificationBudgetRequestSubmitted;
+      }
+      if (input.notificationBudgetRequestApproved !== undefined) {
+        updateData.notificationBudgetRequestApproved = input.notificationBudgetRequestApproved;
+      }
+      if (input.notificationBudgetRequestRejected !== undefined) {
+        updateData.notificationBudgetRequestRejected = input.notificationBudgetRequestRejected;
       }
 
       await db

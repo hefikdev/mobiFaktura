@@ -184,6 +184,37 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
+                    <Label htmlFor="disableAll" className="text-sm font-medium">
+                      Wyłącz wszystkie powiadomienia
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Globalnie wyłącz wszystkie powiadomienia systemowe
+                    </p>
+                  </div>
+                  <Switch
+                    id="disableAll"
+                    checked={!(user?.notificationSound ?? true)}
+                    onCheckedChange={(checked) => {
+                      // When disabling all, set all to false; when enabling, set all to true
+                      updatePreferencesMutation.mutate({
+                        notificationSound: !checked,
+                        notificationInvoiceAccepted: !checked,
+                        notificationInvoiceRejected: !checked,
+                        notificationInvoiceSubmitted: !checked,
+                        notificationInvoiceAssigned: !checked,
+                        notificationInvoiceReReview: !checked,
+                        notificationBudgetRequestSubmitted: !checked,
+                        notificationBudgetRequestApproved: !checked,
+                        notificationBudgetRequestRejected: !checked,
+                      });
+                    }}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
                     <Label htmlFor="sound" className="text-sm font-medium">
                       Dźwięk powiadomień
                     </Label>
@@ -301,6 +332,69 @@ export default function SettingsPage() {
                     onCheckedChange={(checked) => {
                       updatePreferencesMutation.mutate({
                         notificationInvoiceReReview: checked,
+                      });
+                    }}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="budgetRequested" className="text-sm font-medium">
+                      Prośba o budżet wysłana
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Powiadom gdy użytkownik wyśle prośbę o budżet
+                    </p>
+                  </div>
+                  <Switch
+                    id="budgetRequested"
+                    checked={user?.notificationBudgetRequestSubmitted ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationBudgetRequestSubmitted: checked,
+                      });
+                    }}
+                    disabled={user?.role === "user"}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="budgetApproved" className="text-sm font-medium">
+                      Prośba o budżet zaakceptowana
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Powiadom gdy Twoja prośba o budżet zostanie zaakceptowana
+                    </p>
+                  </div>
+                  <Switch
+                    id="budgetApproved"
+                    checked={user?.notificationBudgetRequestApproved ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationBudgetRequestApproved: checked,
+                      });
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="budgetRejected" className="text-sm font-medium">
+                      Prośba o budżet odrzucona
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Powiadom gdy Twoja prośba o budżet zostanie odrzucona
+                    </p>
+                  </div>
+                  <Switch
+                    id="budgetRejected"
+                    checked={user?.notificationBudgetRequestRejected ?? true}
+                    onCheckedChange={(checked) => {
+                      updatePreferencesMutation.mutate({
+                        notificationBudgetRequestRejected: checked,
                       });
                     }}
                   />

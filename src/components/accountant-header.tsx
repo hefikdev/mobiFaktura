@@ -24,7 +24,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notification-bell";
 import { RequestBudgetDialog } from "@/components/request-budget-dialog";
-import { LogOut, Settings, Menu, Plus, FileText, User, BookCheck, Moon, Sun, Wallet } from "lucide-react";
+import { SaldoBadge } from "@/components/saldo-badge";
+import { LogOut, Settings, Menu, Plus, FileText, User, BookCheck, Moon, Sun, Wallet, DollarSign } from "lucide-react";
 import { useTheme } from "next-themes";
 
 interface AccountantHeaderProps {
@@ -34,7 +35,6 @@ interface AccountantHeaderProps {
 export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
   const router = useRouter();
   const { data: user } = trpc.auth.me.useQuery();
-  const { data: saldoData } = trpc.saldo.getMySaldo.useQuery();
   const { theme, setTheme } = useTheme();
   
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -63,25 +63,14 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
 
         {/* Mobile Menu */}
         <div className="flex items-center gap-2 md:hidden">
-          {/* Saldo Badge */}
-          {saldoData && (
-            <Link href="/a/saldo-history">
-              <Badge
-                variant={saldoData.saldo > 0 ? "default" : saldoData.saldo < 0 ? "destructive" : "secondary"}
-                className="cursor-pointer"
-              >
-                <Wallet className="h-3 w-3 mr-1" />
-                {saldoData.saldo.toFixed(2)} PLN
-              </Badge>
-            </Link>
-          )}
-          
           <Button asChild size="icon" variant="ghost">
             <Link href="/a/upload">
               <Plus className="h-5 w-5" />
               <span className="sr-only">Dodaj fakturę</span>
             </Link>
           </Button>
+          
+          <SaldoBadge />
           
           <NotificationBell />
           
@@ -102,13 +91,6 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
                     <p className="font-medium">{user?.name}</p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                     <p className="text-xs text-muted-foreground">Księgowy</p>
-                    {saldoData && (
-                      <p className={`text-xs font-semibold mt-1 ${
-                        saldoData.saldo < 0 ? "text-red-600" : "text-green-600"
-                      }`}>
-                        {saldoData.saldo < 0 ? "- " : ""}{Math.abs(saldoData.saldo).toFixed(2)} PLN
-                      </p>
-                    )}
                   </div>
                 </div>
                 
@@ -150,7 +132,7 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
                 <Button asChild variant="outline" className="justify-start">
                   <Link href="/a/budget-requests">
                     <Plus className="mr-2 h-4 w-4" />
-                    Prośby o budżet
+                    <span className="text-white dark:text-white">Prośby o budżet</span>
                   </Link>
                 </Button>
                 
@@ -215,19 +197,6 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-2">
-          {/* Saldo Badge */}
-          {saldoData && (
-            <Link href="/a/saldo-history">
-              <Badge
-                variant={saldoData.saldo > 0 ? "default" : saldoData.saldo < 0 ? "destructive" : "secondary"}
-                className="cursor-pointer"
-              >
-                <Wallet className="h-3 w-3 mr-1" />
-                {saldoData.saldo.toFixed(2)} PLN
-              </Badge>
-            </Link>
-          )}
-          
           <Button asChild size="icon" variant="ghost">
             <Link href="/a/upload">
               <Plus className="h-6 w-6" />
@@ -265,10 +234,12 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
 
           <Button asChild variant="ghost">
             <Link href="/a/budget-requests">
-              <Plus className="mr-2 h-4 w-4" />
+              <DollarSign className="mr-2 h-4 w-4" />
               Prośby
             </Link>
           </Button>
+          
+          <SaldoBadge />
           
           <NotificationBell />
 
@@ -289,13 +260,6 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
                 <p className="text-xs font-normal text-muted-foreground">
                   Księgowy
                 </p>
-                {saldoData && (
-                  <p className={`text-xs font-semibold mt-1 ${
-                    saldoData.saldo < 0 ? "text-red-600" : "text-green-600"
-                  }`}>
-                    {saldoData.saldo < 0 ? "- " : ""}{Math.abs(saldoData.saldo).toFixed(2)} PLN
-                  </p>
-                )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>

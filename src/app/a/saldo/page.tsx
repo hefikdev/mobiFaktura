@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc/client";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
+import { SearchInput } from "@/components/search-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +19,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -28,30 +29,93 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Plus, Minus, TrendingUp, TrendingDown, DollarSign, Users, Search, PlusCircle, Wallet } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, PlusCircle, Wallet, Plus, PencilIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Footer } from "@/components/footer";
+import { ExportButton } from "@/components/export-button";
+import { formatters } from "@/lib/export";
 
 export default function SaldoManagementPage() {
   const { toast } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserSaldo, setSelectedUserSaldo] = useState<number | null>(null);
   const [amount, setAmount] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddAmount, setQuickAddAmount] = useState("");
+  const [quickAddJustification, setQuickAddJustification] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Check user role
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
 
-  // Fetch all users with saldo
-  const { data: usersData, isLoading, refetch } = trpc.saldo.getAllUsersSaldo.useQuery();
+  // Fetch users with infinite query
+  const {
+    data: usersData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+  } = trpc.saldo.getAllUsersSaldo.useInfiniteQuery(
+    {
+      limit: 50,
+    },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      enabled: !!user && (user.role === "accountant" || user.role === "admin"),
+    }
+  );
 
+  const allUsers = usersData?.pages.flatMap((page) => page.items) || [];
+
+  // Filter users based on search
+  const filteredUsers = useMemo(() => {
+    if (!allUsers) return [];
+    if (!searchQuery) return allUsers;
+
+    const query = searchQuery.toLowerCase();
+    return allUsers.filter(
+      (user) =>
+        user.name.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query)
+    );
+  }, [allUsers, searchQuery]);
+  
   // Fetch saldo statistics
   const { data: stats } = trpc.saldo.getSaldoStats.useQuery();
+  const queryClient = useQueryClient();
 
-  // Refetch data when page becomes visible (same as invoices page)
+  // Fetch export data
+  const { data: exportData } = trpc.saldo.exportAllUsersSaldo.useQuery(
+    {
+      search: searchQuery,
+      sortBy: "name",
+      sortOrder: "asc",
+    },
+    {
+      enabled: !!user && (user.role === "accountant" || user.role === "admin"),
+    }
+  );
+
+  // Ref for infinite scroll - callback ref pattern like invoices page
+  const observer = useRef<IntersectionObserver>();
+  const lastUserElementRef = useCallback(
+    (node: HTMLTableRowElement | null) => {
+      if (isLoading || isFetchingNextPage) return;
+      if (observer.current) observer.current.disconnect();
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage) {
+          fetchNextPage();
+        }
+      });
+      if (node) observer.current.observe(node);
+    },
+    [isLoading, isFetchingNextPage, hasNextPage, fetchNextPage]
+  );
+
+  // Refetch data when page becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -60,17 +124,11 @@ export default function SaldoManagementPage() {
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    
-    // Also refetch when the window regains focus
-    const handleFocus = () => {
-      refetch();
-    };
-    
-    window.addEventListener("focus", handleFocus);
+    window.addEventListener("focus", () => refetch());
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("focus", () => refetch());
     };
   }, [refetch]);
 
@@ -82,10 +140,15 @@ export default function SaldoManagementPage() {
         description: data.message,
       });
       setIsDialogOpen(false);
+      setIsQuickAddOpen(false);
       setSelectedUserId(null);
       setAmount("");
       setNotes("");
+      setQuickAddAmount("");
+      setQuickAddJustification("");
       refetch();
+      // Refresh statistics after saldo adjustment
+      queryClient.invalidateQueries({ queryKey: [["saldo", "getSaldoStats"]] });
     },
     onError: (error) => {
       toast({
@@ -116,15 +179,33 @@ export default function SaldoManagementPage() {
       return;
     }
 
+    if (notes.trim().length < 5) {
+      toast({
+        title: "Błąd",
+        description: "Notatka musi zawierać minimum 5 znaków",
+        variant: "destructive",
+      });
+      return;
+    }
+
     adjustSaldoMutation.mutate({
       userId: selectedUserId,
       amount: numAmount,
       notes,
+      transactionType: "korekta",
     });
+  };
+
+
+  // Helper to get saldo for a user
+  const fetchUserSaldo = (userId: string) => {
+    const user = allUsers.find((u) => u.id === userId);
+    return user ? user.saldo : null;
   };
 
   const openAdjustDialog = (userId: string) => {
     setSelectedUserId(userId);
+    setSelectedUserSaldo(fetchUserSaldo(userId));
     setAmount("");
     setNotes("");
     setIsDialogOpen(true);
@@ -132,7 +213,9 @@ export default function SaldoManagementPage() {
 
   const openQuickAddDialog = (userId: string) => {
     setSelectedUserId(userId);
+    setSelectedUserSaldo(fetchUserSaldo(userId));
     setQuickAddAmount("");
+    setQuickAddJustification("");
     setIsQuickAddOpen(true);
   };
 
@@ -148,27 +231,22 @@ export default function SaldoManagementPage() {
       return;
     }
 
+    if (!quickAddJustification || quickAddJustification.trim().length < 5) {
+      toast({
+        title: "Błąd",
+        description: "Uzasadnienie musi zawierać minimum 5 znaków",
+        variant: "destructive",
+      });
+      return;
+    }
+
     adjustSaldoMutation.mutate({
       userId: selectedUserId,
       amount: numAmount,
-      notes: `Dodanie środków: ${numAmount.toFixed(2)} PLN`,
+      notes: quickAddJustification.trim(),
+      transactionType: "zasilenie",
     });
-    setIsQuickAddOpen(false);
-    setQuickAddAmount("");
   };
-
-  // Filter users based on search query
-  const filteredUsers = useMemo(() => {
-    if (!usersData) return [];
-    if (!searchQuery.trim()) return usersData;
-
-    const query = searchQuery.toLowerCase();
-    return usersData.filter(
-      (user) =>
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query)
-    );
-  }, [usersData, searchQuery]);
 
   if (userLoading || isLoading) {
     return (
@@ -223,105 +301,122 @@ export default function SaldoManagementPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Dodatnie</CardTitle>
+              <CardTitle className="text-sm font-medium">Dodatnie Saldo</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {stats.positiveBalance}
+                {stats.positiveBalance.toFixed(2)} PLN
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Ujemne</CardTitle>
+              <CardTitle className="text-sm font-medium">Ujemne Saldo</CardTitle>
               <TrendingDown className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">
-                {stats.negativeBalance}
+                {stats.negativeBalance.toFixed(2)} PLN
               </div>
             </CardContent>
           </Card>
         </div>
       )}
+
+      {/* Users Table */}
       <Card>
         <CardHeader>
-          <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap justify-end">
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Szukaj użytkownika..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
-            </div>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+            />
+            <ExportButton
+              data={exportData || []}
+              columns={[
+                { key: 'name', header: 'Imię i nazwisko' },
+                { key: 'email', header: 'Email' },
+                { key: 'saldo', header: 'Saldo', formatter: formatters.currency },
+                { key: 'role', header: 'Rola', formatter: (value) => value === 'admin' ? 'Administrator' : value === 'accountant' ? 'Księgowy' : 'Użytkownik' },
+                { key: 'createdAt', header: 'Data rejestracji', formatter: formatters.date },
+              ]}
+              filename="saldo-uzytkownikow"
+              label="Eksportuj saldo"
+              size="sm"
+            />
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Użytkownik</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Rola</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
+                  <TableHead>Saldo</TableHead>
                   <TableHead className="text-right">Akcje</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers && filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.role === "user" ? "default" : "secondary"}>
-                          {user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span
-                          className={`font-bold ${
-                            user.saldo > 0
-                              ? "text-green-600"
-                              : user.saldo < 0
-                              ? "text-red-600"
-                              : "text-gray-600"
-                          }`}
-                        >
-                          {user.saldo.toFixed(2)} PLN
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={() => openQuickAddDialog(user.id)}
-                          >
-                            <PlusCircle className="h-4 w-4 mr-1" />
-                            Dodaj środki
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openAdjustDialog(user.id)}
-                          >
-                            Dostosuj
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                {filteredUsers.length > 0 ? (
+                  <>
+                    {filteredUsers.map((user, index) => {
+                      const isLastUser = index === filteredUsers.length - 1;
+                      return (
+                        <TableRow key={user.id} ref={isLastUser ? lastUserElementRef : null}>
+                          <TableCell className="font-medium">{user.name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`font-semibold ${
+                                  user.saldo > 0
+                                    ? "text-green-600"
+                                    : user.saldo < 0
+                                    ? "text-red-600"
+                                    : "text-gray-600"
+                                }`}
+                              >
+                                {user.saldo.toFixed(2)} PLN
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openQuickAddDialog(user.id)}
+                              >
+                                <PlusCircle className="h-4 w-4 mr-1" />
+                                Dodaj
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openAdjustDialog(user.id)}
+                              >
+                                <PencilIcon className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {isFetchingNextPage && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-4">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      {searchQuery ? "Nie znaleziono użytkowników" : "Brak użytkowników"}
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      Brak użytkowników
                     </TableCell>
                   </TableRow>
                 )}
@@ -331,15 +426,26 @@ export default function SaldoManagementPage() {
         </CardContent>
       </Card>
 
+      {filteredUsers.length > 0 && (
+        <div className="mt-4 text-sm text-muted-foreground text-center dark:text-gray-300">
+          Wyświetlono {filteredUsers.length} z {allUsers.length} użytkowników
+        </div>
+      )}
+
       {/* Adjust Saldo Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Dostosuj Saldo</DialogTitle>
+            <DialogTitle>Korekta Saldo</DialogTitle>
             <DialogDescription>
-              Zmień saldo użytkownika. Użyj dodatniej wartości aby zwiększyć saldo, ujemnej aby zmniejszyć.
+              Dodaj lub odejmij środki z budżetu użytkownika
             </DialogDescription>
           </DialogHeader>
+          {selectedUserSaldo !== null && (
+            <div className="mb-2 text-sm text-muted-foreground">
+              Aktualne saldo użytkownika: <span className={selectedUserSaldo > 0 ? "text-green-600" : selectedUserSaldo < 0 ? "text-red-600" : "text-gray-600"}>{selectedUserSaldo.toFixed(2)} PLN</span>
+            </div>
+          )}
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="amount">Kwota (PLN)</Label>
@@ -352,21 +458,18 @@ export default function SaldoManagementPage() {
                 onChange={(e) => setAmount(e.target.value)}
               />
               <p className="text-sm text-muted-foreground">
-                Dodatnia wartość zwiększy saldo, ujemna zmniejszy
+                Dodatnie wartości dodają, ujemne odejmują
               </p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="notes">Notatka</Label>
+              <Label htmlFor="notes">Notatka (minimum 5 znaków)</Label>
               <Textarea
                 id="notes"
-                placeholder="Powód zmiany saldo..."
+                placeholder="Powód korekty saldo"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
               />
-              <p className="text-sm text-muted-foreground">
-                Minimum 5 znaków
-              </p>
             </div>
           </div>
           <DialogFooter>
@@ -399,6 +502,11 @@ export default function SaldoManagementPage() {
               Szybko dodaj środki do budżetu użytkownika
             </DialogDescription>
           </DialogHeader>
+          {selectedUserSaldo !== null && (
+            <div className="mb-2 text-sm text-muted-foreground">
+              Aktualne saldo użytkownika: <span className={selectedUserSaldo > 0 ? "text-green-600" : selectedUserSaldo < 0 ? "text-red-600" : "text-gray-600"}>{selectedUserSaldo.toFixed(2)} PLN</span>
+            </div>
+          )}
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="quickAmount">Kwota (PLN)</Label>
@@ -414,6 +522,19 @@ export default function SaldoManagementPage() {
                 Tylko dodatnie wartości
               </p>
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="quickJustification">Uzasadnienie</Label>
+              <Textarea
+                id="quickJustification"
+                placeholder="Powod dodania środków (minimum 5 znaków)"
+                value={quickAddJustification}
+                onChange={(e) => setQuickAddJustification(e.target.value)}
+                rows={3}
+              />
+              <p className="text-sm text-muted-foreground">
+                {quickAddJustification.length}/5 znaków minimum
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -426,7 +547,7 @@ export default function SaldoManagementPage() {
             <Button
               onClick={handleQuickAdd}
               disabled={adjustSaldoMutation.isPending}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white dark:text-white"
             >
               {adjustSaldoMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -436,9 +557,13 @@ export default function SaldoManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </main>
-
-      <Footer />
-    </div>
+      <div className="hidden md:block">
+        <Footer />
+      </div>
+      <div className="md:hidden">
+        <Footer />
+      </div>
+    </main>
+  </div>
   );
 }

@@ -154,14 +154,14 @@ export default function AnalyticsPage() {
                         <span className="text-sm text-muted-foreground">Dodatnie Saldo</span>
                         <TrendingUp className="h-4 w-4 text-green-500" />
                       </div>
-                      <p className="text-2xl font-bold text-green-600 dark:text-green-500">{budgetStats.positiveBalance}</p>
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-500">{budgetStats.positiveBalance.toFixed(2)} PLN</p>
                     </div>
                     <div className="border dark:border-border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm text-muted-foreground">Ujemne Saldo</span>
                         <XCircle className="h-4 w-4 text-red-500" />
                       </div>
-                      <p className="text-2xl font-bold text-red-600 dark:text-red-500">{budgetStats.negativeBalance}</p>
+                      <p className="text-2xl font-bold text-red-600 dark:text-red-500">{budgetStats.negativeBalance.toFixed(2)} PLN</p>
                     </div>
                   </div>
             )}

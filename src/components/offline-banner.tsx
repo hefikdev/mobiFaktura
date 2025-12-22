@@ -36,7 +36,7 @@ export function OfflineBanner({
         </AlertTitle>
         <AlertDescription className="flex flex-col gap-2">
           <p className="text-sm">
-            Aplikacja działa w trybie offline. Możesz przeglądać swoje faktury,
+            Aplikacja działa w trybie offline. Możesz przeglądać swoje faktury i saldo,
             ale dane mogą nie być aktualne. Aby synchronizować najnowsze dane,
             połącz się z internetem.
           </p>

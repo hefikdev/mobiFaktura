@@ -733,7 +733,7 @@ export default function InvoiceReviewPage() {
                 onClick={handleAccept}
                 size="lg"
                 disabled={finalizeMutation.isPending}
-                className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700"
+                className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700 text-white dark:text-white"
               >
                 {finalizeMutation.isPending ? (
                   <>

@@ -48,7 +48,7 @@ export default function DashboardPage() {
     <div className="min-h-screen flex flex-col bg-background">
       {user.role === "admin" ? <AdminHeader /> : user.role === "accountant" ? <AccountantHeader /> : <UserHeader />}
 
-      <main className="flex-1 p-4">
+      <main className="flex-1 container mx-auto px-4 py-4">
         {user.role === "user" && (
           <>
             <div className="mb-6 max-w-4xl mx-auto">

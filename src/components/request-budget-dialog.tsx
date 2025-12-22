@@ -59,10 +59,10 @@ export function RequestBudgetDialog() {
       return;
     }
 
-    if (!justification || justification.trim().length < 20) {
+    if (!justification || justification.trim().length < 5) {
       toast({
         title: "Błąd",
-        description: "Uzasadnienie musi zawierać minimum 20 znaków",
+        description: "Uzasadnienie musi zawierać minimum 5 znaków",
         variant: "destructive",
       });
       return;
@@ -116,7 +116,7 @@ export function RequestBudgetDialog() {
               disabled={createRequestMutation.isPending}
             />
             <p className="text-sm text-muted-foreground">
-              Minimum 20 znaków - opisz szczegółowo powód swojej prośby
+              Minimum 5 znaków - opisz szczegółowo powód swojej prośby
             </p>
           </div>
         </div>
