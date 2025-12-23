@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
+import { SectionLoader } from "@/components/section-loader";
 import { UserHeader } from "@/components/user-header";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
@@ -34,8 +35,10 @@ export default function DashboardPage() {
   // Role-based access control - after all hooks
   if (loadingUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col min-h-screen bg-background">
+        <div className="flex-1 flex items-center justify-center">
+          <SectionLoader />
+        </div>
       </div>
     );
   }

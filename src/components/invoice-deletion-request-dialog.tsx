@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import {
   Dialog,
@@ -23,7 +23,7 @@ interface InvoiceDeletionRequestDialogProps {
   onSuccess?: () => void;
 }
 
-export function InvoiceDeletionRequestDialog({
+const InvoiceDeletionRequestDialog = React.memo(function InvoiceDeletionRequestDialog({
   open,
   onOpenChange,
   invoiceId,
@@ -132,4 +132,10 @@ export function InvoiceDeletionRequestDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+export { InvoiceDeletionRequestDialog };
+
+// Usage tip: import this component dynamically for best performance:
+// import dynamic from 'next/dynamic';
+// const InvoiceDeletionRequestDialog = dynamic(() => import('@/components/invoice-deletion-request-dialog').then(m => m.InvoiceDeletionRequestDialog));

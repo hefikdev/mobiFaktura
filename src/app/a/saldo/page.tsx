@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, PlusCircle, Wallet, Plus, PencilIcon } from "lucide-react";
+import { SectionLoader } from "@/components/section-loader";
 import { Badge } from "@/components/ui/badge";
 import { Footer } from "@/components/footer";
 import { ExportButton } from "@/components/export-button";
@@ -248,10 +249,12 @@ export default function SaldoManagementPage() {
     });
   };
 
-  if (userLoading || isLoading) {
+  if (userLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex flex-col min-h-screen bg-background">
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
       </div>
     );
   }
@@ -326,26 +329,33 @@ export default function SaldoManagementPage() {
       )}
 
       {/* Users Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-            />
-            <ExportButton
-              data={exportData || []}
-              columns={[
-                { key: 'name', header: 'Imię i nazwisko' },
-                { key: 'email', header: 'Email' },
-                { key: 'saldo', header: 'Saldo', formatter: formatters.currency },
-                { key: 'role', header: 'Rola', formatter: (value) => value === 'admin' ? 'Administrator' : value === 'accountant' ? 'Księgowy' : 'Użytkownik' },
-                { key: 'createdAt', header: 'Data rejestracji', formatter: formatters.date },
-              ]}
-              filename="saldo-uzytkownikow"
-              label="Eksportuj saldo"
-              size="sm"
-            />
+      {isLoading ? (
+        <Card>
+          <CardContent className="p-8 flex items-center justify-center">
+            <SectionLoader />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+              />
+              <ExportButton
+                data={exportData || []}
+                columns={[
+                  { key: 'name', header: 'Imię i nazwisko' },
+                  { key: 'email', header: 'Email' },
+                  { key: 'saldo', header: 'Saldo', formatter: formatters.currency },
+                  { key: 'role', header: 'Rola', formatter: (value: any) => value === 'admin' ? 'Administrator' : value === 'accountant' ? 'Księgowy' : 'Użytkownik' },
+                  { key: 'createdAt', header: 'Data rejestracji', formatter: formatters.date },
+                ]}
+                filename="saldo-uzytkownikow"
+                label="Eksportuj saldo"
+                size="sm"
+              />
           </div>
         </CardHeader>
         <CardContent>
@@ -424,8 +434,7 @@ export default function SaldoManagementPage() {
             </Table>
           </div>
         </CardContent>
-      </Card>
-
+      </Card>      )}
       {filteredUsers.length > 0 && (
         <div className="mt-4 text-sm text-muted-foreground text-center dark:text-gray-300">
           Wyświetlono {filteredUsers.length} z {allUsers.length} użytkowników

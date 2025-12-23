@@ -36,9 +36,10 @@ import { Unauthorized } from "@/components/unauthorized";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { ErrorDisplay } from "@/components/error-display";
-import { BulkDeleteInvoices } from "@/components/bulk-delete-invoices";
-import { BulkDeleteBudgetRequests } from "@/components/bulk-delete-budget-requests";
-import { BulkDeleteNotifications } from "@/components/bulk-delete-notifications";
+import dynamic from "next/dynamic";
+const BulkDeleteInvoices = dynamic(() => import("@/components/bulk-delete-invoices").then(m => m.BulkDeleteInvoices));
+const BulkDeleteBudgetRequests = dynamic(() => import("@/components/bulk-delete-budget-requests").then(m => m.BulkDeleteBudgetRequests));
+const BulkDeleteNotifications = dynamic(() => import("@/components/bulk-delete-notifications").then(m => m.BulkDeleteNotifications));
 import { formatDate, formatDateTimeWithSeconds } from "@/lib/date-utils";
 import {
   Users,
@@ -53,6 +54,7 @@ import {
   KeyRound,
   Bell,
 } from "lucide-react";
+import { SectionLoader } from "@/components/section-loader";
 import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
@@ -391,8 +393,10 @@ export default function AdminPage() {
   // Role-based access control - after all hooks
   if (loadingUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col min-h-screen bg-background">
+        <div className="flex-1 flex items-center justify-center">
+          <SectionLoader />
+        </div>
       </div>
     );
   }

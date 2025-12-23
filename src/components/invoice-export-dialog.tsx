@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import type { TDocumentDefinitions, Content, DynamicContent } from "pdfmake/interfaces";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -55,7 +55,7 @@ interface InvoiceExportDialogProps {
   companies?: Company[];
 }
 
-export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialogProps) {
+const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialogProps) {
   const { toast } = useToast();
   
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -442,4 +442,10 @@ export function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialog
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+export { InvoiceExportDialog };
+
+// Usage tip: import this component dynamically for best performance:
+// import dynamic from 'next/dynamic';
+// const InvoiceExportDialog = dynamic(() => import('@/components/invoice-export-dialog').then(m => m.InvoiceExportDialog));

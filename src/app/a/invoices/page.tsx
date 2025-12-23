@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect, Suspense } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SearchInput } from "@/components/search-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { KsefInvoicePopup } from "@/components/ksef-invoice-popup";
+import dynamic from "next/dynamic";
+const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
 import {
   Select,
   SelectContent,
@@ -34,7 +35,7 @@ import { Unauthorized } from "@/components/unauthorized";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
-import { InvoiceExportDialog } from "@/components/invoice-export-dialog";
+const InvoiceExportDialog = dynamic(() => import("@/components/invoice-export-dialog").then(m => m.InvoiceExportDialog));
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import {
   Loader2,
@@ -46,6 +47,7 @@ import {
   FileCheck,
   Trash2,
 } from "lucide-react";
+import { SectionLoader } from "@/components/section-loader";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { useRouter } from "next/navigation";
@@ -186,11 +188,14 @@ export default function InvoicesPage() {
     return filtered;
   }, [allInvoices, searchQuery, filterStatus, filterCompany]);
 
-  // Loading state
+
+  // Loading state for user (auth) only blocks content, not whole page
   if (loadingUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col min-h-screen bg-background">
+        <div className="flex-1 flex items-center justify-center">
+          <SectionLoader />
+        </div>
       </div>
     );
   }
@@ -239,230 +244,222 @@ export default function InvoicesPage() {
                 />
               </div>
               <Select value={filterCompany} onValueChange={setFilterCompany}>
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Wszystkie firmy" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Wszystkie firmy</SelectItem>
-                  {companies?.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Wszystkie statusy" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Wszystkie</SelectItem>
-                  <SelectItem value="pending">Oczekuje</SelectItem>
-                  <SelectItem value="in_review">W trakcie</SelectItem>
-                  <SelectItem value="accepted">Zaakceptowane</SelectItem>
-                  <SelectItem value="rejected">Odrzucone</SelectItem>
-                  <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {loadingInvoices ? (
-              <div className="flex items-center justify-center p-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : filteredInvoices.length === 0 ? (
-              <div className="text-center p-8 text-muted-foreground">
-                <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Brak faktur do wyświetlenia</p>
-              </div>
-            ) : (
-              <>
-                {/* Mobile View - Cards */}
-                <div className="md:hidden divide-y">
-                  {filteredInvoices.map((invoice, index) => {
-                    const isLastElement = index === filteredInvoices.length - 1;
-                    return (
-                      <div
-                        key={invoice.id}
-                        ref={isLastElement ? lastInvoiceElementRef : null}
-                        className="p-4 hover:bg-muted/50 cursor-pointer"
-                        onClick={() => router.push(`/a/invoice/${invoice.id}`)}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex-1">
-                            <div className="font-semibold">{invoice.invoiceNumber}</div>
-                            {invoice.ksefNumber && (
-                              <div className="text-xs text-muted-foreground mt-0.5">
-                                KSeF: {invoice.ksefNumber}
-                              </div>
-                            )}
-                          </div>
-                          <InvoiceStatusBadge status={invoice.status} variant="compact" />
-                        </div>
-                        
-                        <div className="space-y-1 text-sm">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Building2 className="h-3 w-3" />
-                            <span>{invoice.companyName}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <User className="h-3 w-3" />
-                            <span>{invoice.userName}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            <span>{format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</span>
-                          </div>
-                          {invoice.reviewerName && (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <FileCheck className="h-3 w-3" />
-                              <span>{invoice.reviewerName}</span>
-                              {invoice.reviewedAt && (
-                                <span className="text-xs">
-                                  ({format(new Date(invoice.reviewedAt), "dd.MM HH:mm", { locale: pl })})
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex gap-2 mt-3">
-                          {invoice.ksefNumber && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setKsefPopupNumber(invoice.ksefNumber);
-                                setKsefPopupOpen(true);
-                              }}
-                            >
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              KSeF
-                            </Button>
-                          )}
-                          {user?.role === "admin" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteInvoiceId(invoice.id);
-                                setDeleteInvoiceNumber(invoice.invoiceNumber || "");
-                                setDeleteInvoiceOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3 mr-1 text-red-600" />
-                              Usuń
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {isFetchingNextPage && (
-                    <div className="p-4 text-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
+                        <SelectTrigger className="w-full sm:w-[200px]">
+                          <SelectValue placeholder="Wszystkie firmy" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Wszystkie firmy</SelectItem>
+                          {companies?.map((company) => (
+                            <SelectItem key={company.id} value={company.id}>
+                              {company.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                          <SelectValue placeholder="Wszystkie statusy" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Wszystkie</SelectItem>
+                          <SelectItem value="pending">Oczekuje</SelectItem>
+                          <SelectItem value="in_review">W trakcie</SelectItem>
+                          <SelectItem value="accepted">Zaakceptowane</SelectItem>
+                          <SelectItem value="rejected">Odrzucone</SelectItem>
+                          <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
-                </div>
-                
-                {/* Desktop View - Table */}
-                <div className="hidden md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Numer faktury</TableHead>
-                        <TableHead>KSeF</TableHead>
-                        <TableHead>Firma</TableHead>
-                        <TableHead>Użytkownik</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Data przesłania</TableHead>
-                        <TableHead>Data decyzji</TableHead>
-                        <TableHead>Księgowy</TableHead>
-                        <TableHead className="text-right">Akcje</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredInvoices.map((invoice, index) => {
-                        const isLastElement = index === filteredInvoices.length - 1;
-                        return (
-                          <TableRow
-                            key={invoice.id}
-                            ref={isLastElement ? lastInvoiceElementRef : null}
-                            className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => router.push(`/a/invoice/${invoice.id}`)}
-                          >
-                            <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{invoice.ksefNumber || "-"}</TableCell>
-                            <TableCell>{invoice.companyName}</TableCell>
-                            <TableCell>{invoice.userName}</TableCell>
-                            <TableCell><InvoiceStatusBadge status={invoice.status} variant="compact" /></TableCell>
-                            <TableCell className="text-sm">
-                              {format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {invoice.reviewedAt
-                                ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })
-                                : "-"}
-                            </TableCell>
-                            <TableCell className="text-sm">{invoice.reviewerName || "-"}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (invoice.ksefNumber) {
-                                      setKsefPopupNumber(invoice.ksefNumber);
-                                      setKsefPopupOpen(true);
-                                    } else {
-                                      toast({
-                                        title: "Brak numeru KSeF",
-                                        description: "Ta faktura nie ma przypisanego numeru KSeF",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }}
-                                  disabled={!invoice.ksefNumber}
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Suspense fallback={<SectionLoader className="p-8" />}>
+                      {loadingInvoices ? (
+                        <div className="flex items-center justify-center p-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : filteredInvoices.length === 0 ? (
+                        <div className="text-center p-8 text-muted-foreground">
+                          <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p>Brak faktur do wyświetlenia</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Mobile View - Cards */}
+                          <div className="md:hidden divide-y">
+                            {filteredInvoices.map((invoice, index) => {
+                              const isLastElement = index === filteredInvoices.length - 1;
+                              return (
+                                <div
+                                  key={invoice.id}
+                                  ref={isLastElement ? lastInvoiceElementRef : null}
+                                  className="p-4 hover:bg-muted/50 cursor-pointer"
+                                  onClick={() => router.push(`/a/invoice/${invoice.id}`)}
                                 >
-                                  Zobacz KSEF
-                                </Button>
-                                {user?.role === "admin" && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDeleteInvoiceId(invoice.id);
-                                      setDeleteInvoiceNumber(invoice.invoiceNumber || "");
-                                      setDeleteInvoiceOpen(true);
-                                    }}
-                                    title="Usuń fakturę (tylko admin)"
-                                  >
-                                    <Trash2 className="h-4 w-4 text-red-600" />
-                                  </Button>
+                                  <div className="flex items-start gap-3 mb-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold truncate">{invoice.invoiceNumber || "Brak numeru"}</div>
+                                      <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                                        {invoice.companyName && (
+                                          <div className="flex items-center gap-2">
+                                            <Building2 className="h-3 w-3" />
+                                            <span className="truncate">{invoice.companyName}</span>
+                                          </div>
+                                        )}
+
+                                        {invoice.userName && (
+                                          <div className="flex items-center gap-2">
+                                            <User className="h-3 w-3" />
+                                            <span className="truncate">{invoice.userName}</span>
+                                          </div>
+                                        )}
+
+                                        <div className="flex items-center gap-2">
+                                          <Calendar className="h-3 w-3" />
+                                          <span className="truncate">{format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</span>
+                                        </div>
+
+                                        {invoice.reviewerName && (
+                                          <div className="flex items-center gap-2">
+                                            <FileCheck className="h-3 w-3" />
+                                            <span className="truncate">{invoice.reviewerName}</span>
+                                            {invoice.reviewedAt && (
+                                              <span className="text-xs">({format(new Date(invoice.reviewedAt), "dd.MM HH:mm", { locale: pl })})</span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-2 mt-3">
+                                    {invoice.ksefNumber && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setKsefPopupNumber(invoice.ksefNumber);
+                                          setKsefPopupOpen(true);
+                                        }}
+                                      >
+                                        <ExternalLink className="h-3 w-3 mr-1" />
+                                        KSeF
+                                      </Button>
+                                    )}
+                                    {user?.role === "admin" && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDeleteInvoiceId(invoice.id);
+                                          setDeleteInvoiceNumber(invoice.invoiceNumber || "");
+                                          setDeleteInvoiceOpen(true);
+                                        }}
+                                      >
+                                        <Trash2 className="h-3 w-3 mr-1 text-red-600" />
+                                        Usuń
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Desktop View - Table */}
+
+                          <div className="hidden md:block">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Numer faktury</TableHead>
+                                  <TableHead>KSeF</TableHead>
+                                  <TableHead>Firma</TableHead>
+                                  <TableHead>Użytkownik</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Data przesłania</TableHead>
+                                  <TableHead>Data decyzji</TableHead>
+                                  <TableHead>Księgowy</TableHead>
+                                  <TableHead className="text-right">Akcje</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {filteredInvoices.map((invoice, index) => {
+                                  const isLastElement = index === filteredInvoices.length - 1;
+                                  return (
+                                    <TableRow
+                                      key={invoice.id}
+                                      ref={isLastElement ? lastInvoiceElementRef : null}
+                                      className="cursor-pointer hover:bg-muted/50"
+                                      onClick={() => router.push(`/a/invoice/${invoice.id}`)}
+                                    >
+                                      <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                                      <TableCell className="text-sm text-muted-foreground">{invoice.ksefNumber || "-"}</TableCell>
+                                      <TableCell>{invoice.companyName}</TableCell>
+                                      <TableCell>{invoice.userName}</TableCell>
+                                      <TableCell><InvoiceStatusBadge status={invoice.status} variant="compact" /></TableCell>
+                                      <TableCell className="text-sm">{format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</TableCell>
+                                      <TableCell className="text-sm">{invoice.reviewedAt ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl }) : "-"}</TableCell>
+                                      <TableCell className="text-sm">{invoice.reviewerName || "-"}</TableCell>
+                                      <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (invoice.ksefNumber) {
+                                                setKsefPopupNumber(invoice.ksefNumber);
+                                                setKsefPopupOpen(true);
+                                              } else {
+                                                toast({
+                                                  title: "Brak numeru KSeF",
+                                                  description: "Ta faktura nie ma przypisanego numeru KSeF",
+                                                  variant: "destructive",
+                                                });
+                                              }
+                                            }}
+                                            disabled={!invoice.ksefNumber}
+                                          >
+                                            Weryfikuj
+                                          </Button>
+                                          {user?.role === "admin" && (
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDeleteInvoiceId(invoice.id);
+                                                setDeleteInvoiceNumber(invoice.invoiceNumber || "");
+                                                setDeleteInvoiceOpen(true);
+                                              }}
+                                              title="Usuń fakturę (tylko admin)"
+                                            >
+                                              <Trash2 className="h-4 w-4 text-red-600" />
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                                {isFetchingNextPage && (
+                                  <TableRow>
+                                    <TableCell colSpan={9} className="text-center py-4">
+                                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
+                                    </TableCell>
+                                  </TableRow>
                                 )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {isFetchingNextPage && (
-                        <TableRow>
-                          <TableCell colSpan={9} className="text-center py-4">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
-                          </TableCell>
-                        </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div> 
+                        </>
                       )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </>
-            )}
+                    </Suspense>
+                  
+                  {isFetchingNextPage && (<div className="p-4 text-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" /></div>)}
+
           </CardContent>
         </Card>
 

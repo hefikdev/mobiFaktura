@@ -88,6 +88,7 @@ export default function InvoiceReviewPage() {
       refetchOnWindowFocus: true,
       refetchOnMount: true,
       staleTime: 0,
+      refetchInterval: 800,
     }
   );
 

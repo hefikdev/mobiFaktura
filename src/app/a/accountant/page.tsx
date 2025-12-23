@@ -7,7 +7,8 @@ import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { InvoiceListItem } from "@/components/invoice-list-item";
-import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
+import dynamic from "next/dynamic";
+const BudgetRequestReviewDialog = dynamic(() => import("@/components/budget-request-review-dialog").then(m => m.BudgetRequestReviewDialog));
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -88,8 +89,9 @@ export default function AccountantPage() {
   const { data: budgetRequestsData, isLoading: loadingBudgetRequests, refetch: refetchBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
     { status: "pending", limit: 10, cursor: 0 },
     {
-      refetchInterval: 800,
+      refetchInterval: 10000, // 10 seconds - prevent rate limiting
       refetchOnWindowFocus: true,
+      staleTime: 20000,
     }
   );
 
@@ -97,8 +99,9 @@ export default function AccountantPage() {
   const { data: reviewedBudgetRequestsData, refetch: refetchReviewedBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
     { status: "all", limit: 10, cursor: 0 },
     {
-      refetchInterval: 800,
+      refetchInterval: 10000, // 10 seconds - prevent rate limiting
       refetchOnWindowFocus: true,
+      staleTime: 20000,
     }
   );
 
@@ -180,8 +183,10 @@ export default function AccountantPage() {
   // Role-based access control - after all hooks
   if (loadingUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col min-h-screen bg-background">
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       </div>
     );
   }
@@ -305,9 +310,6 @@ export default function AccountantPage() {
                 <CardTitle className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5" />
                   Rozpatrzone
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    ({filteredAndSortedInvoices.length + sortedReviewedBudgetRequests.length}/{reviewedInvoices.length + sortedReviewedBudgetRequests.length})
-                  </span>
                 </CardTitle>
                 
                 {/* Filter and Sorting controls */}

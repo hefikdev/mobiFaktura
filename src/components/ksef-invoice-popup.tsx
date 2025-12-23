@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 
-export function KsefInvoicePopup({
+const KsefInvoicePopup = memo(function KsefInvoicePopup({
   ksefNumber,
   open,
   onOpenChange,
@@ -124,5 +124,12 @@ export function KsefInvoicePopup({
       </DialogContent>
     </Dialog>
   );
-}
+
+});
+
+export { KsefInvoicePopup };
+
+// Usage tip: import this component dynamically for best performance:
+// import dynamic from 'next/dynamic';
+// const KsefInvoicePopup = dynamic(() => import('@/components/ksef-invoice-popup').then(m => m.KsefInvoicePopup));
 

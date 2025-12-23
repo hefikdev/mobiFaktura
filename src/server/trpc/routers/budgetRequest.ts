@@ -9,6 +9,7 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { users, budgetRequests, saldoTransactions } from "@/server/db/schema";
 import { eq, desc, and, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { verifyPassword } from "@/server/auth/password";
 import { notifyBudgetRequestSubmitted, notifyBudgetRequestApproved, notifyBudgetRequestRejected } from "@/server/lib/notifications";
 
@@ -182,6 +183,9 @@ export const budgetRequestRouter = createTRPCRouter({
         orderByClause = sortOrder === "asc" ? budgetRequests.createdAt : desc(budgetRequests.createdAt);
       }
 
+      // Create alias for reviewer join
+      const reviewer = alias(users, 'reviewer');
+
       const result = await db
         .select({
           id: budgetRequests.id,
@@ -195,9 +199,11 @@ export const budgetRequestRouter = createTRPCRouter({
           rejectionReason: budgetRequests.rejectionReason,
           createdAt: budgetRequests.createdAt,
           reviewedAt: budgetRequests.reviewedAt,
+          reviewerName: reviewer.name,
         })
         .from(budgetRequests)
         .innerJoin(users, eq(budgetRequests.userId, users.id))
+        .leftJoin(reviewer, eq(budgetRequests.reviewedBy, reviewer.id))
         .where(whereClause)
         .orderBy(orderByClause)
         .limit(limit + 1)

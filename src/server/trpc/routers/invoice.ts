@@ -9,6 +9,7 @@ import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { invoices, users, companies, invoiceEditHistory, saldoTransactions } from "@/server/db/schema";
 import { eq, desc, and, ne, or, isNull, lt } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { uploadFile, getPresignedUrl, deleteFile } from "@/server/storage/minio";
 import { compressImage, dataUrlToBuffer } from "@/server/storage/image-processor";
 
@@ -231,9 +232,37 @@ export const invoiceRouter = createTRPCRouter({
           )
         );
 
+      const reviewer = alias(users, 'reviewer');
+
       const result = await db
-        .select()
+        .select({
+          id: invoices.id,
+          userId: invoices.userId,
+          companyId: invoices.companyId,
+          invoiceNumber: invoices.invoiceNumber,
+          ksefNumber: invoices.ksefNumber,
+          kwota: invoices.kwota,
+          description: invoices.description,
+          justification: invoices.justification,
+          imageKey: invoices.imageKey,
+          status: invoices.status,
+          reviewedBy: invoices.reviewedBy,
+          reviewedAt: invoices.reviewedAt,
+          rejectionReason: invoices.rejectionReason,
+          currentReviewer: invoices.currentReviewer,
+          reviewStartedAt: invoices.reviewStartedAt,
+          lastReviewPing: invoices.lastReviewPing,
+          createdAt: invoices.createdAt,
+          updatedAt: invoices.updatedAt,
+          userName: users.name,
+          userEmail: users.email,
+          companyName: companies.name,
+          currentReviewerName: reviewer.name,
+        })
         .from(invoices)
+        .leftJoin(users, eq(invoices.userId, users.id))
+        .leftJoin(companies, eq(invoices.companyId, companies.id))
+        .leftJoin(reviewer, eq(invoices.currentReviewer, reviewer.id))
         .where(or(eq(invoices.status, "pending"), eq(invoices.status, "in_review")))
         .orderBy(desc(invoices.createdAt))
         .limit(limit + 1)
@@ -242,43 +271,14 @@ export const invoiceRouter = createTRPCRouter({
       const hasMore = result.length > limit;
       const items = hasMore ? result.slice(0, limit) : result;
 
-      // Fetch related user and company data
-      const enriched = await Promise.all(
-        items.map(async (invoice) => {
-          const [submitter] = await db
-            .select({ name: users.name, email: users.email })
-            .from(users)
-            .where(eq(users.id, invoice.userId))
-            .limit(1);
-
-          const [company] = await db
-            .select({ name: companies.name })
-            .from(companies)
-            .where(eq(companies.id, invoice.companyId))
-            .limit(1);
-
-          let currentReviewer = null;
-          if (invoice.currentReviewer) {
-            const [reviewer] = await db
-              .select({ name: users.name })
-              .from(users)
-              .where(eq(users.id, invoice.currentReviewer))
-              .limit(1);
-            currentReviewer = reviewer;
-          }
-
-          return {
-            ...invoice,
-            userName: submitter?.name || "",
-            userEmail: submitter?.email || "",
-            companyName: company?.name || "",
-            currentReviewerName: currentReviewer?.name || null,
-          };
-        })
-      );
-
       return {
-        items: enriched,
+        items: items.map(item => ({
+          ...item,
+          userName: item.userName || "",
+          userEmail: item.userEmail || "",
+          companyName: item.companyName || "",
+          currentReviewerName: item.currentReviewerName || null,
+        })),
         nextCursor: hasMore ? cursor + limit : undefined,
       };
     }),
@@ -341,9 +341,37 @@ export const invoiceRouter = createTRPCRouter({
       const limit = input?.limit || 10;
       const cursor = input?.cursor || 0;
 
+      const reviewer = alias(users, 'reviewer');
+
       const result = await db
-        .select()
+        .select({
+          id: invoices.id,
+          userId: invoices.userId,
+          companyId: invoices.companyId,
+          invoiceNumber: invoices.invoiceNumber,
+          ksefNumber: invoices.ksefNumber,
+          kwota: invoices.kwota,
+          description: invoices.description,
+          justification: invoices.justification,
+          imageKey: invoices.imageKey,
+          status: invoices.status,
+          reviewedBy: invoices.reviewedBy,
+          reviewedAt: invoices.reviewedAt,
+          rejectionReason: invoices.rejectionReason,
+          currentReviewer: invoices.currentReviewer,
+          reviewStartedAt: invoices.reviewStartedAt,
+          lastReviewPing: invoices.lastReviewPing,
+          createdAt: invoices.createdAt,
+          updatedAt: invoices.updatedAt,
+          userName: users.name,
+          userEmail: users.email,
+          companyName: companies.name,
+          reviewerName: reviewer.name,
+        })
         .from(invoices)
+        .leftJoin(users, eq(invoices.userId, users.id))
+        .leftJoin(companies, eq(invoices.companyId, companies.id))
+        .leftJoin(reviewer, eq(invoices.reviewedBy, reviewer.id))
         .where(or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected"), eq(invoices.status, "re_review")))
         .orderBy(desc(invoices.updatedAt))
         .limit(limit + 1)
@@ -352,43 +380,14 @@ export const invoiceRouter = createTRPCRouter({
       const hasMore = result.length > limit;
       const items = hasMore ? result.slice(0, limit) : result;
 
-      // Fetch related user and company data
-      const enriched = await Promise.all(
-        items.map(async (invoice) => {
-          const [submitter] = await db
-            .select({ name: users.name, email: users.email })
-            .from(users)
-            .where(eq(users.id, invoice.userId))
-            .limit(1);
-
-          const [company] = await db
-            .select({ name: companies.name })
-            .from(companies)
-            .where(eq(companies.id, invoice.companyId))
-            .limit(1);
-
-          let reviewer = null;
-          if (invoice.reviewedBy) {
-            const [rev] = await db
-              .select({ name: users.name })
-              .from(users)
-              .where(eq(users.id, invoice.reviewedBy))
-              .limit(1);
-            reviewer = rev;
-          }
-
-          return {
-            ...invoice,
-            userName: submitter?.name || "",
-            userEmail: submitter?.email || "",
-            companyName: company?.name || "",
-            reviewerName: reviewer?.name || null,
-          };
-        })
-      );
-
       return {
-        items: enriched,
+        items: items.map(item => ({
+          ...item,
+          userName: item.userName || "",
+          userEmail: item.userEmail || "",
+          companyName: item.companyName || "",
+          reviewerName: item.reviewerName || null,
+        })),
         nextCursor: hasMore ? cursor + limit : undefined,
       };
     }),

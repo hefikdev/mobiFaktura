@@ -211,7 +211,7 @@ export const protectedProcedure = t.procedure
 
 // Accountant procedure (requires accountant role or admin) with rate limiting
 export const accountantProcedure = protectedProcedure.use(
-  async ({ ctx, next }) => {
+  async ({ type, ctx, next }) => {
     if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -219,10 +219,11 @@ export const accountantProcedure = protectedProcedure.use(
       });
     }
     
-    // Apply write rate limit for regular accountant operations
+    // Apply appropriate rate limit based on operation type
+    const rateLimiter = type === 'query' ? readRateLimit : writeRateLimit;
     const identifier = `${ctx.ipAddress}:accountant:${ctx.user.id}`;
     try {
-      await checkRateLimit(identifier, writeRateLimit);
+      await checkRateLimit(identifier, rateLimiter);
     } catch (error) {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
@@ -265,7 +266,7 @@ export const userProcedure = protectedProcedure.use(
 
 // Admin procedure (requires admin role) with rate limiting for regular operations
 export const adminProcedure = protectedProcedure.use(
-  async ({ ctx, next }) => {
+  async ({ type, ctx, next }) => {
     if (ctx.user.role !== "admin") {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -273,10 +274,11 @@ export const adminProcedure = protectedProcedure.use(
       });
     }
     
-    // Apply write rate limit for regular admin operations
+    // Apply appropriate rate limit based on operation type
+    const rateLimiter = type === 'query' ? readRateLimit : writeRateLimit;
     const identifier = `${ctx.ipAddress}:admin:${ctx.user.id}`;
     try {
-      await checkRateLimit(identifier, writeRateLimit);
+      await checkRateLimit(identifier, rateLimiter);
     } catch (error) {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",

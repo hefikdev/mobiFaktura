@@ -5,10 +5,7 @@
  */
 
 // Mock environment variables for tests
-Object.defineProperty(process.env, 'NODE_ENV', {
-  value: 'test',
-  writable: true,
-});
+process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = 'postgres://test:test@localhost:5432/test';
 process.env.JWT_SECRET = 'test-jwt-secret-for-testing-purposes-only';
 process.env.SESSION_COOKIE_NAME = 'test_session';
