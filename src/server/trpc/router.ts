@@ -7,6 +7,7 @@ import { notificationRouter } from "./routers/notification";
 import { saldoRouter } from "./routers/saldo";
 import { budgetRequestRouter } from "./routers/budgetRequest";
 import { invoiceDeletionRequestRouter } from "./routers/invoiceDeletionRequest";
+import { ksefRouter } from "./routers/ksef";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -17,6 +18,7 @@ export const appRouter = createTRPCRouter({
   saldo: saldoRouter,
   budgetRequest: budgetRequestRouter,
   invoiceDeletionRequest: invoiceDeletionRequestRouter,
+  ksef: ksefRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -7,6 +7,7 @@ import { SearchInput } from "@/components/search-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { KsefInvoicePopup } from "@/components/ksef-invoice-popup";
 import {
   Select,
   SelectContent,
@@ -64,6 +65,10 @@ export default function InvoicesPage() {
   const [deleteInvoiceId, setDeleteInvoiceId] = useState("");
   const [deleteInvoiceNumber, setDeleteInvoiceNumber] = useState("");
   const [deleteInvoicePassword, setDeleteInvoicePassword] = useState("");
+
+  // KSeF Invoice Popup states
+  const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
+  const [ksefPopupNumber, setKsefPopupNumber] = useState<string | null>(null);
 
   // Data fetching with infinite query
   const {
@@ -197,6 +202,16 @@ export default function InvoicesPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      {/* KSeF Invoice Popup */}
+      <KsefInvoicePopup
+        ksefNumber={ksefPopupNumber || ""}
+        open={!!ksefPopupOpen && !!ksefPopupNumber}
+        onOpenChange={(open) => {
+          setKsefPopupOpen(open);
+          if (!open) setKsefPopupNumber(null);
+        }}
+      />
+
       {user.role === "admin" ? <AdminHeader /> : <AccountantHeader />}
 
       <main className="flex-1 container mx-auto px-4 py-4 md:py-8">
@@ -320,7 +335,8 @@ export default function InvoicesPage() {
                               className="flex-1"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                window.open(`https://www.gov.pl/web/kas/szukaj-faktury?q=${invoice.ksefNumber}`, "_blank");
+                                setKsefPopupNumber(invoice.ksefNumber);
+                                setKsefPopupOpen(true);
                               }}
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
@@ -401,7 +417,8 @@ export default function InvoicesPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (invoice.ksefNumber) {
-                                      window.open(`https://www.gov.pl/web/kas/szukaj-faktury?q=${invoice.ksefNumber}`, "_blank");
+                                      setKsefPopupNumber(invoice.ksefNumber);
+                                      setKsefPopupOpen(true);
                                     } else {
                                       toast({
                                         title: "Brak numeru KSeF",
