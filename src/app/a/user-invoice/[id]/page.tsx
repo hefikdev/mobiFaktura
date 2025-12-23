@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X } from "lucide-react";
+import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X, ExternalLink, Printer, Download } from "lucide-react";
 import Link from "next/link";
 import { useState, use } from "react";
 import { format } from "date-fns";
@@ -28,6 +28,72 @@ function UserInvoiceContent({ id }: { id: string }) {
   const [imageScale, setImageScale] = useState(1);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const { toast } = useToast();
+
+  const handlePrint = () => {
+    if (!invoice) return;
+
+    // Create a hidden iframe to load and print the image
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(`
+        <html>
+          <head>
+            <style>
+              body { margin: 0; padding: 0; }
+              img { width: 100%; height: auto; }
+            </style>
+          </head>
+          <body>
+            <img src="${invoice.imageUrl}" onload="window.print(); setTimeout(() => document.body.parentElement.remove(), 100);" />
+          </body>
+        </html>
+      `);
+      iframeDoc.close();
+    }
+
+    // Clean up iframe after printing
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 1000);
+  };
+
+  const handleDownload = async () => {
+    if (!invoice) return;
+
+    try {
+      // Fetch the image as a blob
+      const response = await fetch(invoice.imageUrl);
+      const blob = await response.blob();
+
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `faktura_${invoice.invoiceNumber || id}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up the URL object
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Pobrano",
+        description: "Faktura została pobrana",
+      });
+    } catch (error) {
+      toast({
+        title: "Błąd",
+        description: "Nie udało się pobrać faktury",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -88,7 +154,6 @@ function UserInvoiceContent({ id }: { id: string }) {
             </Button>
           </Link>
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Image Section */}
           <Card>
@@ -103,15 +168,60 @@ function UserInvoiceContent({ id }: { id: string }) {
                   className="w-full h-full object-contain"
                 />
               </div>
+                      {/* Action buttons */}
+        <div className="flex gap-2 mt-4 justify-center lg:justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            title="Drukuj"
+            className="flex items-center gap-1"
+          >
+            <Printer className="h-4 w-4" />
+            <span>Drukuj</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            title="Pobierz"
+            className="flex items-center gap-1"
+          >
+            <Download className="h-4 w-4" />
+            <span>Pobierz</span>
+          </Button>
+                          {invoice.ksefNumber && (
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(`https://www.ksef.gov.pl/${invoice.ksefNumber}`, '_blank')}
+                        title="Zobacz KSEF"
+                      >
+                        KSeF<ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+        </div>
             </CardContent>
+            
           </Card>
 
           {/* Details Section */}
           <div className="space-y-6">
             {/* Status Card */}
+            {user && (user.role === "admin" || user.role === "accountant") && (
+          <div className="mb-4 p-4 bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg flex items-center justify-between">
+            <span className="text-sm font-medium">Przeglądasz fakturę w trybie pracownika</span>
+            <Link href={`/a/invoice/${id}`}>
+              <Button size="sm">Kliknij aby zarządzać</Button>
+            </Link>
+          </div>
+        )}
             <Card>
               <CardHeader>
-                <CardTitle>Status</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="mb-2 scale-150 origin-left">
@@ -142,9 +252,8 @@ function UserInvoiceContent({ id }: { id: string }) {
             {/* Invoice Details Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Szczegóły faktury</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Numer faktury</label>
                   <p className="text-base mt-1">
@@ -166,11 +275,59 @@ function UserInvoiceContent({ id }: { id: string }) {
                   </div>
                 )}
 
+                {invoice.kwota && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Kwota</label>
+                    <p className="text-base mt-1">
+                      {parseFloat(invoice.kwota).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', ',')} PLN
+                    </p>
+                  </div>
+                )}
+
+                {invoice.ksefNumber && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Numer KSeF</label>
+                    <p className="text-base mt-1">{invoice.ksefNumber}</p>
+                  </div>
+                )}
+
                 <div className="pt-2 border-t">
                   <p className="text-xs text-muted-foreground">
                     Dodana: {format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
                   </p>
                 </div>
+
+                {/* Edit tracking info */}
+                {invoice.editHistory && invoice.editHistory.length > 0 && (
+                  <>
+                    <div className="pt-2 border-t col-span-1 md:col-span-2">
+                      <p className="text-sm font-medium">Historia edycji</p>
+                    </div>
+                    <div className="space-y-2 bg-muted/30 p-3 rounded-md max-h-[120px] overflow-y-auto col-span-1 md:col-span-2">
+                      <div className="space-y-2">
+                        {invoice.editHistory.map((edit: { editor: { name: string } | null; editedAt: Date }, index: number) => (
+                          <div key={index} className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">{edit.editor?.name || "Nieznany"}</span>
+                            <span className="text-muted-foreground text-xs">{format(new Date(edit.editedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                {(!invoice.editHistory || invoice.editHistory.length === 0) && invoice.lastEditor && invoice.lastEditedAt && (
+                  <>
+                    <div className="pt-2 border-t col-span-1 md:col-span-2">
+                      <p className="text-sm font-medium">Ostatnia edycja</p>
+                    </div>
+                    <div className="space-y-2 bg-muted/30 p-3 rounded-md col-span-1 md:col-span-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">{invoice.lastEditor.name}</span>
+                        <span className="text-muted-foreground text-xs">{format(new Date(invoice.lastEditedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

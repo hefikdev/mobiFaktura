@@ -241,7 +241,7 @@ export default function AccountantPage() {
                                   +{request.requestedAmount.toFixed(2)} PLN
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  Saldo: {request.currentSaldo.toFixed(2)}
+                                  Saldo: {request.currentBalanceAtRequest.toFixed(2)}
                                 </p>
                               </div>
                             </div>

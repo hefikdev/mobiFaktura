@@ -256,13 +256,6 @@ export default function BudgetRequestsPage() {
               onChange={setSearchQuery}
             />
             <div className="flex flex-row items-center gap-4">
-              {pendingCount !== undefined && pendingCount > 0 && (
-                <div className="px-4 py-2 rounded-lg bg-orange-100 border border-orange-200 dark:bg-orange-950 dark:border-orange-800">
-                  <span className="text-sm font-semibold text-black dark:text-white">
-                    {pendingCount} {pendingCount === 1 ? "prośba oczekuje" : "próśb oczekuje"} na rozpatrzenie
-                  </span>
-                </div>
-              )}
               <Select value={statusFilter} onValueChange={(value: BudgetRequestStatus) => setStatusFilter(value)}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Status" />

@@ -8,7 +8,6 @@ import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
 import { InvoiceListItem } from "@/components/invoice-list-item";
-import { SaldoDisplay } from "@/components/saldo-display";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -52,7 +51,6 @@ export default function DashboardPage() {
         {user.role === "user" && (
           <>
             <div className="mb-6 max-w-4xl mx-auto">
-              <SaldoDisplay />
             </div>
             <div className="mb-6 max-w-4xl mx-auto">
               {isOnline ? (

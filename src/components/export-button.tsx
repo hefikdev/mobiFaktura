@@ -15,6 +15,7 @@ interface ExportButtonProps {
   size?: "default" | "sm" | "lg" | "icon";
   disabled?: boolean;
   className?: string;
+  onExport?: () => Promise<any[]> | any[];
 }
 
 export function ExportButton({
@@ -26,25 +27,37 @@ export function ExportButton({
   size = "default",
   disabled = false,
   className = "",
+  onExport,
 }: ExportButtonProps) {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = async () => {
-    if (data.length === 0) {
-      toast({
-        title: "Brak danych",
-        description: "Nie ma danych do eksportu",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsExporting(true);
 
     try {
+      let exportData = data;
+
+      if (onExport) {
+        const result = onExport();
+        if (result instanceof Promise) {
+          exportData = await result;
+        } else {
+          exportData = result;
+        }
+      }
+
+      if (exportData.length === 0) {
+        toast({
+          title: "Brak danych",
+          description: "Nie ma danych do eksportu",
+          variant: "destructive",
+        });
+        return;
+      }
+
       exportToCSV({
-        data,
+        data: exportData,
         columns,
         filename,
       });
@@ -70,7 +83,7 @@ export function ExportButton({
       variant={variant}
       size={size}
       onClick={handleExport}
-      disabled={disabled || isExporting || data.length === 0}
+      disabled={disabled || isExporting || (!onExport && data.length === 0)}
       className={className}
     >
       {isExporting ? (

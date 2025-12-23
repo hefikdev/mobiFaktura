@@ -23,10 +23,12 @@ import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import Link from "next/link";
 import { ExportButton } from "@/components/export-button";
+import { RequestBudgetDialog } from "@/components/request-budget-dialog";
 import { formatters } from "@/lib/export";
 
 export default function SaldoHistoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [showRequestBudget, setShowRequestBudget] = useState(false);
 
   // Check user
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
@@ -84,7 +86,7 @@ export default function SaldoHistoryPage() {
   // Ref for infinite scroll
   const observer = useRef<IntersectionObserver>();
   const lastTransactionElementRef = useCallback(
-    (node: HTMLTableRowElement | null) => {
+    (node: HTMLElement | null) => {
       if (isLoading || isFetchingNextPage) return;
       if (observer.current) observer.current.disconnect();
       observer.current = new IntersectionObserver((entries) => {
@@ -94,6 +96,7 @@ export default function SaldoHistoryPage() {
       });
       if (node) observer.current.observe(node);
     },
+    // dependencies
     [isLoading, isFetchingNextPage, hasNextPage, fetchNextPage]
   );
 
@@ -156,13 +159,28 @@ export default function SaldoHistoryPage() {
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Historia Saldo</h1>
             </div>
           </div>
-          <ExportButton
-            data={exportQuery.data || []}
-            columns={exportColumns}
-            filename="historia-saldo"
-            onExport={() => exportQuery.refetch()}
-            isLoading={exportQuery.isFetching}
-          />
+          {/* Mobile: center button, Desktop: right align */}
+          <div className="flex w-full md:w-auto justify-center md:justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowRequestBudget(true)}
+              className="flex items-center gap-2"
+            >
+              <ArrowUp className="h-4 w-4" />
+              Prośba o zwiększenie budżetu
+            </Button>
+            <div className="hidden md:block">
+              <ExportButton
+                data={[]}
+                columns={exportColumns}
+                filename="historia-saldo"
+                onExport={async () => {
+                  const result = await exportQuery.refetch();
+                  return result.data || [];
+                }}
+              />
+            </div>
+          </div>
         </div>
 
       {/* Current Saldo Card */}
@@ -198,23 +216,90 @@ export default function SaldoHistoryPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Typ</TableHead>
-                  <TableHead>Kwota</TableHead>
-                  <TableHead>Saldo przed</TableHead>
-                  <TableHead>Saldo po</TableHead>
-                  <TableHead>Notatka</TableHead>
-                  <TableHead>Wykonane przez</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTransactions.length > 0 ? (
-                  <>
+          {filteredTransactions.length > 0 ? (
+            <>
+              {/* Mobile View - Cards */}
+              <div className="md:hidden divide-y">
+                {filteredTransactions.map((tx, index) => {
+                  const isLastElement = index === filteredTransactions.length - 1;
+                  return (
+                    <div
+                      key={tx.id}
+                      ref={isLastElement ? lastTransactionElementRef : null}
+                      className="p-4 hover:bg-muted/50"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          {getTransactionIcon(tx.transactionType)}
+                          <div>
+                            <div className="font-semibold">{getTransactionTypeLabel(tx.transactionType)}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {format(new Date(tx.createdAt), "dd MMM yyyy HH:mm", { locale: pl })}
+                            </div>
+                          </div>
+                        </div>
+                        <div className={`font-semibold ${tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
+                          {tx.amount > 0 ? "+" : ""}{tx.amount.toFixed(2)} PLN
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Saldo przed:</span>
+                          <span className="font-mono">{tx.balanceBefore.toFixed(2)} PLN</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Saldo po:</span>
+                          <span className="font-mono font-bold">{tx.balanceAfter.toFixed(2)} PLN</span>
+                        </div>
+                        {tx.notes && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Notatka:</span>
+                            <span className="truncate max-w-xs">{tx.notes}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Wykonane przez:</span>
+                          <span>{tx.createdByName || "System"}</span>
+                        </div>
+                      </div>
+
+                      {tx.referenceId && tx.transactionType === "invoice_deduction" && (
+                        <div className="mt-3">
+                          <Link href={`/a/user-invoice/${tx.referenceId}`}>
+                            <Button variant="outline" size="sm" className="w-full">
+                              <Receipt className="h-4 w-4 mr-2" />
+                              Zobacz fakturę
+                            </Button>
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {isFetchingNextPage && (
+                  <div className="p-4 text-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop View - Table */}
+              <div className="hidden md:block rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Typ</TableHead>
+                      <TableHead>Kwota</TableHead>
+                      <TableHead>Saldo przed</TableHead>
+                      <TableHead>Saldo po</TableHead>
+                      <TableHead>Notatka</TableHead>
+                      <TableHead>Wykonane przez</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {filteredTransactions.map((tx, index) => {
                       const isLastElement = index === filteredTransactions.length - 1;
                       return (
@@ -270,20 +355,15 @@ export default function SaldoHistoryPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {searchQuery ? "Nie znaleziono transakcji" : "Brak transakcji"}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              {searchQuery ? "Nie znaleziono transakcji" : "Brak transakcji"}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -299,6 +379,11 @@ export default function SaldoHistoryPage() {
         <Footer />
       </div>
     </main>
+
+    <RequestBudgetDialog
+      open={showRequestBudget}
+      onOpenChange={setShowRequestBudget}
+    />
   </div>
   );
 }

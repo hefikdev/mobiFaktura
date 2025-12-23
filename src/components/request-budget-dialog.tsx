@@ -18,11 +18,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Plus } from "lucide-react";
 
-export function RequestBudgetDialog() {
+export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [justification, setJustification] = useState("");
+
+  const controlledOpen = open !== undefined ? open : isOpen;
+  const setControlledOpen = onOpenChange || setIsOpen;
 
   const utils = trpc.useUtils();
 
@@ -75,13 +78,7 @@ export function RequestBudgetDialog() {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="w-full">
-          <Plus className="mr-2 h-4 w-4" />
-          Poproś o zwiększenie budżetu
-        </Button>
-      </DialogTrigger>
+    <Dialog open={controlledOpen} onOpenChange={setControlledOpen}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Poproś o zwiększenie budżetu</DialogTitle>
