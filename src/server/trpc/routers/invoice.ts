@@ -441,6 +441,7 @@ export const invoiceRouter = createTRPCRouter({
 
           return {
             ...invoice,
+            userId: invoice.userId,
             userName: submitter?.name || "",
             userEmail: submitter?.email || "",
             companyName: company?.name || "",

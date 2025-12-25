@@ -15,6 +15,9 @@ import Link from "next/link";
 import { useState, use } from "react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import dynamic from "next/dynamic";
+
+const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
 
 export default function UserInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -28,6 +31,9 @@ function UserInvoiceContent({ id }: { id: string }) {
   const [imageScale, setImageScale] = useState(1);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const { toast } = useToast();
+
+  // KSeF Popup states
+  const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
 
   const handlePrint = () => {
     if (!invoice) return;
@@ -196,7 +202,7 @@ function UserInvoiceContent({ id }: { id: string }) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(`https://www.ksef.gov.pl/${invoice.ksefNumber}`, '_blank')}
+                        onClick={() => setKsefPopupOpen(true)}
                         title="Zobacz KSEF"
                       >
                         KSeF<ExternalLink className="h-4 w-4" />
@@ -291,11 +297,10 @@ function UserInvoiceContent({ id }: { id: string }) {
                   </div>
                 )}
 
-                <div className="pt-2 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    Dodana: {format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
-                  </p>
-                </div>
+                <div>
+                    <label className="text-sm font-medium text-muted-foreground">Dodana:</label>
+                    <p className="text-base mt-1">{format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                  </div>
 
                 {/* Edit tracking info */}
                 {invoice.editHistory && invoice.editHistory.length > 0 && (
@@ -385,6 +390,16 @@ function UserInvoiceContent({ id }: { id: string }) {
       <div className="md:hidden">
         <Footer />
       </div>
+
+      {/* KSeF Invoice Popup */}
+      {invoice?.ksefNumber && (
+        <KsefInvoicePopup
+          ksefNumber={invoice.ksefNumber}
+          invoiceId={id}
+          open={ksefPopupOpen}
+          onOpenChange={setKsefPopupOpen}
+        />
+      )}
     </div>
   );
 }

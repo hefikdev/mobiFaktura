@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import type { TDocumentDefinitions, Content, DynamicContent } from "pdfmake/interfaces";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -18,7 +19,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Download } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Download, ChevronDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Progress } from "@/components/ui/progress";
 import pdfMake from "pdfmake/build/pdfmake";
@@ -40,10 +46,17 @@ interface Company {
   name: string;
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 interface Invoice {
   id: string;
   invoiceNumber: string;
   ksefNumber?: string | null;
+  userId?: string | null;
   userName?: string | null;
   companyName?: string | null;
   status: string;
@@ -57,9 +70,10 @@ interface Invoice {
 interface InvoiceExportDialogProps {
   invoices?: Invoice[];
   companies?: Company[];
+  users?: User[];
 }
 
-const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, companies }: InvoiceExportDialogProps) {
+const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, companies, users }: InvoiceExportDialogProps) {
   const { toast } = useToast();
   
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -69,8 +83,30 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
   const [exportYear, setExportYear] = useState(new Date().getFullYear().toString());
   const [exportCompany, setExportCompany] = useState<string>("all");
   const [exportStatus, setExportStatus] = useState<string>("all");
+  const [exportUser, setExportUser] = useState<string>("all");
+  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
+  const [userPopoverOpen, setUserPopoverOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
+
+  // Filter users based on search query
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    if (!userSearchQuery) return users;
+    
+    const query = userSearchQuery.toLowerCase();
+    return users.filter(user => 
+      user.name.toLowerCase().includes(query) || 
+      user.email.toLowerCase().includes(query)
+    );
+  }, [users, userSearchQuery]);
+
+  // Get selected user name for display
+  const selectedUserName = useMemo(() => {
+    if (exportUser === "all") return "Wszyscy użytkownicy";
+    const user = users?.find(u => u.id === exportUser);
+    return user ? `${user.name} (${user.email})` : "Wszyscy użytkownicy";
+  }, [exportUser, users]);
 
   const handleExport = async () => {
     // Calculate date range based on selected period
@@ -100,13 +136,16 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
         break;
     }
 
-    // Filter invoices by date, company, and status
+    // Filter invoices by date, company, status, and user
     const exportInvoices = invoices?.filter(inv => {
       // Filter by company
       if (exportCompany !== "all" && inv.companyId !== exportCompany) return false;
       
       // Filter by status
       if (exportStatus !== "all" && inv.status !== exportStatus) return false;
+      
+      // Filter by user
+      if (exportUser !== "all" && inv.userId !== exportUser) return false;
       
       // Filter by date
       if (!startDate) return true;
@@ -431,6 +470,59 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
                 <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="exportUser">Użytkownik (opcjonalne)</Label>
+            <Popover open={userPopoverOpen} onOpenChange={setUserPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={userPopoverOpen}
+                  className="w-full justify-between"
+                >
+                  {selectedUserName}
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <div className="p-2">
+                  <Input
+                    placeholder="Szukaj użytkownika..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    className="mb-2"
+                  />
+                  <div className="max-h-48 overflow-y-auto">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setExportUser("all");
+                        setUserPopoverOpen(false);
+                        setUserSearchQuery("");
+                      }}
+                    >
+                      Wszyscy użytkownicy
+                    </Button>
+                    {filteredUsers.map((user) => (
+                      <Button
+                        key={user.id}
+                        variant="ghost"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setExportUser(user.id);
+                          setUserPopoverOpen(false);
+                          setUserSearchQuery("");
+                        }}
+                      >
+                        {user.name} ({user.email})
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           {isGenerating && (
             <div className="space-y-2">

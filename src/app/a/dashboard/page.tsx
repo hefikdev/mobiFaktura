@@ -13,9 +13,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, Plus } from "lucide-react";
+import { SearchInput } from "@/components/search-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, FileText, Plus, Filter } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useOnline } from "@/lib/use-online";
 import { OfflineUploadDialog } from "@/components/offline-banner";
 
@@ -24,6 +32,10 @@ export default function DashboardPage() {
   const { isOnline, refresh } = useOnline();
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
 
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
   const { data: invoices, isLoading } = trpc.invoice.myInvoices.useQuery(undefined, {
@@ -31,6 +43,31 @@ export default function DashboardPage() {
     refetchOnWindowFocus: true,
     staleTime: 5000, // Consider data fresh for 5 seconds
   });
+
+  // Filter invoices based on search and filters
+  const filteredInvoices = useMemo(() => {
+    if (!invoices) return [];
+
+    let filtered = [...invoices];
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (inv) =>
+          inv.invoiceNumber.toLowerCase().includes(query) ||
+          inv.companyName?.toLowerCase().includes(query) ||
+          inv.description?.toLowerCase().includes(query)
+      );
+    }
+
+    // Status filter
+    if (filterStatus !== "all") {
+      filtered = filtered.filter((inv) => inv.status === filterStatus);
+    }
+
+    return filtered;
+  }, [invoices, searchQuery, filterStatus]);
 
   // Role-based access control - after all hooks
   if (loadingUser) {
@@ -76,16 +113,47 @@ export default function DashboardPage() {
             </div>
           </>
         )}
+
+        {/* Search and Filter Controls - only show when there are invoices */}
+        {invoices && invoices.length > 0 && (
+          <div className="mb-4 max-w-4xl mx-auto">
+            <div className="flex gap-2 flex-col sm:flex-row">
+              <div className="flex-1">
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder="Szukaj"
+                  className="w-full"
+                  showIcon={true}
+                />
+              </div>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Wszystkie statusy" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Wszystkie</SelectItem>
+                  <SelectItem value="pending">Oczekuje</SelectItem>
+                  <SelectItem value="in_review">W trakcie</SelectItem>
+                  <SelectItem value="accepted">Zaakceptowane</SelectItem>
+                  <SelectItem value="rejected">Odrzucone</SelectItem>
+                  <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : invoices && invoices.length > 0 ? (
+        ) : filteredInvoices && filteredInvoices.length > 0 ? (
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="h-[calc(100vh-200px)]">
                 <div className="px-4">
-                  {invoices.map((invoice, index) => (
+                  {filteredInvoices.map((invoice, index) => (
                     <div key={invoice.id}>
                       <InvoiceListItem
                         id={invoice.id}
@@ -96,11 +164,23 @@ export default function DashboardPage() {
                         companyName={invoice.companyName}
                         variant="user"
                       />
-                      {index < invoices.length - 1 && <Separator />}
+                      {index < filteredInvoices.length - 1 && <Separator />}
                     </div>
                   ))}
                 </div>
               </ScrollArea>
+            </CardContent>
+          </Card>
+        ) : invoices && invoices.length > 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Filter className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                Brak faktur spełniających kryteria wyszukiwania
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Spróbuj zmienić filtry lub wyszukiwanie
+              </p>
             </CardContent>
           </Card>
         ) : (

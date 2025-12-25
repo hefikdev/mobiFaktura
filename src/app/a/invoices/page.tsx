@@ -230,11 +230,10 @@ export default function InvoicesPage() {
             <FileText className="h-6 w-6 md:h-8 md:w-8 text-primary" />
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Faktury</h1>
-              <p className="text-muted-foreground/50 text-xs md:text-sm">Nie do pracy operacyjnej</p>
             </div>
           </div>
 
-          <InvoiceExportDialog invoices={allInvoices} companies={companies} />
+          <InvoiceExportDialog invoices={allInvoices} companies={companies} users={allUsers} />
         </div>
 
         <Card>

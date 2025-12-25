@@ -504,7 +504,7 @@ export default function UploadPage() {
                 const value = e.target.value.replace(/[^0-9.,\s]/g, '');
                 setKwota(value);
               }}
-              placeholder="np. 1234,56 lub 1234.56"
+              placeholder=""
             />
           </div>
 
@@ -543,7 +543,7 @@ export default function UploadPage() {
               id="justification"
               value={justification}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setJustification(e.target.value)}
-              placeholder="Podaj powód przesłania faktury (min. 10 znaków)..."
+              placeholder=""
               className="min-h-[100px]"
               required
             />

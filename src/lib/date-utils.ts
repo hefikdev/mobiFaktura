@@ -54,7 +54,7 @@ export function formatDateTimeWithSeconds(date: Date | string): string {
 }
 
 /**
- * Format date in long format: 7 grudnia 2025
+ * Format date in long format: 7 grudnia 2026
  */
 export function formatDateLong(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;

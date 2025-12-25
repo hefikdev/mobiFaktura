@@ -452,7 +452,7 @@ export default function SaldoManagementPage() {
           </DialogHeader>
           {selectedUserSaldo !== null && (
             <div className="mb-2 text-sm text-muted-foreground">
-              Aktualne saldo użytkownika: <span className={selectedUserSaldo > 0 ? "text-green-600" : selectedUserSaldo < 0 ? "text-red-600" : "text-gray-600"}>{selectedUserSaldo.toFixed(2)} PLN</span>
+              Aktualne saldo {user.name}: <span className={selectedUserSaldo > 0 ? "text-green-600" : selectedUserSaldo < 0 ? "text-red-600" : "text-gray-600"}>{selectedUserSaldo.toFixed(2)} PLN</span>
             </div>
           )}
           <div className="grid gap-4 py-4">
@@ -462,23 +462,26 @@ export default function SaldoManagementPage() {
                 id="amount"
                 type="number"
                 step="0.01"
-                placeholder="np. 1000 lub -500"
+                placeholder=""
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground/40">
                 Dodatnie wartości dodają, ujemne odejmują
               </p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="notes">Notatka (minimum 5 znaków)</Label>
+              <Label htmlFor="notes">Notatka</Label>
               <Textarea
                 id="notes"
-                placeholder="Powód korekty saldo"
+                placeholder=""
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
               />
+              <p className="text-sm text-muted-foreground">
+                {notes.length}/5 znaków minimum
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -507,13 +510,10 @@ export default function SaldoManagementPage() {
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Dodaj środki</DialogTitle>
-            <DialogDescription>
-              Szybko dodaj środki do budżetu użytkownika
-            </DialogDescription>
           </DialogHeader>
           {selectedUserSaldo !== null && (
             <div className="mb-2 text-sm text-muted-foreground">
-              Aktualne saldo użytkownika: <span className={selectedUserSaldo > 0 ? "text-green-600" : selectedUserSaldo < 0 ? "text-red-600" : "text-gray-600"}>{selectedUserSaldo.toFixed(2)} PLN</span>
+              Aktualne saldo {user.name}: <span className={selectedUserSaldo > 0 ? "text-green-600" : selectedUserSaldo < 0 ? "text-red-600" : "text-gray-600"}>{selectedUserSaldo.toFixed(2)} PLN</span>
             </div>
           )}
           <div className="grid gap-4 py-4">
@@ -523,19 +523,16 @@ export default function SaldoManagementPage() {
                 id="quickAmount"
                 type="number"
                 step="0.01"
-                placeholder="np. 1000"
+                placeholder=""
                 value={quickAddAmount}
                 onChange={(e) => setQuickAddAmount(e.target.value)}
               />
-              <p className="text-sm text-muted-foreground">
-                Tylko dodatnie wartości
-              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="quickJustification">Uzasadnienie</Label>
               <Textarea
                 id="quickJustification"
-                placeholder="Powod dodania środków (minimum 5 znaków)"
+                placeholder=""
                 value={quickAddJustification}
                 onChange={(e) => setQuickAddJustification(e.target.value)}
                 rows={3}

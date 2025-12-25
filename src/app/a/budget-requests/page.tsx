@@ -281,7 +281,7 @@ export default function BudgetRequestsPage() {
                 <TableRow>
                   <TableHead>Użytkownik</TableHead>
                   <TableHead>Stan salda przy złożeniu</TableHead>
-                  <TableHead className="text-right">Wnioskowana kwota</TableHead>
+                  <TableHead>Wnioskowana kwota</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data złożenia</TableHead>
                   <TableHead>Uzasadnienie</TableHead>
@@ -318,7 +318,7 @@ export default function BudgetRequestsPage() {
                               {(request.currentBalanceAtRequest ?? 0).toFixed(2)} PLN
                             </span>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell>
                             <span className="font-bold text-blue-600">
                               +{(request.requestedAmount ?? 0).toFixed(2)} PLN
                             </span>

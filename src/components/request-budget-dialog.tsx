@@ -81,10 +81,7 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
     <Dialog open={controlledOpen} onOpenChange={setControlledOpen}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Poproś o zwiększenie budżetu</DialogTitle>
-          <DialogDescription>
-            Wypełnij formularz aby poprosić księgowego o zwiększenie Twojego budżetu na faktury
-          </DialogDescription>
+          <DialogTitle>Poproś o zasilenie salda</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
@@ -93,27 +90,24 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
               id="amount"
               type="number"
               step="0.01"
-              placeholder="np. 5000"
+              placeholder=""
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               disabled={createRequestMutation.isPending}
             />
-            <p className="text-sm text-muted-foreground">
-              Kwota o jaką chcesz zwiększyć swój budżet
-            </p>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="justification">Uzasadnienie</Label>
             <Textarea
               id="justification"
-              placeholder="Opisz dlaczego potrzebujesz zwiększenia budżetu..."
+              placeholder=""
               value={justification}
               onChange={(e) => setJustification(e.target.value)}
               rows={6}
               disabled={createRequestMutation.isPending}
             />
             <p className="text-sm text-muted-foreground">
-              Minimum 5 znaków - opisz szczegółowo powód swojej prośby
+              {justification.length}/5 znaków minimum
             </p>
           </div>
         </div>

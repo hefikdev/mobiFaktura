@@ -154,38 +154,7 @@ export default function SaldoHistoryPage() {
       {user?.role === "admin" ? <AdminHeader /> : user?.role === "accountant" ? <AccountantHeader /> : <UserHeader />}
 
       <main className="flex-1 container mx-auto px-4 py-4 md:py-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3">
-          <div className="flex items-center gap-3">
-            <Receipt className="h-6 w-6 md:h-8 md:w-8 text-primary" />
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Historia Saldo</h1>
-            </div>
-          </div>
-          {/* Mobile: center button, Desktop: right align */}
-          <div className="flex w-full md:w-auto justify-center md:justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowRequestBudget(true)}
-              className="flex items-center gap-2"
-            >
-              <ArrowUp className="h-4 w-4" />
-              Prośba o zwiększenie budżetu
-            </Button>
-            <div className="hidden md:block">
-              <ExportButton
-                data={[]}
-                columns={exportColumns}
-                filename="historia-saldo"
-                onExport={async () => {
-                  const result = await exportQuery.refetch();
-                  return result.data || [];
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-      {/* Current Saldo Card */}
+              {/* Current Saldo Card */}
       {saldoData && (
         <Card className="mb-6">
           <CardHeader>
@@ -206,15 +175,49 @@ export default function SaldoHistoryPage() {
           </CardContent>
         </Card>
       )}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3">
+          
+          <div className="flex items-center gap-3">
+            <Receipt className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Historia Saldo</h1>
+            </div>
+          </div>
+          {/* Mobile: center button, Desktop: right align */}
+          <div className="flex w-full md:w-auto justify-center md:justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowRequestBudget(true)}
+              className="flex items-center gap-2"
+            >
+              <ArrowUp className="h-4 w-4" />
+              Prośba o zwiększenie budżetu
+            </Button>
+          </div>
+        </div>
 
       {/* Transaction History */}
       <Card>
         <CardHeader>
-          <div className="flex gap-2">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-            />
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                className="w-full"
+              />
+            </div>
+            <div className="hidden md:block">
+              <ExportButton
+          data={[]}
+          columns={exportColumns}
+          filename="historia-saldo"
+          onExport={async () => {
+            const result = await exportQuery.refetch();
+            return result.data || [];
+          }}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">

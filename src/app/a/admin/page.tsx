@@ -1039,7 +1039,9 @@ export default function AdminPage() {
 
           {/* Other Tab */}
           <TabsContent value="other" className="space-y-4">
-            <h2 className="text-xl font-semibold">Inne</h2>
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+              Zaleca się wszystkim użytkownikom, aby nie korzystali z systemu podczas wykonywania działań masowych w celu integracji danych.
+            </p>
             
             {/* Send Notification Card */}
             <Card className="border-blue-500">
