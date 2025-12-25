@@ -349,7 +349,7 @@ export default function SaldoManagementPage() {
                   { key: 'name', header: 'Imię i nazwisko' },
                   { key: 'email', header: 'Email' },
                   { key: 'saldo', header: 'Saldo', formatter: formatters.currency },
-                  { key: 'role', header: 'Rola', formatter: (value: any) => value === 'admin' ? 'Administrator' : value === 'accountant' ? 'Księgowy' : 'Użytkownik' },
+                  { key: 'role', header: 'Rola', formatter: (value: string) => value === 'admin' ? 'Administrator' : value === 'accountant' ? 'Księgowy' : 'Użytkownik' },
                   { key: 'createdAt', header: 'Data rejestracji', formatter: formatters.date },
                 ]}
                 filename="saldo-uzytkownikow"

@@ -16,26 +16,24 @@ describe('Admin Utils', () => {
 
   describe('getAdminCount', () => {
     it('should return the count of admin users', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([{ count: 3 }]),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const count = await getAdminCount();
 
       expect(count).toBe(3);
-      expect(mockSelect).toHaveBeenCalledOnce();
+      expect(db.select).toHaveBeenCalledOnce();
     });
 
     it('should return 0 when no admins exist', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([{ count: 0 }]),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const count = await getAdminCount();
 
@@ -43,12 +41,11 @@ describe('Admin Utils', () => {
     });
 
     it('should handle empty result', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const count = await getAdminCount();
 
@@ -58,12 +55,11 @@ describe('Admin Utils', () => {
 
   describe('hasAdmins', () => {
     it('should return true when admins exist', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([{ count: 2 }]),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const result = await hasAdmins();
 
@@ -71,12 +67,11 @@ describe('Admin Utils', () => {
     });
 
     it('should return false when no admins exist', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([{ count: 0 }]),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const result = await hasAdmins();
 
@@ -86,14 +81,13 @@ describe('Admin Utils', () => {
 
   describe('isUserAdmin', () => {
     it('should return true for admin users', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             limit: vi.fn().mockResolvedValue([{ role: 'admin' }]),
           }),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const result = await isUserAdmin('user-123');
 
@@ -101,14 +95,13 @@ describe('Admin Utils', () => {
     });
 
     it('should return false for non-admin users', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             limit: vi.fn().mockResolvedValue([{ role: 'user' }]),
           }),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const result = await isUserAdmin('user-123');
 
@@ -116,14 +109,13 @@ describe('Admin Utils', () => {
     });
 
     it('should return false for accountant users', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             limit: vi.fn().mockResolvedValue([{ role: 'accountant' }]),
           }),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const result = await isUserAdmin('user-123');
 
@@ -131,14 +123,13 @@ describe('Admin Utils', () => {
     });
 
     it('should return false when user not found', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             limit: vi.fn().mockResolvedValue([]),
           }),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const result = await isUserAdmin('nonexistent');
 
@@ -153,12 +144,11 @@ describe('Admin Utils', () => {
         { id: 'admin-2', email: 'admin2@test.com', name: 'Admin 2', createdAt: new Date() },
       ];
 
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue(mockAdmins),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const result = await getAllAdmins();
 
@@ -167,12 +157,11 @@ describe('Admin Utils', () => {
     });
 
     it('should return empty array when no admins exist', async () => {
-      const mockSelect = vi.fn().mockReturnValue({
+      vi.mocked(db.select).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
         }),
-      });
-      (db.select as any) = mockSelect;
+      } as unknown as ReturnType<typeof db.select>);
 
       const result = await getAllAdmins();
 

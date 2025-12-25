@@ -39,13 +39,14 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
+import { BudgetRequest } from "@/types";
 
 type BudgetRequestStatus = "all" | "pending" | "approved" | "rejected";
 
 export default function BudgetRequestsPage() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<BudgetRequestStatus>("pending");
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
@@ -161,7 +162,7 @@ export default function BudgetRequestsPage() {
     },
   });
 
-  const openReviewDialog = (request: any, action: "approve" | "reject") => {
+  const openReviewDialog = (request: BudgetRequest, action: "approve" | "reject") => {
     setSelectedRequest(request);
     setReviewAction(action);
     setRejectionReason("");
@@ -169,6 +170,7 @@ export default function BudgetRequestsPage() {
   };
 
   const handleReview = () => {
+    if (!selectedRequest) return;
     if (reviewAction === "reject" && (!rejectionReason || rejectionReason.trim().length < 10)) {
       toast({
         title: "Błąd",
@@ -185,7 +187,7 @@ export default function BudgetRequestsPage() {
     });
   };
 
-  const getStatusBadge = (status: string, request?: any) => {
+  const getStatusBadge = (status: string, request?: BudgetRequest) => {
     const handleStatusClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       if (request) {

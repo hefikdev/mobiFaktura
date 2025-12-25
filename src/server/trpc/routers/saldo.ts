@@ -7,7 +7,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { users, saldoTransactions } from "@/server/db/schema";
-import { eq, desc, and, or, ilike, sql } from "drizzle-orm";import { notifySaldoAdjusted } from "@/server/lib/notifications";
+import { eq, desc, and, or, ilike, sql, type SQL } from "drizzle-orm";import { notifySaldoAdjusted } from "@/server/lib/notifications";
 // Zod Schemas
 const adjustSaldoSchema = z.object({
   userId: z.string().uuid("Nieprawidłowy identyfikator użytkownika"),
@@ -104,7 +104,7 @@ export const saldoRouter = createTRPCRouter({
       const sortOrder = input?.sortOrder || "asc";
       
       // Apply search filter
-      let whereCondition: any = sql`1=1`;
+      let whereCondition: SQL | undefined = undefined;
       if (search && search.trim()) {
         const searchTerm = `%${search.toLowerCase()}%`;
         whereCondition = or(ilike(users.name, searchTerm), ilike(users.email, searchTerm));
@@ -119,20 +119,20 @@ export const saldoRouter = createTRPCRouter({
           saldo: users.saldo,
         })
         .from(users)
-        .where(whereCondition) as any;
+        .where(whereCondition);
 
       // Apply sorting
       const orderColumn = sortBy === "name" ? users.name : sortBy === "email" ? users.email : users.saldo;
-      query = sortOrder === "asc" ? query.orderBy(orderColumn) : query.orderBy(desc(orderColumn));
+      const orderedQuery = sortOrder === "asc" ? query.orderBy(orderColumn) : query.orderBy(desc(orderColumn));
 
       // Apply pagination with cursor
-      const result = await query.limit(limit + 1).offset(cursor);
+      const result = await orderedQuery.limit(limit + 1).offset(cursor);
       
       const hasMore = result.length > limit;
       const items = hasMore ? result.slice(0, limit) : result;
 
       return {
-        items: items.map((user: any) => ({
+        items: items.map((user) => ({
           ...user,
           saldo: user.saldo ? parseFloat(user.saldo) : 0,
         })),
@@ -219,16 +219,16 @@ export const saldoRouter = createTRPCRouter({
         });
       }
 
-      let whereCondition: any = eq(saldoTransactions.userId, targetUserId);
+      let whereCondition: SQL = eq(saldoTransactions.userId, targetUserId);
       if (search && search.trim()) {
         const searchTerm = `%${search.toLowerCase()}%`;
         whereCondition = and(
           whereCondition,
           or(ilike(saldoTransactions.notes, searchTerm), ilike(saldoTransactions.transactionType, searchTerm))
-        );
+        ) as SQL;
       }
 
-      let query = db
+      const query = db
         .select({
           id: saldoTransactions.id,
           amount: saldoTransactions.amount,
@@ -243,22 +243,22 @@ export const saldoRouter = createTRPCRouter({
         })
         .from(saldoTransactions)
         .leftJoin(users, eq(saldoTransactions.createdBy, users.id))
-        .where(whereCondition) as any;
+        .where(whereCondition);
 
       // Apply sorting
       const orderColumn = sortBy === "amount" ? saldoTransactions.amount 
         : sortBy === "transactionType" ? saldoTransactions.transactionType 
         : saldoTransactions.createdAt;
-      query = sortOrder === "asc" ? query.orderBy(orderColumn) : query.orderBy(desc(orderColumn));
+      const orderedQuery = sortOrder === "asc" ? query.orderBy(orderColumn) : query.orderBy(desc(orderColumn));
 
       // Apply pagination with cursor
-      const result = await query.limit(limit + 1).offset(cursor);
+      const result = await orderedQuery.limit(limit + 1).offset(cursor);
       
       const hasMore = result.length > limit;
       const items = hasMore ? result.slice(0, limit) : result;
 
       return {
-        items: items.map((tx: any) => ({
+        items: items.map((tx) => ({
           ...tx,
           amount: tx.amount ? parseFloat(tx.amount) : 0,
           balanceBefore: tx.balanceBefore ? parseFloat(tx.balanceBefore) : 0,
@@ -325,13 +325,13 @@ export const saldoRouter = createTRPCRouter({
       const sortOrder = input?.sortOrder || "asc";
 
       // Apply search filter
-      let whereCondition: any = sql`1=1`;
+      let whereCondition: SQL = sql`1=1`;
       if (input?.search && input.search.trim()) {
         const searchTerm = `%${input.search.toLowerCase()}%`;
-        whereCondition = or(ilike(users.name, searchTerm), ilike(users.email, searchTerm));
+        whereCondition = or(ilike(users.name, searchTerm), ilike(users.email, searchTerm)) as SQL;
       }
 
-      let query = db
+      const query = db
         .select({
           id: users.id,
           name: users.name,
@@ -341,15 +341,15 @@ export const saldoRouter = createTRPCRouter({
           createdAt: users.createdAt,
         })
         .from(users)
-        .where(whereCondition) as any;
+        .where(whereCondition);
 
       // Apply sorting
       const orderColumn = sortBy === "name" ? users.name : sortBy === "email" ? users.email : users.saldo;
-      query = sortOrder === "asc" ? query.orderBy(orderColumn) : query.orderBy(desc(orderColumn));
+      const orderedQuery = sortOrder === "asc" ? query.orderBy(orderColumn) : query.orderBy(desc(orderColumn));
 
-      const result = await query;
+      const result = await orderedQuery;
 
-      return result.map((user: any) => ({
+      return result.map((user) => ({
         id: user.id,
         name: user.name,
         email: user.email,
@@ -374,16 +374,16 @@ export const saldoRouter = createTRPCRouter({
         });
       }
 
-      let whereCondition: any = eq(saldoTransactions.userId, targetUserId);
+      let whereCondition: SQL = eq(saldoTransactions.userId, targetUserId);
       if (input?.search && input.search.trim()) {
         const searchTerm = `%${input.search.toLowerCase()}%`;
         whereCondition = and(
           whereCondition,
           or(ilike(saldoTransactions.notes, searchTerm), ilike(saldoTransactions.transactionType, searchTerm))
-        );
+        ) as SQL;
       }
 
-      let query = db
+      const query = db
         .select({
           id: saldoTransactions.id,
           amount: saldoTransactions.amount,
@@ -398,17 +398,17 @@ export const saldoRouter = createTRPCRouter({
         })
         .from(saldoTransactions)
         .leftJoin(users, eq(saldoTransactions.createdBy, users.id))
-        .where(whereCondition) as any;
+        .where(whereCondition);
 
       // Apply sorting
       const orderColumn = input?.sortBy === "amount" ? saldoTransactions.amount
         : input?.sortBy === "transactionType" ? saldoTransactions.transactionType
         : saldoTransactions.createdAt;
-      query = (input?.sortOrder || "desc") === "asc" ? query.orderBy(orderColumn) : query.orderBy(desc(orderColumn));
+      const orderedQuery = (input?.sortOrder || "desc") === "asc" ? query.orderBy(orderColumn) : query.orderBy(desc(orderColumn));
 
-      const result = await query;
+      const result = await orderedQuery;
 
-      return result.map((tx: any) => ({
+      return result.map((tx) => ({
         id: tx.id,
         amount: tx.amount ? parseFloat(tx.amount) : 0,
         balanceBefore: tx.balanceBefore ? parseFloat(tx.balanceBefore) : 0,

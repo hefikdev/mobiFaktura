@@ -3,9 +3,12 @@ import { createTRPCRouter, protectedProcedure } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { parseStringPromise } from "xml2js";
 import { apiLogger, logError } from "@/lib/logger";
+import { db } from "@/server/db";
+import { invoices, companies } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+import { KSeFInvoiceData } from "@/types";
 
 const KSEF_URL = "https://ksef.mf.gov.pl";
-const KSEF_TOKEN = process.env.KSEF_TOKEN;
 
 // KSeF number validation - 18-36 characters, alphanumeric with special chars
 const ksefNumberSchema = z.string()
@@ -13,11 +16,22 @@ const ksefNumberSchema = z.string()
   .max(36, "KSeF number must be at most 36 characters")
   .regex(/^[A-Z0-9\-]+$/, "Invalid KSeF number format");
 
-async function authenticateWithKSeF(): Promise<string> {
-  if (!KSEF_TOKEN) {
+// authenticateWithKSeF function
+async function authenticateWithKSeF(nip: string | null): Promise<string> {
+  // Try to get company-specific token first
+  let token = nip ? process.env[`KSEF_TOKEN_${nip.replace(/[^0-9]/g, "")}`] : null;
+  
+  // Fallback to default token
+  if (!token) {
+    token = process.env.KSEF_TOKEN;
+  }
+
+  if (!token) {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: "KSeF token not configured",
+      message: nip 
+        ? `KSeF token not configured for company with NIP ${nip}. Please add KSEF_TOKEN_${nip.replace(/[^0-9]/g, "")} to .env file.` 
+        : "KSeF token not configured in .env file",
     });
   }
 
@@ -28,7 +42,7 @@ async function authenticateWithKSeF(): Promise<string> {
         "Content-Type": "application/json",
         "User-Agent": "mobiFaktura/1.0"
       },
-      body: JSON.stringify({ token: KSEF_TOKEN }),
+      body: JSON.stringify({ token }),
       signal: AbortSignal.timeout(10000), // 10 second timeout
     });
 
@@ -133,13 +147,13 @@ async function getInvoiceFromKSeF(
   }
 }
 
-async function parseInvoiceXML(xmlData: string): Promise<any> {
+async function parseInvoiceXML(xmlData: string): Promise<KSeFInvoiceData> {
   try {
     const parsed = await parseStringPromise(xmlData, { 
       explicitArray: false,
       mergeAttrs: true,
     });
-    return parsed;
+    return parsed as KSeFInvoiceData;
   } catch (error) {
     logError(error, {
       type: "ksef_xml_parse_error",
@@ -157,6 +171,7 @@ export const ksefRouter = createTRPCRouter({
   verifyInvoice: protectedProcedure
     .input(z.object({
       ksefNumber: ksefNumberSchema,
+      invoiceId: z.string().uuid().optional(),
     }))
     .query(async ({ ctx, input }) => {
       const startTime = Date.now();
@@ -166,10 +181,28 @@ export const ksefRouter = createTRPCRouter({
           type: "ksef_verification_start",
           userId: ctx.user.id,
           ksefNumber: input.ksefNumber,
+          invoiceId: input.invoiceId,
         });
 
-        // Authenticate with KSeF
-        const sessionToken = await authenticateWithKSeF();
+        // Get company NIP if invoiceId is provided
+        let nip: string | null = null;
+        if (input.invoiceId) {
+          const [invoiceData] = await db
+            .select({
+              nip: companies.nip,
+            })
+            .from(invoices)
+            .innerJoin(companies, eq(invoices.companyId, companies.id))
+            .where(eq(invoices.id, input.invoiceId))
+            .limit(1);
+          
+          if (invoiceData) {
+            nip = invoiceData.nip;
+          }
+        }
+
+        // Authenticate with KSeF using company-specific token if available
+        const sessionToken = await authenticateWithKSeF(nip);
 
         // Fetch invoice XML
         const xmlData = await getInvoiceFromKSeF(sessionToken, input.ksefNumber);

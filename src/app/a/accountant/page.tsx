@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import { BudgetRequest } from "@/types";
 
 export default function AccountantPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function AccountantPage() {
   const [sortBy, setSortBy] = useState<"date">("date");
   const [filterStatus, setFilterStatus] = useState<"all" | "accepted" | "rejected" | "re_review">("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<any>(null);
+  const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<BudgetRequest | null>(null);
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
 
   // Refs for infinite scroll
@@ -62,7 +63,7 @@ export default function AccountantPage() {
     { limit: 50 },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      refetchInterval: 800,
+      refetchInterval: 2000, // 2 seconds - fast enough for heartbeat monitoring
       refetchOnWindowFocus: true,
       staleTime: 0,
     }
@@ -79,7 +80,7 @@ export default function AccountantPage() {
     { limit: 10 },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      refetchInterval: 800,
+      refetchInterval: 3000, // 3 seconds - balanced for performance
       refetchOnWindowFocus: true,
       staleTime: 20000,
     }

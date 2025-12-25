@@ -5,21 +5,24 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
+import { KSeFInvoiceData } from "@/types";
 
 const KsefInvoicePopup = memo(function KsefInvoicePopup({
   ksefNumber,
+  invoiceId,
   open,
   onOpenChange,
 }: {
   ksefNumber: string;
+  invoiceId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [invoice, setInvoice] = useState<any>(null);
+  const [invoice, setInvoice] = useState<KSeFInvoiceData | null>(null);
 
   // Use tRPC query to verify invoice
   const { data, isLoading, error, refetch } = trpc.ksef.verifyInvoice.useQuery(
-    { ksefNumber },
+    { ksefNumber, invoiceId: invoiceId || undefined },
     {
       enabled: false, // Don't auto-fetch, we'll fetch manually when dialog opens
       retry: false,

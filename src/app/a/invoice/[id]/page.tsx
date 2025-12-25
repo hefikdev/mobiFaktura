@@ -51,6 +51,9 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import dynamic from "next/dynamic";
+
+const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
 
 export default function InvoiceReviewPage() {
   const router = useRouter();
@@ -73,6 +76,7 @@ export default function InvoiceReviewPage() {
   const [adminStatusReason, setAdminStatusReason] = useState("");
   const [isEditingInvoiceNumber, setIsEditingInvoiceNumber] = useState(false);
   const [isEditingKwota, setIsEditingKwota] = useState(false);
+  const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
   const invoiceNumberInputRef = useRef<HTMLDivElement>(null);
   const kwotaInputRef = useRef<HTMLDivElement>(null);
   
@@ -88,7 +92,7 @@ export default function InvoiceReviewPage() {
       refetchOnWindowFocus: true,
       refetchOnMount: true,
       staleTime: 0,
-      refetchInterval: 800,
+      refetchInterval: 2000, // 2 seconds - fast enough for heartbeat monitoring
     }
   );
 
@@ -493,6 +497,17 @@ export default function InvoiceReviewPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {user?.role === "admin" ? <AdminHeader /> : <AccountantHeader />}
+      
+      {/* KSeF Invoice Popup */}
+      {invoice.ksefNumber && (
+        <KsefInvoicePopup
+          ksefNumber={invoice.ksefNumber}
+          invoiceId={invoiceId}
+          open={ksefPopupOpen}
+          onOpenChange={setKsefPopupOpen}
+        />
+      )}
+
       <main className="flex-1 p-4 max-w-7xl mx-auto w-full">
         <div className="mb-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -610,8 +625,8 @@ export default function InvoiceReviewPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(`https://www.ksef.gov.pl/${invoice.ksefNumber}`, '_blank')}
-                      title="Zobacz KSEF"
+                      onClick={() => setKsefPopupOpen(true)}
+                      title="Weryfikuj w KSeF"
                       className="flex items-center gap-1"
                     >
                       <ExternalLink className="h-4 w-4" />

@@ -8,7 +8,7 @@ import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 interface ErrorDisplayProps {
   title?: string;
   message: string;
-  error?: any;
+  error?: unknown;
   className?: string;
 }
 
@@ -20,13 +20,24 @@ export function ErrorDisplay({
 }: ErrorDisplayProps) {
   const [showDetails, setShowDetails] = useState(false);
 
-  const errorDetails = error ? {
-    message: error.message || message,
-    code: error.data?.code || error.code,
-    path: error.data?.path,
-    stack: error.stack,
-    data: error.data,
-  } : null;
+  const errorDetails = error ? (() => {
+    if (error instanceof Error) {
+      return {
+        message: error.message || message,
+        stack: error.stack,
+      };
+    }
+    if (typeof error === 'object' && error !== null) {
+      const err = error as Record<string, unknown>;
+      return {
+        message: (typeof err.message === 'string' ? err.message : message),
+        code: err.data && typeof err.data === 'object' ? (err.data as Record<string, unknown>).code : err.code,
+        path: err.data && typeof err.data === 'object' ? (err.data as Record<string, unknown>).path : undefined,
+        data: err.data,
+      };
+    }
+    return { message };
+  })() : null;
 
   return (
     <Card className={`border-red-200 dark:border-red-900 ${className}`}>

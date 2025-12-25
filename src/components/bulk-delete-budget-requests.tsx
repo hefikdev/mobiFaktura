@@ -27,6 +27,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
+import { BudgetRequest } from "@/types";
 import { 
   Loader2, 
   Trash2, 
@@ -80,7 +81,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
   const [totalToDelete, setTotalToDelete] = useState(0);
   const [deletedCount, setDeletedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
-  const [previewRequests, setPreviewRequests] = useState<any[]>([]);
+  const [previewRequests, setPreviewRequests] = useState<BudgetRequest[]>([]);
   
   const logIdCounter = useRef(0);
 
@@ -276,7 +277,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Typ filtra</Label>
-                  <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
+                  <Select value={filterType} onValueChange={(value: "older" | "year" | "range" | "user") => setFilterType(value)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>

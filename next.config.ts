@@ -1,13 +1,9 @@
 import type { NextConfig } from "next";
 import withPWA from "next-pwa";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
-  eslint: {
-    // Ignore ESLint errors during builds
-    ignoreDuringBuilds: true,
-  },
   // Security headers
   async headers() {
     return [
@@ -50,7 +46,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-};
+} satisfies any;
 
 export default withPWA({
   dest: "public",
@@ -175,4 +171,4 @@ export default withPWA({
       },
     },
   ],
-})(nextConfig);
+})(nextConfig as any);

@@ -25,6 +25,24 @@
 - **Type Definitions**: `src/types/xml2js.d.ts`
 - **Deprecation Handler**: `src/app/api/ksef/route.ts`
 - **Documentation**: `docs/KSEF_INTEGRATION.md`
+- **Multi-company Support**: Automatic token selection via `.env` mapping
+
+---
+
+## 🏢 Multi-company Configuration
+
+To support multiple companies, add their KSeF tokens to the `.env` file using their NIP (digits only):
+
+```env
+# Default token
+KSEF_TOKEN=your_default_token
+
+# Company-specific tokens (NIP without dashes)
+KSEF_TOKEN_1234567890=token_for_company_1
+KSEF_TOKEN_9876543210=token_for_company_2
+```
+
+The system will automatically use the correct token when verifying an invoice.
 
 ---
 
@@ -92,6 +110,7 @@ export function MyPage() {
       </button>
       <KsefInvoicePopup
         ksefNumber={ksefNumber}
+        invoiceId={invoiceId} // Optional: for multi-company token matching
         open={open}
         onOpenChange={setOpen}
       />

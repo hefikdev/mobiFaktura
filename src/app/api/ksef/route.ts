@@ -37,7 +37,8 @@ export async function GET(req: Request) {
     const xml = await getInvoiceXML(session, ksefNumber);
     const json = await parseStringPromise(xml, { explicitArray: false });
     return NextResponse.json({ valid: true, invoice: json });
-  } catch (err: any) {
-    return NextResponse.json({ valid: false, error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    return NextResponse.json({ valid: false, error: errorMessage }, { status: 500 });
   }
 }

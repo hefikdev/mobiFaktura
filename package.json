@@ -2,6 +2,7 @@
   "name": "mobifaktura",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -73,6 +74,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.3",
     "@types/node": "^22.9.0",
     "@types/pdfmake": "^0.2.12",
     "@types/pg": "^8.11.10",
@@ -84,7 +86,7 @@
     "autoprefixer": "^10.4.22",
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.28.0",
-    "eslint": "^9.14.0",
+    "eslint": "^9.39.2",
     "eslint-config-next": "^15.0.3",
     "postcss": "^8.4.47",
     "sharp": "^0.34.5",

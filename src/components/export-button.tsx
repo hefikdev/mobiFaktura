@@ -6,19 +6,19 @@ import { Download, Loader2 } from "lucide-react";
 import { exportToCSV, ExportOptions } from "@/lib/export";
 import { useToast } from "@/components/ui/use-toast";
 
-interface ExportButtonProps {
-  data: any[];
-  columns: ExportOptions['columns'];
+interface ExportButtonProps<T = unknown> {
+  data: T[];
+  columns: ExportOptions<T>['columns'];
   filename: string;
   label?: string;
   variant?: "default" | "outline" | "secondary" | "ghost" | "link" | "destructive";
   size?: "default" | "sm" | "lg" | "icon";
   disabled?: boolean;
   className?: string;
-  onExport?: () => Promise<any[]> | any[];
+  onExport?: () => Promise<T[]> | T[];
 }
 
-export function ExportButton({
+export function ExportButton<T>({
   data,
   columns,
   filename,
@@ -28,7 +28,7 @@ export function ExportButton({
   disabled = false,
   className = "",
   onExport,
-}: ExportButtonProps) {
+}: ExportButtonProps<T>) {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
 

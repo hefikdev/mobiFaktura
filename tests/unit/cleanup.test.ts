@@ -34,22 +34,20 @@ describe('Cleanup Cron Jobs', () => {
 
   describe('cleanOldLoginLogs', () => {
     it('should delete login logs older than 30 days', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 5 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginLogs();
 
       expect(result.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledOnce();
+      expect(db.delete).toHaveBeenCalledOnce();
     });
 
     it('should handle deletion errors', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockRejectedValue(new Error('Database error')),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginLogs();
 
@@ -58,10 +56,9 @@ describe('Cleanup Cron Jobs', () => {
     });
 
     it('should return success status and deletion timestamp', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 3 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginLogs();
 
@@ -71,36 +68,33 @@ describe('Cleanup Cron Jobs', () => {
 
     it('should calculate correct date threshold', async () => {
       const mockWhere = vi.fn().mockResolvedValue({ rowCount: 2 });
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: mockWhere,
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       await cleanOldLoginLogs();
 
-      expect(mockDelete).toHaveBeenCalledOnce();
+      expect(db.delete).toHaveBeenCalledOnce();
       expect(mockWhere).toHaveBeenCalledOnce();
     });
   });
 
   describe('cleanExpiredSessions', () => {
     it('should delete expired sessions', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 10 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanExpiredSessions();
 
       expect(result.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledOnce();
+      expect(db.delete).toHaveBeenCalledOnce();
     });
 
     it('should handle deletion errors', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
-        where: vi.fn().mockRejectedValue(new Error('Connection timeout')),
-      });
-      (db.delete as any) = mockDelete;
+      vi.mocked(db.delete).mockReturnValue({
+        where: vi.fn().mockRejectedValue(new Error('Database error')),
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanExpiredSessions();
 
@@ -109,10 +103,9 @@ describe('Cleanup Cron Jobs', () => {
     });
 
     it('should return success with timestamp', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 7 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanExpiredSessions();
 
@@ -122,24 +115,22 @@ describe('Cleanup Cron Jobs', () => {
 
     it('should use current date for comparison', async () => {
       const mockWhere = vi.fn().mockResolvedValue({ rowCount: 5 });
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: mockWhere,
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const beforeCall = new Date();
       await cleanExpiredSessions();
       const afterCall = new Date();
 
-      expect(mockDelete).toHaveBeenCalledOnce();
+      expect(db.delete).toHaveBeenCalledOnce();
       expect(mockWhere).toHaveBeenCalledOnce();
     });
 
     it('should handle zero deleted sessions', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 0 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanExpiredSessions();
 
@@ -149,22 +140,20 @@ describe('Cleanup Cron Jobs', () => {
 
   describe('cleanOldLoginAttempts', () => {
     it('should delete old login attempts', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 15 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginAttempts();
 
       expect(result.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledOnce();
+      expect(db.delete).toHaveBeenCalledOnce();
     });
 
     it('should handle deletion errors', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockRejectedValue(new Error('Lock timeout')),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginAttempts();
 
@@ -173,10 +162,9 @@ describe('Cleanup Cron Jobs', () => {
     });
 
     it('should return success status with timestamp', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 8 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginAttempts();
 
@@ -185,10 +173,9 @@ describe('Cleanup Cron Jobs', () => {
     });
 
     it('should handle empty table gracefully', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 0 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginAttempts();
 
@@ -199,10 +186,9 @@ describe('Cleanup Cron Jobs', () => {
 
   describe('Error handling', () => {
     it('should catch and log database connection errors', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockRejectedValue(new Error('Connection refused')),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginLogs();
 
@@ -211,10 +197,9 @@ describe('Cleanup Cron Jobs', () => {
     });
 
     it('should handle null/undefined errors gracefully', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockRejectedValue(null),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanExpiredSessions();
 
@@ -222,14 +207,13 @@ describe('Cleanup Cron Jobs', () => {
     });
 
     it('should handle timeout errors', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockImplementation(() => 
           new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Timeout')), 100)
           )
         ),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const result = await cleanOldLoginAttempts();
 
@@ -239,10 +223,9 @@ describe('Cleanup Cron Jobs', () => {
 
   describe('Performance', () => {
     it('should complete cleanup within reasonable time', async () => {
-      const mockDelete = vi.fn().mockReturnValue({
+      vi.mocked(db.delete).mockReturnValue({
         where: vi.fn().mockResolvedValue({ rowCount: 100 }),
-      });
-      (db.delete as any) = mockDelete;
+      } as unknown as ReturnType<typeof db.delete>);
 
       const start = Date.now();
       await cleanOldLoginLogs();

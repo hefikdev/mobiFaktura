@@ -60,8 +60,7 @@ describe('Logger Utilities', () => {
 
     it('should handle errors with additional properties', () => {
       const error = new Error('Test');
-      (error as any).statusCode = 500;
-      (error as any).metadata = { foo: 'bar' };
+      Object.assign(error, { statusCode: 500, metadata: { foo: 'bar' } });
       
       expect(() => logError(error)).not.toThrow();
     });
@@ -223,7 +222,7 @@ describe('Logger Utilities', () => {
       
       operations.forEach(operation => {
         expect(() => logDatabase(
-          operation as any,
+          operation as 'query',
           'test_table',
           50,
           { success: true }

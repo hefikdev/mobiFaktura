@@ -107,7 +107,7 @@ describe('Error Handling and Edge Cases', () => {
 
   describe('Array Edge Cases', () => {
     it('should handle empty arrays', () => {
-      const arr: any[] = [];
+      const arr: unknown[] = [];
       
       expect(arr.length).toBe(0);
       expect(arr[0]).toBeUndefined();
@@ -179,11 +179,11 @@ describe('Error Handling and Edge Cases', () => {
     });
 
     it('should handle circular references safely', () => {
-      const obj: any = { name: 'test' };
+      const obj: Record<string, unknown> = { name: 'test' };
       obj.self = obj;
       
       expect(obj.self).toBe(obj);
-      expect(obj.self.self).toBe(obj);
+      expect((obj.self as Record<string, unknown>).self).toBe(obj);
     });
   });
 
@@ -322,9 +322,9 @@ describe('Error Handling and Edge Cases', () => {
       // @ts-ignore - Testing intentional loose equality
       expect(0 == '0').toBe(true);
       // @ts-ignore - Testing intentional loose equality
-      expect(0 == ([] as any)).toBe(true);
+      expect(0 == ([] as unknown)).toBe(true);
       // @ts-ignore - Testing intentional loose equality
-      expect('0' == ([] as any)).toBe(false);
+      expect('0' == ([] as unknown)).toBe(false);
       
       expect(null == undefined).toBe(true);
       expect(null === undefined).toBe(false);
@@ -369,7 +369,7 @@ describe('Error Handling and Edge Cases', () => {
 
   describe('JSON Edge Cases', () => {
     it('should handle JSON.stringify with circular references', () => {
-      const obj: any = { name: 'test' };
+      const obj: Record<string, unknown> = { name: 'test' };
       obj.self = obj;
       
       expect(() => JSON.stringify(obj)).toThrow();

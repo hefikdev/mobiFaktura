@@ -27,6 +27,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
+import { Invoice } from "@/types";
 import { 
   Loader2, 
   Trash2, 
@@ -57,6 +58,14 @@ type LogEntry = {
 
 type DeletionStep = "idle" | "password" | "preview" | "deleting" | "verifying" | "complete";
 
+interface PreviewInvoice {
+  id: string;
+  invoiceNumber: string;
+  imageKey: string;
+  status: string;
+  createdAt: Date;
+}
+
 export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesProps) {
   const { toast } = useToast();
   const logRef = useRef<HTMLDivElement>(null);
@@ -80,7 +89,7 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
   const [totalToDelete, setTotalToDelete] = useState(0);
   const [deletedCount, setDeletedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
-  const [previewInvoices, setPreviewInvoices] = useState<any[]>([]);
+  const [previewInvoices, setPreviewInvoices] = useState<PreviewInvoice[]>([]);
   const [isDeletionComplete, setIsDeletionComplete] = useState(false);
   
   const logIdCounter = useRef(0);
@@ -188,11 +197,11 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
         id: string;
         invoiceNumber: string;
         status: string;
-        createdAt: Date;
+        createdAt: string | Date;
       }
       
       result.invoices?.slice(0, 5).forEach((inv: PreviewInvoice) => {
-        addLog("info", `  - ${inv.invoiceNumber} (${inv.status}) - ${formatDate(inv.createdAt)}`);
+        addLog("info", `  - ${inv.invoiceNumber} (${inv.status}) - ${formatDate(new Date(inv.createdAt))}`);
       });
       
       if (result.invoices && result.invoices.length > 5) {
@@ -226,6 +235,7 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
 
     for (let i = 0; i < previewInvoices.length; i++) {
       const invoice = previewInvoices[i];
+      if (!invoice) continue;
       
       addLog("info", `[${i + 1}/${previewInvoices.length}] Usuwam: ${invoice.invoiceNumber}`);
       

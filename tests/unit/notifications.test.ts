@@ -35,12 +35,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const result = await createNotification({
         userId: 'user-123',
@@ -52,7 +51,7 @@ describe('Notifications', () => {
       });
 
       expect(result).toEqual(mockNotification);
-      expect(mockInsert).toHaveBeenCalledOnce();
+      expect(db.insert).toHaveBeenCalledOnce();
     });
 
     it('should create a notification without optional fields', async () => {
@@ -66,12 +65,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const result = await createNotification({
         userId: 'user-124',
@@ -97,12 +95,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const result = await notifyInvoiceAccepted('user-125', 'INV-001', 'inv-125');
 
@@ -125,12 +122,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const result = await notifyInvoiceRejected(
         'user-126',
@@ -157,12 +153,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const result = await notifyInvoiceRejected(
         'user-127',
@@ -188,12 +183,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const accountantIds = ['accountant-1', 'accountant-2', 'accountant-3'];
       const results = await notifyInvoiceSubmitted(
@@ -204,7 +198,7 @@ describe('Notifications', () => {
       );
 
       expect(results).toHaveLength(3);
-      expect(mockInsert).toHaveBeenCalledTimes(3);
+      expect(db.insert).toHaveBeenCalledTimes(3);
     });
 
     it('should handle empty accountant list', async () => {
@@ -225,12 +219,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const results = await notifyInvoiceSubmitted(
         ['accountant-1'],
@@ -240,7 +233,7 @@ describe('Notifications', () => {
       );
 
       expect(results).toHaveLength(1);
-      expect(mockInsert).toHaveBeenCalledOnce();
+      expect(db.insert).toHaveBeenCalledOnce();
     });
   });
 
@@ -257,12 +250,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const result = await notifyInvoiceAssigned('accountant-5', 'INV-007', 'inv-131');
 
@@ -285,12 +277,11 @@ describe('Notifications', () => {
         createdAt: new Date(),
       };
 
-      const mockInsert = vi.fn().mockReturnValue({
+      vi.mocked(db.insert).mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockNotification]),
         }),
-      });
-      (db.insert as any) = mockInsert;
+      } as unknown as ReturnType<typeof db.insert>);
 
       const result = await notifyInvoiceReReview('user-132', 'INV-008', 'inv-132');
 

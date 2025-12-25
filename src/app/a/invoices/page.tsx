@@ -71,6 +71,7 @@ export default function InvoicesPage() {
   // KSeF Invoice Popup states
   const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
   const [ksefPopupNumber, setKsefPopupNumber] = useState<string | null>(null);
+  const [ksefPopupInvoiceId, setKsefPopupInvoiceId] = useState<string | null>(null);
 
   // Data fetching with infinite query
   const {
@@ -210,10 +211,14 @@ export default function InvoicesPage() {
       {/* KSeF Invoice Popup */}
       <KsefInvoicePopup
         ksefNumber={ksefPopupNumber || ""}
+        invoiceId={ksefPopupInvoiceId}
         open={!!ksefPopupOpen && !!ksefPopupNumber}
         onOpenChange={(open) => {
           setKsefPopupOpen(open);
-          if (!open) setKsefPopupNumber(null);
+          if (!open) {
+            setKsefPopupNumber(null);
+            setKsefPopupInvoiceId(null);
+          }
         }}
       />
 
@@ -340,6 +345,7 @@ export default function InvoicesPage() {
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setKsefPopupNumber(invoice.ksefNumber);
+                                          setKsefPopupInvoiceId(invoice.id);
                                           setKsefPopupOpen(true);
                                         }}
                                       >
@@ -411,6 +417,7 @@ export default function InvoicesPage() {
                                               e.stopPropagation();
                                               if (invoice.ksefNumber) {
                                                 setKsefPopupNumber(invoice.ksefNumber);
+                                                setKsefPopupInvoiceId(invoice.id);
                                                 setKsefPopupOpen(true);
                                               } else {
                                                 toast({

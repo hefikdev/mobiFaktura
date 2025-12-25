@@ -49,9 +49,16 @@ src/
 **Input:**
 ```typescript
 {
-  ksefNumber: string  // KSeF invoice number (18-36 characters)
+  ksefNumber: string,  // KSeF invoice number (18-36 characters)
+  invoiceId?: string   // Optional invoice ID to automatically match company token
 }
 ```
+
+**Multi-company Support:**
+The system automatically selects the correct KSeF token based on the company associated with the invoice.
+1. If `invoiceId` is provided, the system looks up the company's NIP.
+2. It then looks for an environment variable named `KSEF_TOKEN_[NIP]` (e.g., `KSEF_TOKEN_1234567890`).
+3. If not found, it falls back to the default `KSEF_TOKEN`.
 
 **Output:**
 ```typescript
@@ -94,6 +101,7 @@ src/
 ```typescript
 <KsefInvoicePopup
   ksefNumber="string"                    // KSeF number to verify
+  invoiceId="string"                     // Optional invoice ID for multi-company token matching
   open={boolean}                         // Dialog open state
   onOpenChange={(open: boolean) => {}}   // Dialog state handler
 />

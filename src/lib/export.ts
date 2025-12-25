@@ -1,16 +1,16 @@
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 
-export interface ExportColumn {
+export interface ExportColumn<T = any> {
   key: string;
   header: string;
   formatter?: (value: any) => string;
 }
 
-export interface ExportOptions {
+export interface ExportOptions<T = any> {
   filename: string;
-  columns: ExportColumn[];
-  data: any[];
+  columns: ExportColumn<T>[];
+  data: T[];
 }
 
 /**

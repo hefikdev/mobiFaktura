@@ -26,7 +26,11 @@ import * as pdfFonts from "pdfmake/build/vfs_fonts";
 import { formatDate } from "@/lib/date-utils";
 
 // Initialize pdfMake with fonts
-(pdfMake as any).vfs = pdfFonts;
+if (pdfFonts && (pdfFonts as unknown as { pdfMake?: { vfs: unknown } }).pdfMake) {
+  (pdfMake as { vfs?: unknown }).vfs = (pdfFonts as unknown as { pdfMake: { vfs: unknown } }).pdfMake.vfs;
+} else {
+  (pdfMake as { vfs?: unknown }).vfs = pdfFonts;
+}
 
 type ExportPeriod = "last30" | "specificMonth" | "last3Months" | "last6Months" | "thisYear" | "all";
 type ExportFormat = "csv" | "pdf";

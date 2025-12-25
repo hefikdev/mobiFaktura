@@ -30,7 +30,7 @@ export default function UserGuidePage() {
                 <h3 className="font-semibold text-lg mb-2">Przesyłanie faktur</h3>
                 <ol className="list-decimal list-inside space-y-2 text-foreground">
                   <li>Zaloguj się do systemu używając swoich danych</li>
-                  <li>Kliknij przycisk "Prześlij fakturę" w menu głównym</li>
+                  <li>Kliknij przycisk &quot;Prześlij fakturę&quot; w menu głównym</li>
                   <li>Wybierz zdjęcie faktury (JPG, PNG lub WEBP, max 10MB)</li>
                   <li>Wypełnij wymagane pola:
                     <ul className="list-disc list-inside ml-6 mt-1">
@@ -40,7 +40,7 @@ export default function UserGuidePage() {
                       <li>Uzasadnienie (min. 10 znaków)</li>
                     </ul>
                   </li>
-                  <li>Kliknij "Prześlij fakturę" aby zapisać</li>
+                  <li>Kliknij &quot;Prześlij fakturę&quot; aby zapisać</li>
                 </ol>
               </div>
 

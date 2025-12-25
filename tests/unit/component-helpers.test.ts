@@ -111,7 +111,7 @@ describe('Component Helper Functions', () => {
     });
 
     it('should handle empty notifications', () => {
-      const notifications: any[] = [];
+      const notifications: { read: boolean }[] = [];
       const unreadCount = notifications.filter(n => !n.read).length;
       
       expect(unreadCount).toBe(0);

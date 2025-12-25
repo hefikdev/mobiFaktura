@@ -60,7 +60,7 @@ export const adminRouter = createTRPCRouter({
     const dbSizeResult = await db.execute(sql`
       SELECT pg_database_size(current_database()) as size
     `);
-    const dbSizeBytes = Number((dbSizeResult.rows[0] as any)?.size || 0);
+    const dbSizeBytes = Number((dbSizeResult.rows[0] as Record<string, unknown>)?.size || 0);
     const dbSizeGB = dbSizeBytes / (1024 * 1024 * 1024);
 
     return {
@@ -547,7 +547,7 @@ export const adminRouter = createTRPCRouter({
       WHERE status IN ('accepted', 'rejected')
       AND updated_at IS NOT NULL
     `);
-    const avgTimeToReview = Number((avgTimeToReviewResult.rows[0] as any)?.avg_hours || 0);
+    const avgTimeToReview = Number((avgTimeToReviewResult.rows[0] as Record<string, unknown>)?.avg_hours || 0);
 
     // Average time to decision (from created to reviewed_at)
     const avgTimeToDecisionResult = await db.execute(sql`
@@ -557,7 +557,7 @@ export const adminRouter = createTRPCRouter({
       WHERE status IN ('accepted', 'rejected')
       AND reviewed_at IS NOT NULL
     `);
-    const avgTimeToDecision = Number((avgTimeToDecisionResult.rows[0] as any)?.avg_hours || 0);
+    const avgTimeToDecision = Number((avgTimeToDecisionResult.rows[0] as Record<string, unknown>)?.avg_hours || 0);
 
     // Monthly summaries (last 6 months)
     const monthlySummariesResult = await db.execute(sql`
@@ -1196,7 +1196,7 @@ export const adminRouter = createTRPCRouter({
         SELECT pg_database_size(current_database()) as size
       `);
       
-      const dbSizeBytes = Number(dbSizeResult.rows[0]?.size || 0);
+      const dbSizeBytes = Number((dbSizeResult.rows[0] as Record<string, unknown>)?.size || 0);
       
       return {
         totalDatabaseSize: {

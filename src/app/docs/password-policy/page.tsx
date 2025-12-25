@@ -118,11 +118,11 @@ export default function PasswordPolicyPage() {
             <ol className="list-decimal list-inside space-y-2 text-foreground">
               <li>Zaloguj się do systemu</li>
               <li>Przejdź do <Link href="/a/settings" className="text-blue-600 hover:underline">Ustawienia konta</Link></li>
-              <li>Kliknij "Zmień hasło"</li>
+              <li>Kliknij &quot;Zmień hasło&quot;</li>
               <li>Wpisz obecne hasło</li>
               <li>Wpisz nowe hasło (musi spełniać wszystkie wymagania)</li>
               <li>Potwierdź nowe hasło</li>
-              <li>Kliknij "Zapisz zmiany"</li>
+              <li>Kliknij &quot;Zapisz zmiany&quot;</li>
             </ol>
           </div>
 
