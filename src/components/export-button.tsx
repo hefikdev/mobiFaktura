@@ -40,7 +40,7 @@ interface FilterOption {
   options: { value: string; label: string }[];
 }
 
-interface ExportButtonProps<T = unknown> {
+interface ExportButtonProps<T extends Record<string, unknown> = Record<string, unknown>> {
   data: T[];
   columns: ExportOptions<T>['columns'];
   filename: string;
@@ -57,7 +57,7 @@ interface ExportButtonProps<T = unknown> {
   userName?: string;
 }
 
-export function ExportButton<T>({
+export function ExportButton<T extends Record<string, unknown>>({
   data,
   columns,
   filename,
@@ -117,7 +117,7 @@ export function ExportButton<T>({
             const filterValue = selectedFilters[filter.key];
             if (filterValue === "all") return true;
 
-            const itemValue = (item as any)[filter.key];
+            const itemValue = item[filter.key];
             return itemValue === filterValue;
           });
         });
@@ -175,7 +175,7 @@ export function ExportButton<T>({
     const headers = columns.map(col => col.header);
     const rows = data.map(item =>
       columns.map(col => {
-        const value = col.key ? (item as any)[col.key] : item;
+        const value = col.key ? item[col.key] : item;
         return col.formatter ? col.formatter(value) : String(value || "");
       })
     );

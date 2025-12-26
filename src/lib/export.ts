@@ -1,13 +1,13 @@
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 
-export interface ExportColumn<T = any> {
+export interface ExportColumn<T = unknown> {
   key: string;
   header: string;
-  formatter?: (value: any) => string;
+  formatter?: (value: unknown) => string;
 }
 
-export interface ExportOptions<T = any> {
+export interface ExportOptions<T = unknown> {
   filename: string;
   columns: ExportColumn<T>[];
   data: T[];
@@ -16,7 +16,7 @@ export interface ExportOptions<T = any> {
 /**
  * Converts data to CSV format
  */
-export function convertToCSV(options: ExportOptions): string {
+export function convertToCSV<T extends Record<string, unknown>>(options: ExportOptions<T>): string {
   const { columns, data } = options;
 
   // Create header row
@@ -100,7 +100,7 @@ export const formatters = {
 /**
  * Export data to CSV and trigger download
  */
-export function exportToCSV(options: ExportOptions): void {
+export function exportToCSV<T extends Record<string, unknown>>(options: ExportOptions<T>): void {
   const csvContent = convertToCSV(options);
   const filename = options.filename.endsWith('.csv') ? options.filename : `${options.filename}.csv`;
   downloadCSV(csvContent, filename);
