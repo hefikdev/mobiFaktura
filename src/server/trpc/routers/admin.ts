@@ -171,7 +171,7 @@ export const adminRouter = createTRPCRouter({
 
       // Transaction safety: Verify user exists before update
       const [existingUser] = await db
-        .select()
+        .select({ updatedAt: users.updatedAt })
         .from(users)
         .where(eq(users.id, id))
         .limit(1);
@@ -195,7 +195,12 @@ export const adminRouter = createTRPCRouter({
       const [updated] = await db
         .update(users)
         .set(updateData)
-        .where(eq(users.id, id))
+        .where(
+          and(
+            eq(users.id, id),
+            eq(users.updatedAt, existingUser.updatedAt) // Optimistic lock
+          )
+        )
         .returning({
           id: users.id,
           email: users.email,
@@ -205,8 +210,8 @@ export const adminRouter = createTRPCRouter({
 
       if (!updated) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Nie udało się zaktualizować użytkownika",
+          code: "CONFLICT",
+          message: "Użytkownik został zmodyfikowany przez innego administratora. Odśwież stronę i spróbuj ponownie.",
         });
       }
 
@@ -319,14 +324,41 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
+      // Get target user with timestamp for optimistic locking
+      const [targetUser] = await db
+        .select({ updatedAt: users.updatedAt })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+
+      if (!targetUser) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Użytkownik nie został znaleziony",
+        });
+      }
+
       // Hash new password
       const newPasswordHash = await hashPassword(input.newPassword);
 
-      // Update user password
-      await db
+      // Update user password with optimistic locking
+      const updateResult = await db
         .update(users)
         .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
-        .where(eq(users.id, input.userId));
+        .where(
+          and(
+            eq(users.id, input.userId),
+            eq(users.updatedAt, targetUser.updatedAt) // Optimistic lock
+          )
+        )
+        .returning({ id: users.id });
+
+      if (!updateResult || updateResult.length === 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Hasło użytkownika zostało zmienione przez innego administratora. Odśwież stronę i spróbuj ponownie.",
+        });
+      }
 
       return { success: true };
     }),
@@ -739,8 +771,9 @@ export const adminRouter = createTRPCRouter({
 
       // Store previous values for history
       const previousStatus = invoice.status;
+      const previousUpdatedAt = invoice.updatedAt;
 
-      // Update invoice status
+      // Update invoice status with optimistic locking
       const updateData: Partial<typeof invoices.$inferInsert> = {
         status: input.newStatus,
         updatedAt: new Date(),
@@ -765,13 +798,18 @@ export const adminRouter = createTRPCRouter({
       const [updated] = await db
         .update(invoices)
         .set(updateData)
-        .where(eq(invoices.id, input.id))
+        .where(
+          and(
+            eq(invoices.id, input.id),
+            eq(invoices.updatedAt, previousUpdatedAt) // Optimistic lock
+          )
+        )
         .returning();
 
       if (!updated) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Nie udało się zmienić statusu faktury",
+          code: "CONFLICT",
+          message: "Status faktury został zmieniony przez innego administratora. Odśwież stronę i spróbuj ponownie.",
         });
       }
 

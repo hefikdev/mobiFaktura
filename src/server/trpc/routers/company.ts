@@ -3,7 +3,7 @@ import { createTRPCRouter, protectedProcedure, adminProcedure, userProcedure } f
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { companies, users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { verifyPassword } from "@/server/auth/password";
 import { createNotification } from "@/server/lib/notifications";
 
@@ -96,16 +96,35 @@ export const companyRouter = createTRPCRouter({
 
       const { id, adminPassword, ...data } = input;
 
+      // Get current company timestamp for optimistic locking
+      const [currentCompany] = await db
+        .select({ updatedAt: companies.updatedAt })
+        .from(companies)
+        .where(eq(companies.id, id))
+        .limit(1);
+
+      if (!currentCompany) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Firma nie została znaleziona",
+        });
+      }
+
       const [updated] = await db
         .update(companies)
         .set({ ...data, updatedAt: new Date() })
-        .where(eq(companies.id, id))
+        .where(
+          and(
+            eq(companies.id, id),
+            eq(companies.updatedAt, currentCompany.updatedAt) // Optimistic lock
+          )
+        )
         .returning();
 
       if (!updated) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Firma nie została znaleziona",
+          code: "CONFLICT",
+          message: "Firma została zmodyfikowana przez innego administratora. Odśwież stronę i spróbuj ponownie.",
         });
       }
 

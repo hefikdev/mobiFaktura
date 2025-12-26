@@ -107,24 +107,45 @@ export const invoiceRouter = createTRPCRouter({
 
           // Deduct saldo if kwota is provided
           if (input.kwota && input.kwota > 0) {
-            // Get current user saldo
+            // Get current user saldo with timestamp for optimistic locking
             const [currentUser] = await tx
-              .select({ saldo: users.saldo })
+              .select({ saldo: users.saldo, updatedAt: users.updatedAt })
               .from(users)
               .where(eq(users.id, ctx.user.id))
               .limit(1);
 
-            const balanceBefore = currentUser?.saldo ? parseFloat(currentUser.saldo) : 0;
-            const balanceAfter = balanceBefore - input.kwota;
+            if (!currentUser) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Użytkownik nie został znaleziony",
+              });
+            }
 
-            // Update user saldo
-            await tx
+            const balanceBefore = currentUser.saldo ? parseFloat(currentUser.saldo) : 0;
+            const balanceAfter = balanceBefore - input.kwota;
+            const lastUpdatedAt = currentUser.updatedAt;
+
+            // Update user saldo with optimistic locking
+            const saldoUpdateResult = await tx
               .update(users)
               .set({ 
                 saldo: balanceAfter.toFixed(2),
                 updatedAt: new Date(),
               })
-              .where(eq(users.id, ctx.user.id));
+              .where(
+                and(
+                  eq(users.id, ctx.user.id),
+                  eq(users.updatedAt, lastUpdatedAt) // Optimistic lock
+                )
+              )
+              .returning({ id: users.id });
+
+            if (!saldoUpdateResult || saldoUpdateResult.length === 0) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: "Saldo zostało zmodyfikowane podczas przetwarzania faktury. Spróbuj ponownie.",
+              });
+            }
 
             // Create saldo transaction record
             await tx.insert(saldoTransactions).values({
@@ -888,7 +909,7 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
-      // Update status to re_review
+      // Update status to re_review with conflict prevention
       const [updated] = await db
         .update(invoices)
         .set({
@@ -896,13 +917,18 @@ export const invoiceRouter = createTRPCRouter({
           rejectionReason: input.reason, // Store the reason for re-review
           updatedAt: new Date(),
         })
-        .where(eq(invoices.id, input.id))
+        .where(
+          and(
+            eq(invoices.id, input.id),
+            or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected")) // Only allow if still in final state
+          )
+        )
         .returning();
 
       if (!updated) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Nie udało się zmienić statusu faktury",
+          code: "CONFLICT",
+          message: "Status faktury został już zmieniony",
         });
       }
 

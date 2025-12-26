@@ -485,6 +485,20 @@ export const authRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Get current user timestamp for optimistic locking
+      const [currentUser] = await db
+        .select({ updatedAt: users.updatedAt })
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!currentUser) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Użytkownik nie został znaleziony",
+        });
+      }
+
       const updateData: Partial<typeof users.$inferInsert> = {};
       
       if (input.notificationSound !== undefined) {
@@ -515,10 +529,23 @@ export const authRouter = createTRPCRouter({
         updateData.notificationBudgetRequestRejected = input.notificationBudgetRequestRejected;
       }
 
-      await db
+      const updateResult = await db
         .update(users)
         .set(updateData)
-        .where(eq(users.id, ctx.user.id));
+        .where(
+          and(
+            eq(users.id, ctx.user.id),
+            eq(users.updatedAt, currentUser.updatedAt) // Optimistic lock
+          )
+        )
+        .returning({ id: users.id });
+
+      if (!updateResult || updateResult.length === 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Ustawienia zostały zmienione w innej sesji. Odśwież stronę i spróbuj ponownie.",
+        });
+      }
 
       return { success: true };
     }),
@@ -564,14 +591,30 @@ export const authRouter = createTRPCRouter({
         });
       }
 
+      // Get current user timestamp for optimistic locking
+      const currentUserTimestamp = user.updatedAt;
+
       // Hash new password
       const newPasswordHash = await hashPassword(input.newPassword);
 
-      // Update password
-      await db
+      // Update password with optimistic locking
+      const updateResult = await db
         .update(users)
         .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
-        .where(eq(users.id, ctx.user.id));
+        .where(
+          and(
+            eq(users.id, ctx.user.id),
+            eq(users.updatedAt, currentUserTimestamp) // Optimistic lock
+          )
+        )
+        .returning({ id: users.id });
+
+      if (!updateResult || updateResult.length === 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Hasło zostało zmienione w innej sesji. Odśwież stronę i spróbuj ponownie.",
+        });
+      }
 
       return { success: true };
     }),

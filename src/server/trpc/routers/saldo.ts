@@ -144,9 +144,9 @@ export const saldoRouter = createTRPCRouter({
   adjustSaldo: accountantProcedure
     .input(adjustSaldoSchema)
     .mutation(async ({ ctx, input }) => {
-      // Get current user saldo
+      // Get current user saldo with version/timestamp for optimistic locking
       const [targetUser] = await db
-        .select({ saldo: users.saldo })
+        .select({ saldo: users.saldo, updatedAt: users.updatedAt })
         .from(users)
         .where(eq(users.id, input.userId))
         .limit(1);
@@ -160,17 +160,31 @@ export const saldoRouter = createTRPCRouter({
 
       const balanceBefore = targetUser.saldo ? parseFloat(targetUser.saldo) : 0;
       const balanceAfter = balanceBefore + input.amount;
+      const lastUpdatedAt = targetUser.updatedAt;
 
-      // Start transaction
-      await db.transaction(async (tx) => {
-        // Update user saldo
-        await tx
+      // Start transaction with conflict prevention
+      const result = await db.transaction(async (tx) => {
+        // Update user saldo with optimistic locking (check if updatedAt hasn't changed)
+        const updateResult = await tx
           .update(users)
           .set({ 
             saldo: balanceAfter.toFixed(2),
             updatedAt: new Date(),
           })
-          .where(eq(users.id, input.userId));
+          .where(
+            and(
+              eq(users.id, input.userId),
+              eq(users.updatedAt, lastUpdatedAt) // Optimistic lock
+            )
+          )
+          .returning({ id: users.id });
+
+        if (!updateResult || updateResult.length === 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Saldo zostało zmodyfikowane przez innego użytkownika. Odśwież stronę i spróbuj ponownie.",
+          });
+        }
 
         // Create transaction record
         await tx.insert(saldoTransactions).values({
@@ -182,6 +196,8 @@ export const saldoRouter = createTRPCRouter({
           notes: input.notes,
           createdBy: ctx.user.id,
         });
+
+        return updateResult;
       });
 
       // Notify user of saldo adjustment
