@@ -348,9 +348,9 @@ export default function SaldoManagementPage() {
                 columns={[
                   { key: 'name', header: 'Imię i nazwisko' },
                   { key: 'email', header: 'Email' },
-                  { key: 'saldo', header: 'Saldo', formatter: formatters.currency },
-                  { key: 'role', header: 'Rola', formatter: (value: string) => value === 'admin' ? 'Administrator' : value === 'accountant' ? 'Księgowy' : 'Użytkownik' },
-                  { key: 'createdAt', header: 'Data rejestracji', formatter: formatters.date },
+                  { key: 'saldo', header: 'Saldo', formatter: (value: unknown) => formatters.currency(value as number) },
+                  { key: 'role', header: 'Rola', formatter: (value: unknown) => (value === 'admin' ? 'Administrator' : value === 'accountant' ? 'Księgowy' : 'Użytkownik') },
+                  { key: 'createdAt', header: 'Data rejestracji', formatter: (value: unknown) => formatters.date(value as Date | string) },
                 ]}
                 filename="saldo-uzytkownikow"
                 label="Eksportuj saldo"

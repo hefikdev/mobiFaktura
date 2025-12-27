@@ -58,11 +58,11 @@ export default function SaldoHistoryPage() {
 
   // Export columns
   const exportColumns = [
-    { key: "createdAt", header: "Data", formatter: formatters.date },
+    { key: "createdAt", header: "Data", formatter: (value: unknown) => formatters.date(value as Date | string) },
     { key: "transactionType", header: "Typ" },
-    { key: "amount", header: "Kwota", formatter: formatters.currency },
-    { key: "balanceBefore", header: "Saldo przed", formatter: formatters.currency },
-    { key: "balanceAfter", header: "Saldo po", formatter: formatters.currency },
+    { key: "amount", header: "Kwota", formatter: (value: unknown) => formatters.currency(value as number) },
+    { key: "balanceBefore", header: "Saldo przed", formatter: (value: unknown) => formatters.currency(value as number) },
+    { key: "balanceAfter", header: "Saldo po", formatter: (value: unknown) => formatters.currency(value as number) },
     { key: "notes", header: "Notatka" },
     { key: "createdByName", header: "Wykonane przez" },
   ];

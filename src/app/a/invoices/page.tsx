@@ -233,7 +233,9 @@ export default function InvoicesPage() {
             </div>
           </div>
 
-          <InvoiceExportDialog invoices={allInvoices} companies={companies} users={allUsers} />
+          <div className="hidden md:block">
+            <InvoiceExportDialog invoices={allInvoices} companies={companies} users={allUsers} />
+          </div>
         </div>
 
         <Card>
@@ -301,8 +303,11 @@ export default function InvoicesPage() {
                                 >
                                   <div className="flex items-start gap-3 mb-2">
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-semibold truncate">{invoice.invoiceNumber || "Brak numeru"}</div>
-                                      <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <div className="font-semibold truncate">{invoice.invoiceNumber || "Brak numeru"}</div>
+                                        <InvoiceStatusBadge status={invoice.status} variant="compact" />
+                                      </div>
+                                      <div className="space-y-1 text-sm text-muted-foreground">
                                         {invoice.companyName && (
                                           <div className="flex items-center gap-2">
                                             <Building2 className="h-3 w-3" />

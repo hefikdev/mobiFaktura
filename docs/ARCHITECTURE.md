@@ -57,7 +57,7 @@ Complete system architecture showing all components, data flow, and interactions
 │  ┌──────────────────────────────────────────────────────┐      │
 │  │                  Application Layers                   │      │
 │  ├──────────────────────────────────────────────────────┤      │
-│  │ → Client Components (React 18)                       │      │
+│  │ → Client Components (React 19)                       │      │
 │  │ → Server Components (RSC)                            │      │
 │  │ → API Routes (/api/*)                                │      │
 │  │ → tRPC Procedures                                    │      │
@@ -94,18 +94,20 @@ Complete system architecture showing all components, data flow, and interactions
 │  Tables:                                                         │
 │  ├─ users              (User accounts & roles)                  │
 │  ├─ sessions           (Active user sessions)                   │
+│  ├─ companies          (Company information)                    │
 │  ├─ invoices           (Invoice data & metadata)                │
-│  ├─ invoice_history    (Edit history tracking)                  │
+│  ├─ invoice_edit_history (Edit history tracking)                │
 │  ├─ notifications      (User notifications)                     │
-│  ├─ notification_prefs (Notification settings)                  │
+│  ├─ saldo_transactions (Balance change tracking)                │
+│  ├─ invoice_deletion_requests (Deletion request workflow)       │
+│  ├─ budget_requests    (Budget increase requests)               │
 │  ├─ login_logs         (Login activity tracking)                │
 │  └─ login_attempts     (Failed login attempts)                  │
 │                                                                  │
 │  Indexes:                                                        │
-│  • users: email, role                                           │
-│  • invoices: userId, status, number                             │
-│  • sessions: userId, expiresAt                                  │
 │  • Performance indexes on frequently queried fields             │
+│  • Status indexes for workflow tables                            │
+│  • Foreign key indexes for referential integrity                │
 │                                                                  │
 │  Volumes:                                                        │
 │  • postgres_data → /var/lib/postgresql/data                    │
@@ -166,7 +168,7 @@ Complete system architecture showing all components, data flow, and interactions
 │                      Automated Backup Service                    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  Cron Schedule: 0 2 * * * (Daily at 2 AM)                      │
+│  Cron Schedule: 0 1 * * * (Daily at 1 AM)                      │
 │                                                                  │
 │  Tasks:                                                          │
 │  1. PostgreSQL Backup                                           │
@@ -744,7 +746,7 @@ mobiFaktura/
 │                                                                  │
 │  Frontend:                                                       │
 │  • Next.js 16.1.1              (React Framework)                │
-│  • React 18.3.1                (UI Library)                     │
+│  • React 19.2.3                (UI Library)                     │
 │  • TypeScript 5.6.3            (Type Safety)                    │
 │  • Tailwind CSS 3.4.14         (Styling)                        │
 │  • Shadcn UI                   (Component Library)              │
@@ -865,7 +867,7 @@ mobiFaktura/
 │  • LOG_LEVEL                 Logging level (info/debug)         │
 │                                                                  │
 │  Backup:                                                         │
-│  • BACKUP_CRON_SCHEDULE      Cron expression (0 2 * * *)       │
+│  • BACKUP_CRON_SCHEDULE      Cron expression (0 1 * * *)       │
 │  • BACKUP_RETENTION_DAYS     Days to keep (30)                  │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘

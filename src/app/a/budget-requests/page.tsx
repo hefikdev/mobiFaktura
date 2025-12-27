@@ -486,20 +486,15 @@ export default function BudgetRequestsPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Szczegóły prośby o budżet</DialogTitle>
-            <DialogDescription>
-              Szczegółowe informacje o prośbie użytkownika {selectedRequest?.userName}
-            </DialogDescription>
           </DialogHeader>
           {selectedRequest && (
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm text-muted-foreground">Użytkownik</Label>
                   <div className="font-medium">{selectedRequest.userName}</div>
                   <div className="text-sm text-muted-foreground">{selectedRequest.userEmail}</div>
                 </div>
                 <div>
-                  <Label className="text-sm text-muted-foreground">Status</Label>
                   <div className="mt-1">{getStatusBadge(selectedRequest.status)}</div>
                 </div>
               </div>
