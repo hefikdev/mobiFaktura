@@ -18,7 +18,7 @@ Complete system architecture showing all components, data flow, and interactions
                                      ▼
                     ┌────────────────────────────────┐
                     │     Docker: mobifaktura_app    │
-                    │      Next.js 15 Application    │
+                    │      Next.js 16 Application    │
                     │         Port: 3000             │
                     └────────────────┬───────────────┘
                                      │
@@ -46,7 +46,7 @@ Complete system architecture showing all components, data flow, and interactions
 ### 1. **mobifaktura_app** (Next.js Application)
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Next.js 15 Application                       │
+│                     Next.js 16 Application                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐        │
@@ -335,7 +335,7 @@ Complete system architecture showing all components, data flow, and interactions
 ```
 mobiFaktura/
 ├── src/
-│   ├── app/                      # Next.js 15 App Router
+│   ├── app/                      # Next.js 16 App Router
 │   │   ├── layout.tsx           # Root layout
 │   │   ├── page.tsx             # Landing page (→ /login)
 │   │   ├── globals.css          # Global styles
@@ -743,7 +743,7 @@ mobiFaktura/
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  Frontend:                                                       │
-│  • Next.js 15.0.3              (React Framework)                │
+│  • Next.js 16.1.1              (React Framework)                │
 │  • React 18.3.1                (UI Library)                     │
 │  • TypeScript 5.6.3            (Type Safety)                    │
 │  • Tailwind CSS 3.4.14         (Styling)                        │
@@ -1000,5 +1000,5 @@ docker inspect mobifaktura_app | grep -A 10 Health
 
 ---
 
-**Last Updated:** December 11, 2025
+**Last Updated:** December 27, 2025
 **Version:** 1.0.0

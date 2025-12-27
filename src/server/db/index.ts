@@ -10,7 +10,7 @@ if (!process.env.DATABASE_URL) {
 // Connection pooler for better performance
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20, // Maximum pool size
+  max: 50, // Maximum pool size
   idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
   connectionTimeoutMillis: 2000, // Timeout for connection
 });

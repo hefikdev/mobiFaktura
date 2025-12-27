@@ -15,7 +15,7 @@ The system is built with security and scalability in mind, featuring end-to-end 
 ## 🏗️ Architecture
 
 ### Frontend
-- **Next.js 15** - React framework with App Router for optimal performance
+- **Next.js 16** - React framework with App Router for optimal performance
 - **TypeScript** - Full type safety across the application
 - **Tailwind CSS** - Utility-first CSS for responsive design
 - **Shadcn/UI** - Unstyled, accessible component library

@@ -1,7 +1,7 @@
 # Data Lifecycle & Retention Strategy
 **mobiFaktura Invoice Management System**  
 **Version:** 1.0  
-**Last Updated:** December 9, 2025
+**Last Updated:** December 27, 2025
 
 ---
 
