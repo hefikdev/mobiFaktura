@@ -221,8 +221,8 @@ export const budgetRequestRouter = createTRPCRouter({
              AND br2.id != budget_requests.id
              ORDER BY br2.created_at DESC LIMIT 1)
           `,
-          lastBudgetRequestAmount: sql<number | null>`
-            (SELECT CAST(requested_amount AS DECIMAL) FROM budget_requests br2 
+          lastBudgetRequestAmount: sql<string | null>`
+            (SELECT requested_amount FROM budget_requests br2 
              WHERE br2.user_id = budget_requests.user_id 
              AND br2.id != budget_requests.id
              ORDER BY br2.created_at DESC LIMIT 1)
