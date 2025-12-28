@@ -38,7 +38,7 @@ This document consolidates all system-wide rules, validation requirements, and b
 
 ### **Rate Limiting Rules**
 - **Global Limit**: 300 requests/minute per IP
-- **Auth Limit**: 10 requests/minute per IP (login/register)
+- **Auth Limit**: 50 requests/minute per IP (login/register)
 - **Write Limit**: 100 requests/minute per IP+UserID (create/update/delete)
 - **Read Limit**: 500 requests/minute per IP+UserID (queries)
 - **Headers**: Include rate limit status in responses

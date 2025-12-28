@@ -146,7 +146,7 @@ docker-compose up -d
 
 ### Rate Limiting
 - **Global**: 300 requests/minute per IP
-- **Authentication**: 10 attempts/minute (with 30-second lockout)
+- **Authentication**: 50 attempts/minute (with 30-second lockout)
 - **Read Operations**: 500 requests/minute
 - **Write Operations**: 100 requests/minute
 

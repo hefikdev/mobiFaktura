@@ -476,7 +476,7 @@ mobiFaktura/
 │                                                                  │
 │  3. Rate Limiting (In-Memory)                                    │
 │     • Global: 300 requests/minute per IP                        │
-│     • Auth endpoints: 10 requests/minute                        │
+│     • Auth endpoints: 50 requests/minute                        │
 │     • Write operations: 100 requests/minute                     │
 │     • Read operations: 500 requests/minute                      │
 │                                                                  │

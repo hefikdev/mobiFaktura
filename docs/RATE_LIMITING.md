@@ -55,13 +55,13 @@ globalRateLimit: 300 requests / 1 minute
 
 ### 2. Auth Rate Limit
 **Applied to**: Login, Register  
-**Limit**: 10 requests per minute  
+**Limit**: 50 requests per minute  
 **Purpose**: Prevent brute force attacks  
 **Identifier**: IP address
 
 ```typescript
 // Applied to: login, register
-authRateLimit: 10 requests / 1 minute
+authRateLimit: 50 requests / 1 minute
 ```
 
 **Note**: This is **in addition to** the existing login attempt tracking (3 attempts, 30s lockout).

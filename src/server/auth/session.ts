@@ -77,7 +77,7 @@ export async function createSession(userId: string): Promise<void> {
     sameSite: isProduction ? "strict" : "lax",
     expires: expiresAt,
     path: "/",
-    domain: process.env.COOKIE_DOMAIN,
+    ...(isProduction && process.env.COOKIE_DOMAIN && { domain: process.env.COOKIE_DOMAIN }),
   });
 }
 

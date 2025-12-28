@@ -76,7 +76,7 @@ const RATE_LIMITS = {
   },
   // Authentication endpoints - moderate to prevent brute force
   auth: {
-    requests: 10, // 10 attempts per minute
+    requests: 50, // 50 attempts per minute
     windowMs: 60000, // 1 minute
   },
   // Write operations - generous to not disrupt normal usage
