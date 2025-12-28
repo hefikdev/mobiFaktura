@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
 import {
   Dialog,
@@ -14,9 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, DollarSign, User, Mail, Wallet, FileText, XCircle, CheckCircle } from "lucide-react";
+import { Loader2, DollarSign, User, Mail, Wallet, FileText, XCircle, CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 
 interface BudgetRequestReviewDialogProps {
   request: {
@@ -31,10 +32,14 @@ interface BudgetRequestReviewDialogProps {
     createdAt: Date;
     reviewedAt?: Date | null;
     rejectionReason?: string | null;
+    lastBudgetRequestStatus?: string | null;
+    lastBudgetRequestAmount?: number | null;
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  mode?: "review" | "details";
+  initialAction?: "approve" | "reject";
 }
 
 export function BudgetRequestReviewDialog({
@@ -42,11 +47,18 @@ export function BudgetRequestReviewDialog({
   open,
   onOpenChange,
   onSuccess,
+  mode = "review",
+  initialAction = "approve",
 }: BudgetRequestReviewDialogProps) {
   const { toast } = useToast();
-  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [reviewAction, setReviewAction] = useState<"approve" | "reject">(initialAction);
   const [rejectionReason, setRejectionReason] = useState("");
   const utils = trpc.useUtils();
+
+  // Sync internal state with initialAction prop
+  useEffect(() => {
+    setReviewAction(initialAction);
+  }, [initialAction]);
 
   const reviewMutation = trpc.budgetRequest.review.useMutation({
     onSuccess: (data) => {
@@ -55,7 +67,6 @@ export function BudgetRequestReviewDialog({
         description: data.message,
       });
       onOpenChange(false);
-      setShowRejectDialog(false);
       setRejectionReason("");
       utils.budgetRequest.getAll.invalidate();
       onSuccess();
@@ -106,7 +117,7 @@ export function BudgetRequestReviewDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wallet className="h-5 w-5 text-orange-600" />
-              Prośba o zwiększenie budżetu
+              {mode === "details" ? "Szczegóły prośby o budżet" : "Prośba o zwiększenie budżetu"}
               {request.status === "approved" && (
                 <span className="text-sm font-normal text-green-600 dark:text-green-500">
                   (Przyznano)
@@ -118,6 +129,13 @@ export function BudgetRequestReviewDialog({
                 </span>
               )}
             </DialogTitle>
+            {mode === "review" && (
+              <DialogDescription>
+                {reviewAction === "approve" 
+                  ? "Po zatwierdzeniu saldo użytkownika zostanie automatycznie zwiększone" 
+                  : "Podaj powód odrzucenia prośby"}
+              </DialogDescription>
+            )}
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -165,6 +183,48 @@ export function BudgetRequestReviewDialog({
               </div>
             </div>
 
+            {/* Last Budget Request Status */}
+            {request.lastBudgetRequestStatus && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    Status i wartość ostatniej zaliczki:
+                  </span>
+                  <div className="text-right">
+                    <div className="mb-2">
+                      <InvoiceStatusBadge 
+                        status={request.lastBudgetRequestStatus === 'approved' ? 'accepted' : request.lastBudgetRequestStatus === 'rejected' ? 'rejected' : 'pending'} 
+                        variant="compact" 
+                      />
+                    </div>
+                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                      {request.lastBudgetRequestAmount?.toFixed(2)} PLN
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Rejection Reason Input (for review mode when rejecting) */}
+            {mode === "review" && reviewAction === "reject" && (
+              <div className="space-y-2">
+                <Label htmlFor="rejectionReason">
+                  Powód odrzucenia <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="rejectionReason"
+                  placeholder="Wyjaśnij użytkownikowi dlaczego prośba została odrzucona..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {rejectionReason.length}/10 znaków (minimum)
+                </p>
+              </div>
+            )}
+
             {/* Rejection Reason (if rejected) */}
             {request.status === "rejected" && request.rejectionReason && (
               <div className="space-y-2 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-lg">
@@ -187,83 +247,52 @@ export function BudgetRequestReviewDialog({
             </div>
           </div>
 
-          {request.status === "pending" && (
+          {mode === "review" && request.status === "pending" && (
             <DialogFooter className="gap-2 sm:gap-0">
               <Button
-                variant="destructive"
-                onClick={() => setShowRejectDialog(true)}
+                variant="outline"
+                onClick={() => onOpenChange(false)}
                 disabled={reviewMutation.isPending}
               >
-                <XCircle className="mr-2 h-4 w-4" />
-                Odrzuć
+                Anuluj
               </Button>
-              <Button
-                onClick={handleApprove}
-                disabled={reviewMutation.isPending}
-                className="bg-green-600 hover:bg-green-700 text-white dark:text-white"
-              >
-                {reviewMutation.isPending && reviewMutation.variables?.action === "approve" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                )}
-                Przyznaj
+              {reviewAction === "approve" ? (
+                <Button
+                  onClick={handleApprove}
+                  disabled={reviewMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700 text-white dark:text-white"
+                >
+                  {reviewMutation.isPending && reviewMutation.variables?.action === "approve" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Przyznaj
+                </Button>
+              ) : (
+                <Button
+                  variant="destructive"
+                  onClick={handleReject}
+                  disabled={reviewMutation.isPending || rejectionReason.length < 10}
+                >
+                  {reviewMutation.isPending && reviewMutation.variables?.action === "reject" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <XCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Odrzuć
+                </Button>
+              )}
+            </DialogFooter>
+          )}
+
+          {mode === "details" && (
+            <DialogFooter>
+              <Button onClick={() => onOpenChange(false)}>
+                Zamknij
               </Button>
             </DialogFooter>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Confirmation Dialog */}
-      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="text-destructive">Odrzuć prośbę o budżet</DialogTitle>
-            <DialogDescription>
-              Ta akcja jest nieodwracalna. Użytkownik zostanie powiadomiony o odrzuceniu.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-2 py-4">
-            <Label htmlFor="rejectionReason">
-              Powód odrzucenia <span className="text-red-500">*</span>
-            </Label>
-            <Textarea
-              id="rejectionReason"
-              placeholder=""
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              rows={4}
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              {rejectionReason.length}/10 znaków (minimum)
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowRejectDialog(false)}
-              disabled={reviewMutation.isPending}
-            >
-              Anuluj
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={reviewMutation.isPending || rejectionReason.trim().length < 10}
-            >
-              {reviewMutation.isPending && reviewMutation.variables?.action === "reject" ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Odrzucanie...
-                </>
-              ) : (
-                "Potwierdź odrzucenie"
-              )}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

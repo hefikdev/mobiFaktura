@@ -186,6 +186,21 @@ export const budgetRequestRouter = createTRPCRouter({
       // Create alias for reviewer join
       const reviewer = alias(users, 'reviewer');
 
+      // Subquery to get the last approved budget request for each user
+      const lastApprovedRequest = db
+        .select({
+          userId: budgetRequests.userId,
+          status: budgetRequests.status,
+          requestedAmount: budgetRequests.requestedAmount,
+        })
+        .from(budgetRequests)
+        .where(eq(budgetRequests.status, "approved"))
+        .orderBy(desc(budgetRequests.createdAt))
+        .limit(1)
+        .as('last_approved');
+
+      // For each user, we need the most recent approved request
+      // We'll use a correlated subquery approach
       const result = await db
         .select({
           id: budgetRequests.id,
@@ -200,6 +215,18 @@ export const budgetRequestRouter = createTRPCRouter({
           createdAt: budgetRequests.createdAt,
           reviewedAt: budgetRequests.reviewedAt,
           reviewerName: reviewer.name,
+          lastBudgetRequestStatus: sql<string | null>`
+            (SELECT status FROM budget_requests br2 
+             WHERE br2.user_id = budget_requests.user_id 
+             AND br2.id != budget_requests.id
+             ORDER BY br2.created_at DESC LIMIT 1)
+          `,
+          lastBudgetRequestAmount: sql<number | null>`
+            (SELECT CAST(requested_amount AS DECIMAL) FROM budget_requests br2 
+             WHERE br2.user_id = budget_requests.user_id 
+             AND br2.id != budget_requests.id
+             ORDER BY br2.created_at DESC LIMIT 1)
+          `,
         })
         .from(budgetRequests)
         .innerJoin(users, eq(budgetRequests.userId, users.id))
@@ -217,6 +244,7 @@ export const budgetRequestRouter = createTRPCRouter({
           ...req,
           requestedAmount: req.requestedAmount ? parseFloat(req.requestedAmount) : 0,
           currentBalanceAtRequest: req.currentBalanceAtRequest != null ? parseFloat(req.currentBalanceAtRequest) : 0,
+          lastBudgetRequestAmount: req.lastBudgetRequestAmount ? parseFloat(req.lastBudgetRequestAmount) : null,
         })),
         nextCursor: hasMore ? cursor + limit : undefined,
       };

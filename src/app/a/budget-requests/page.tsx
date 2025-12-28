@@ -7,9 +7,12 @@ import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
 import { SearchInput } from "@/components/search-input";
+import dynamic from "next/dynamic";
+const BudgetRequestReviewDialog = dynamic(() => import("@/components/budget-request-review-dialog").then(m => m.BudgetRequestReviewDialog));
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import {
   Dialog,
   DialogContent,
@@ -34,8 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Check, X, Clock, Filter, DollarSign } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Loader2, Check, X, Filter, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
@@ -47,8 +49,8 @@ export default function BudgetRequestsPage() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<BudgetRequestStatus>("pending");
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
-  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"review" | "details">("details");
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
   const [rejectionReason, setRejectionReason] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,7 +150,7 @@ export default function BudgetRequestsPage() {
         title: "Sukces",
         description: data.message,
       });
-      setIsReviewDialogOpen(false);
+      setIsDialogOpen(false);
       setSelectedRequest(null);
       setRejectionReason("");
       refetch();
@@ -166,7 +168,8 @@ export default function BudgetRequestsPage() {
     setSelectedRequest(request);
     setReviewAction(action);
     setRejectionReason("");
-    setIsReviewDialogOpen(true);
+    setDialogMode("review");
+    setIsDialogOpen(true);
   };
 
   const handleReview = () => {
@@ -192,36 +195,22 @@ export default function BudgetRequestsPage() {
       e.stopPropagation();
       if (request) {
         setSelectedRequest(request);
-        setIsDetailsDialogOpen(true);
+        setDialogMode("details");
+        setIsDialogOpen(true);
       }
     };
 
-    switch (status) {
-      case "pending":
-        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Oczekuje</Badge>;
-      case "approved":
-        return (
-          <Badge
-            variant="default"
-            className="bg-green-500 cursor-pointer hover:bg-green-600 text-white dark:text-white"
-            onClick={handleStatusClick}
-          >
-            <Check className="h-3 w-3 mr-1" />Zatwierdzona
-          </Badge>
-        );
-      case "rejected":
-        return (
-          <Badge
-            variant="destructive"
-            className="cursor-pointer hover:opacity-80"
-            onClick={handleStatusClick}
-          >
-            <X className="h-3 w-3 mr-1" />Odrzucona
-          </Badge>
-        );
-      default:
-        return <Badge>{status}</Badge>;
+    const badgeStatus = status === "approved" ? "accepted" : status === "rejected" ? "rejected" : "pending";
+
+    if (status === "pending") {
+      return <InvoiceStatusBadge status={badgeStatus} variant="compact" />;
     }
+
+    return (
+      <div className="cursor-pointer" onClick={handleStatusClick}>
+        <InvoiceStatusBadge status={badgeStatus} variant="compact" />
+      </div>
+    );
   };
 
   if (userLoading) {
@@ -295,7 +284,8 @@ export default function BudgetRequestsPage() {
                       const isLastElement = index === filteredRequests.length - 1;
                       const handleRowClick = () => {
                         setSelectedRequest(request);
-                        setIsDetailsDialogOpen(true);
+                        setDialogMode("details");
+                        setIsDialogOpen(true);
                       };
                       return (
                         <TableRow 
@@ -395,158 +385,21 @@ export default function BudgetRequestsPage() {
         </div>
       )}
 
-      {/* Review Dialog */}
-      <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>
-              {reviewAction === "approve" ? "Zatwierdź prośbę" : "Odrzuć prośbę"}
-            </DialogTitle>
-            <DialogDescription>
-              {reviewAction === "approve" 
-                ? "Po zatwierdzeniu saldo użytkownika zostanie automatycznie zwiększone" 
-                : "Podaj powód odrzucenia prośby"}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedRequest && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm text-muted-foreground">Użytkownik</Label>
-                  <div className="font-medium">{selectedRequest.userName}</div>
-                </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Stan salda przy złożeniu</Label>
-                  <div className="font-medium">{(selectedRequest.currentBalanceAtRequest ?? 0).toFixed(2)} PLN</div>
-                </div>
-              </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Wnioskowana kwota</Label>
-                <div className="text-2xl font-bold text-blue-600">
-                  +{selectedRequest.requestedAmount.toFixed(2)} PLN
-                </div>
-              </div>
-              {reviewAction === "approve" && (
-                <div>
-                  <Label className="text-sm text-muted-foreground">Nowe saldo po zatwierdzeniu</Label>
-                  <div className="text-2xl font-bold text-green-600">
-                    {((selectedRequest.currentBalanceAtRequest ?? 0) + (selectedRequest.requestedAmount ?? 0)).toFixed(2)} PLN
-                  </div>
-                </div>
-              )}
-              <div>
-                <Label className="text-sm text-muted-foreground">Uzasadnienie użytkownika</Label>
-                <div className="mt-1 p-3 bg-muted rounded-md text-sm">
-                  {selectedRequest.justification}
-                </div>
-              </div>
-              {reviewAction === "reject" && (
-                <div>
-                  <Label htmlFor="rejection">Powód odrzucenia *</Label>
-                  <Textarea
-                    id="rejection"
-                    placeholder="Wyjaśnij użytkownikowi dlaczego prośba została odrzucona..."
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    rows={4}
-                    className="mt-1"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Minimum 10 znaków
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsReviewDialogOpen(false)}
-              disabled={reviewMutation.isPending}
-            >
-              Anuluj
-            </Button>
-            <Button
-              onClick={handleReview}
-              disabled={reviewMutation.isPending}
-              variant={reviewAction === "approve" ? "default" : "destructive"}
-              className={reviewAction === "approve" ? "bg-green-600 hover:bg-green-700 text-white dark:text-white" : ""}
-            >
-              {reviewMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              {reviewAction === "approve" ? "Zatwierdź" : "Odrzuć"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Unified Budget Request Dialog */}
+      <BudgetRequestReviewDialog
+        request={selectedRequest}
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSuccess={() => {
+          setSelectedRequest(null);
+          setRejectionReason("");
+          refetch();
+        }}
+        mode={dialogMode}
+        initialAction={reviewAction}
+      />
 
-      {/* Details Dialog */}
-      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Szczegóły prośby o budżet</DialogTitle>
-          </DialogHeader>
-          {selectedRequest && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="font-medium">{selectedRequest.userName}</div>
-                  <div className="text-sm text-muted-foreground">{selectedRequest.userEmail}</div>
-                </div>
-                <div>
-                  <div className="mt-1">{getStatusBadge(selectedRequest.status)}</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm text-muted-foreground">Stan salda przy złożeniu</Label>
-                  <div className="font-medium">{(selectedRequest.currentBalanceAtRequest ?? 0).toFixed(2)} PLN</div>
-                </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Wnioskowana kwota</Label>
-                  <div className="text-2xl font-bold text-blue-600">
-                    +{selectedRequest.requestedAmount.toFixed(2)} PLN
-                  </div>
-                </div>
-              </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Data złożenia</Label>
-                <div className="font-medium">
-                  {format(new Date(selectedRequest.createdAt), "dd MMMM yyyy HH:mm", { locale: pl })}
-                </div>
-              </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Uzasadnienie użytkownika</Label>
-                <div className="mt-1 p-3 bg-muted rounded-md text-sm whitespace-pre-wrap">
-                  {selectedRequest.justification}
-                </div>
-              </div>
-              {selectedRequest.status === "rejected" && selectedRequest.rejectionReason && (
-                <div>
-                  <Label className="text-sm text-muted-foreground">Powód odrzucenia</Label>
-                  <div className="mt-1 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md text-sm whitespace-pre-wrap text-red-800 dark:text-red-200">
-                    {selectedRequest.rejectionReason}
-                  </div>
-                </div>
-              )}
-              {selectedRequest.status === "approved" && selectedRequest.reviewedAt && (
-                <div>
-                  <Label className="text-sm text-muted-foreground">Data zatwierdzenia</Label>
-                  <div className="font-medium">
-                    {format(new Date(selectedRequest.reviewedAt), "dd MMMM yyyy HH:mm", { locale: pl })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setIsDetailsDialogOpen(false)}>
-              Zamknij
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
       <div className="hidden md:block">
         <Footer />
       </div>

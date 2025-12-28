@@ -11,6 +11,8 @@ export interface BudgetRequest {
   reviewedBy?: string | null;
   reviewedAt?: Date | null;
   rejectionReason?: string | null;
+  lastBudgetRequestStatus?: string | null;
+  lastBudgetRequestAmount?: number | null;
 }
 
 export interface Invoice {
