@@ -6,7 +6,7 @@ import {
 } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { users, saldoTransactions } from "@/server/db/schema";
+import { users, saldoTransactions, budgetRequests } from "@/server/db/schema";
 import { eq, desc, and, or, ilike, sql, type SQL } from "drizzle-orm";import { notifySaldoAdjusted } from "@/server/lib/notifications";
 // Zod Schemas
 const adjustSaldoSchema = z.object({
@@ -435,6 +435,74 @@ export const saldoRouter = createTRPCRouter({
         createdAt: tx.createdAt,
         createdByName: tx.createdByName,
         createdByEmail: tx.createdByEmail,
+      }));
+    }),
+
+  // Get user statistics for accountant view
+  getUserStats: accountantProcedure
+    .input(z.object({ userId: z.string().uuid() }))
+    .query(async ({ input }) => {
+      const [user] = await db
+        .select({ saldo: users.saldo, name: users.name })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+
+      if (!user) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Użytkownik nie został znaleziony",
+        });
+      }
+
+      const budgetStats = await db
+        .select({
+          status: budgetRequests.status,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(budgetRequests)
+        .where(eq(budgetRequests.userId, input.userId))
+        .groupBy(budgetRequests.status);
+
+      const totalRequests = budgetStats.reduce((acc, curr) => acc + curr.count, 0);
+      const rejectedRequests = budgetStats.find(s => s.status === 'rejected')?.count || 0;
+      const pendingRequests = budgetStats.find(s => s.status === 'pending')?.count || 0;
+      const approvedRequests = budgetStats.find(s => s.status === 'approved')?.count || 0;
+
+      // Trust score: 100 - (% of rejected and pending)
+      // If no requests, score is 100 (new user)
+      const trustScore = totalRequests === 0 
+        ? 100 
+        : Math.max(0, Math.round(100 - ((rejectedRequests + pendingRequests) / totalRequests * 100)));
+
+      return {
+        userName: user.name,
+        saldo: parseFloat(user.saldo || "0"),
+        totalRequests,
+        approvedRequests,
+        rejectedRequests,
+        pendingRequests,
+        trustScore,
+      };
+    }),
+
+  // Get user saldo history for graph
+  getUserSaldoHistoryForGraph: accountantProcedure
+    .input(z.object({ userId: z.string().uuid() }))
+    .query(async ({ input }) => {
+      const history = await db
+        .select({
+          balanceAfter: saldoTransactions.balanceAfter,
+          createdAt: saldoTransactions.createdAt,
+        })
+        .from(saldoTransactions)
+        .where(eq(saldoTransactions.userId, input.userId))
+        .orderBy(saldoTransactions.createdAt)
+        .limit(50); // Last 50 transactions for the graph
+
+      return history.map(h => ({
+        balance: parseFloat(h.balanceAfter || "0"),
+        date: h.createdAt.toISOString(),
       }));
     }),
 });

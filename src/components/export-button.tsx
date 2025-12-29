@@ -110,15 +110,26 @@ export function ExportButton<T extends Record<string, unknown>>({
         }
       }
 
-      // Apply filters
+      // Apply filters (supports equality and date-range filters like '7','30','365')
       if (filters.length > 0 && Object.keys(selectedFilters).length > 0) {
         exportData = exportData.filter(item => {
           return filters.every(filter => {
             const filterValue = selectedFilters[filter.key];
-            if (filterValue === "all") return true;
+            if (!filterValue || filterValue === "all") return true;
 
             const itemValue = item[filter.key];
-            return itemValue === filterValue;
+
+            // If the filter value looks like a numeric date range (days), treat as date-range filter
+            if (/^[0-9]+$/.test(filterValue)) {
+              const days = parseInt(filterValue, 10);
+              const dateValue = itemValue instanceof Date ? itemValue : new Date(itemValue as any);
+              if (!dateValue || isNaN(dateValue.getTime())) return false;
+              const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+              return dateValue >= cutoff;
+            }
+
+            // Fallback to string equality
+            return String(itemValue) === String(filterValue);
           });
         });
       }
@@ -302,7 +313,10 @@ export function ExportButton<T extends Record<string, unknown>>({
                     <SelectValue placeholder={`Wszystkie ${filter.label.toLowerCase()}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Wszystkie</SelectItem>
+                    {/* Only add a default "Wszystkie" option when filter.options doesn't already include it */}
+                    {!filter.options.some(opt => opt.value === 'all') && (
+                      <SelectItem value="all">Wszystkie</SelectItem>
+                    )}
                     {filter.options.map(option => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
