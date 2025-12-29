@@ -11,13 +11,20 @@ export interface ExportOptions<T = unknown> {
   filename: string;
   columns: ExportColumn<T>[];
   data: T[];
+  // Optional metadata shown at top of CSV (title, generatedAt, user, filters)
+  meta?: {
+    title?: string;
+    generatedAt?: string;
+    user?: string;
+    filters?: string;
+  };
 }
 
 /**
  * Converts data to CSV format
  */
 export function convertToCSV<T extends Record<string, unknown>>(options: ExportOptions<T>): string {
-  const { columns, data } = options;
+  const { columns, data, meta } = options;
 
   // Create header row
   const headers = columns.map(col => `"${col.header}"`).join(',');
@@ -36,14 +43,32 @@ export function convertToCSV<T extends Record<string, unknown>>(options: ExportO
     }).join(',');
   });
 
-  return [headers, ...rows].join('\n');
+  // Add optional metadata lines at the top (title, generatedAt, user, filters)
+  const metaLines: string[] = [];
+  if (meta) {
+    if (meta.title) metaLines.push(`"Title: ${meta.title}"`);
+    if (meta.generatedAt) metaLines.push(`"Generated at: ${meta.generatedAt}"`);
+    if (meta.user) metaLines.push(`"User: ${meta.user}"`);
+    if (meta.filters) metaLines.push(`"Filters: ${meta.filters}"`);
+  }
+
+  const content = [
+    ...metaLines,
+    metaLines.length ? '' : undefined,
+    headers,
+    ...rows,
+  ].filter(Boolean) as string[];
+
+  return content.join('\n');
 }
 
 /**
  * Downloads a CSV file
  */
 export function downloadCSV(csvContent: string, filename: string): void {
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  // Prepend UTF-8 BOM so Excel and other programs correctly detect UTF-8 and display Polish diacritics
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
 
   if (link.download !== undefined) {
@@ -90,12 +115,34 @@ export const formatters = {
       adjustment: 'Korekta',
       zasilenie: 'Zasilenie',
       korekta: 'Korekta',
-      invoice_deduction: 'Odliczenie faktury',
+      invoice_deduction: 'odliczenie',
       invoice_refund: 'Zwrot za fakturę'
     };
     return typeMap[value] || value;
   }
 };
+
+/**
+ * Sanitize a value for inclusion in exports (CSV/PDF). Ensures formatters are handled and
+ * returns a safe string (never NaN, undefined, or object).
+ */
+export function sanitizeExportCell(value: unknown, formatter?: (v: unknown) => unknown): string {
+  let cellValue: unknown = value;
+  if (formatter) {
+    try {
+      cellValue = formatter(value);
+    } catch (e) {
+      // If formatter throws, fallback to raw value
+      console.warn('Export formatter threw error', e);
+      cellValue = value;
+    }
+  }
+
+  // Coerce to string robustly; handle numbers, dates, nulls, undefined
+  let text = typeof cellValue === 'string' ? cellValue : (cellValue === null || cellValue === undefined ? '' : String(cellValue));
+  if (text === 'NaN' || text === 'undefined' || text === 'null') text = '';
+  return text;
+}
 
 /**
  * Export data to CSV and trigger download

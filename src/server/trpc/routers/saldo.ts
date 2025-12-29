@@ -33,6 +33,10 @@ const getSaldoHistorySchema = z.object({
   search: z.string().optional(),
   sortBy: z.enum(["createdAt", "amount", "transactionType"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  // Optional date filters
+  dateFrom: z.string().optional(), // ISO string
+  dateTo: z.string().optional(), // ISO string
+  specificMonth: z.object({ year: z.number().min(2000), month: z.number().min(1).max(12) }).optional(),
 });
 
 const getAllUsersSaldoSchema = z.object({
@@ -244,6 +248,22 @@ export const saldoRouter = createTRPCRouter({
         ) as SQL;
       }
 
+      // Date filters
+      if (input?.dateFrom) {
+        const from = new Date(input.dateFrom);
+        whereCondition = and(whereCondition, sql`${saldoTransactions.createdAt} >= ${from}`) as SQL;
+      }
+      if (input?.dateTo) {
+        const to = new Date(input.dateTo);
+        whereCondition = and(whereCondition, sql`${saldoTransactions.createdAt} <= ${to}`) as SQL;
+      }
+      if (input?.specificMonth) {
+        const start = new Date(input.specificMonth.year, input.specificMonth.month - 1, 1);
+        const end = new Date(input.specificMonth.year, input.specificMonth.month, 1);
+        whereCondition = and(whereCondition, sql`${saldoTransactions.createdAt} >= ${start}`) as SQL;
+        whereCondition = and(whereCondition, sql`${saldoTransactions.createdAt} < ${end}`) as SQL;
+      }
+
       const query = db
         .select({
           id: saldoTransactions.id,
@@ -397,6 +417,22 @@ export const saldoRouter = createTRPCRouter({
           whereCondition,
           or(ilike(saldoTransactions.notes, searchTerm), ilike(saldoTransactions.transactionType, searchTerm))
         ) as SQL;
+      }
+
+      // Date filters
+      if (input?.dateFrom) {
+        const from = new Date(input.dateFrom);
+        whereCondition = and(whereCondition, sql`${saldoTransactions.createdAt} >= ${from}`) as SQL;
+      }
+      if (input?.dateTo) {
+        const to = new Date(input.dateTo);
+        whereCondition = and(whereCondition, sql`${saldoTransactions.createdAt} <= ${to}`) as SQL;
+      }
+      if (input?.specificMonth) {
+        const start = new Date(input.specificMonth.year, input.specificMonth.month - 1, 1);
+        const end = new Date(input.specificMonth.year, input.specificMonth.month, 1);
+        whereCondition = and(whereCondition, sql`${saldoTransactions.createdAt} >= ${start}`) as SQL;
+        whereCondition = and(whereCondition, sql`${saldoTransactions.createdAt} < ${end}`) as SQL;
       }
 
       const query = db

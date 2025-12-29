@@ -30,6 +30,7 @@ import { Progress } from "@/components/ui/progress";
 import pdfMake from "pdfmake/build/pdfmake";
 import * as pdfFonts from "pdfmake/build/vfs_fonts";
 import { formatDate } from "@/lib/date-utils";
+import { sanitizeExportCell } from "@/lib/export";
 
 // Initialize pdfMake with fonts
 if (pdfFonts && (pdfFonts as unknown as { pdfMake?: { vfs: unknown } }).pdfMake) {
@@ -182,8 +183,8 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
     }
 
     // Convert to table format
-    const headers = ["Data przesłania", "Data decyzji", "Numer faktury", "KSeF", "Użytkownik", "Firma", "Status", "Księgowy", "Opis"];
-    const rows = exportInvoices.map(inv => [
+    const headers: string[] = ["Data przesłania", "Data decyzji", "Numer faktury", "KSeF", "Użytkownik", "Firma", "Status", "Księgowy", "Opis"];
+    const rows: string[][] = exportInvoices.map(inv => [
       inv.createdAt ? formatDate(inv.createdAt) : "",
       inv.reviewedAt ? formatDate(inv.reviewedAt) : "-",
       inv.invoiceNumber || "",
@@ -195,32 +196,76 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
       inv.description || "-"
     ]);
 
+    // Precompute periodText and filterLine for both CSV and PDF exports
+    let periodText = "";
+    switch (exportPeriod) {
+      case "last30": periodText = "Ostatnie 30 dni"; break;
+      case "specificMonth": periodText = `${parseInt(exportMonth) + 1}/${exportYear}`; break;
+      case "last3Months": periodText = "Ostatnie 3 miesiące"; break;
+      case "last6Months": periodText = "Ostatnie 6 miesięcy"; break;
+      case "thisYear": periodText = "Bieżący rok"; break;
+      case "all": periodText = "Wszystkie"; break;
+    }
+
+    let filterLine = "";
+    if (exportCompany !== "all" || exportStatus !== "all") {
+      if (exportCompany !== "all") {
+        const companyName = companies?.find(c => c.id === exportCompany)?.name || "";
+        filterLine += `Firma: ${companyName}`;
+      }
+      if (exportStatus !== "all") {
+        const statusText = exportStatus === "accepted" ? "Zaakceptowane" : exportStatus === "rejected" ? "Odrzucone" : exportStatus === "in_review" ? "W trakcie" : "Oczekujące";
+        if (filterLine) filterLine += " | ";
+        filterLine += `Status: ${statusText}`;
+      }
+    }
     if (exportFormat === "csv") {
       setIsGenerating(true);
       setProgress(20);
       
       // Allow UI to update
       await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const csvContent = [
-        headers.join(","),
-        ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-      ].join("\n");
 
-      setProgress(60);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Use shared exportToCSV helper to ensure BOM and metadata
+      const formattedRows = exportInvoices.map(inv => ({
+        submittedAt: inv.createdAt ? formatDate(inv.createdAt) : "",
+        reviewedAt: inv.reviewedAt ? formatDate(inv.reviewedAt) : "-",
+        invoiceNumber: inv.invoiceNumber || "",
+        ksefNumber: inv.ksefNumber || "-",
+        user: inv.userName || "",
+        company: inv.companyName || "",
+        status: inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : inv.status === "re_review" ? "Ponowna weryfikacja" : "Oczekuje",
+        reviewer: inv.reviewerName || "-",
+        description: inv.description || "-",
+      }));
 
-      // Download CSV
-      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", `faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
+      // trigger CSV download
+      import("@/lib/export").then(({ exportToCSV }) => {
+        exportToCSV({
+          filename: `faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}`,
+          columns: [
+            { key: 'submittedAt', header: String(headers[0] ?? '') },
+            { key: 'reviewedAt', header: String(headers[1] ?? '') },
+            { key: 'invoiceNumber', header: String(headers[2] ?? '') },
+            { key: 'ksefNumber', header: String(headers[3] ?? '') },
+            { key: 'user', header: String(headers[4] ?? '') },
+            { key: 'company', header: String(headers[5] ?? '') },
+            { key: 'status', header: String(headers[6] ?? '') },
+            { key: 'reviewer', header: String(headers[7] ?? '') },
+            { key: 'description', header: String(headers[8] ?? '') },
+          ],
+          data: formattedRows,
+          meta: {
+            title: 'Raport Faktur - mobiFaktura',
+            generatedAt: new Date().toLocaleString('pl-PL'),
+            user: selectedUserName,
+            filters: periodText + (filterLine ? ' | ' + filterLine : '')
+          }
+        });
+      }).catch(e => {
+        console.error('CSV export helper load failed', e);
+      });
+
       setProgress(100);
       await new Promise(resolve => setTimeout(resolve, 200));
       setIsGenerating(false);
@@ -264,22 +309,81 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
       
       setProgress(40);
       
-      // Prepare table body
-      const tableBody = rows.map(row => {
+      // Prepare table body with sanitized cells and safe wrapping; also compute column widths numerically
+      const insertSoftBreaks = (text: string, maxWord = 30, insertEvery = 30) => {
+        if (!text || typeof text !== 'string') return '';
+        return text.replace(new RegExp(`([^\\n\\s]{${maxWord},})`, 'g'), (match) => {
+          return match.replace(new RegExp(`(.{1,${insertEvery}})`, 'g'), '$1\u200B');
+        });
+      };
+
+      const sanitizedRows = rows.map(row => {
         return row.map((cell, index) => {
+          const text = insertSoftBreaks(sanitizeExportCell(cell));
           if (index === 6) { // Status column - make bold
-            return { text: cell, bold: true };
+            return { text, bold: true };
           }
-          return cell;
+          return { text };
         });
       });
-      
+
+      // Compute widths: prefer wider column for description (last column) but cap to prevent overflow
+      const leftMargin = 10;
+      const rightMargin = 10;
+      const pageWidthPt = 841.89;
+      const availableWidth = pageWidthPt - leftMargin - rightMargin;
+      const gutters = (headers.length - 1) * 6;
+      const extraSafety = 12;
+      const contentWidth = Math.max(0, availableWidth - gutters - extraSafety);
+
+      // Determine column weights based on header semantics (description gets more space, numeric/date less)
+      const largeKeywords = ['uzasad', 'uzasadnienie', 'opis', 'notat', 'description', 'note', 'notes', 'justification', 'comment', 'remark'];
+      const smallKeywords = ['kwota', 'amount', 'saldo', 'data', 'date', 'typ', 'id', 'nr', 'numer'];
+
+      const rawWeights = headers.map(h => {
+        const headerLower = String(h || '').toLowerCase();
+        if (largeKeywords.some(k => headerLower.includes(k))) return 3;
+        if (smallKeywords.some(k => headerLower.includes(k))) return 0.6;
+        return 1;
+      });
+
+      const total = rawWeights.reduce((s, v) => s + v, 0);
+      const maxFraction = 0.4;
+      let fractions = rawWeights.map(w => w/total);
+      let fixed = 0; const flexIdx: number[] = [];
+      fractions.forEach((f,i) => { if (f>maxFraction) { fractions[i]=maxFraction; fixed += maxFraction } else flexIdx.push(i) });
+      if (flexIdx.length) {
+        const flexTotalOrig = flexIdx.reduce((s,i)=> s + ((rawWeights[i] ?? 0)/total), 0);
+        const remaining = Math.max(0, 1-fixed);
+        flexIdx.forEach(i => { const orig = ((rawWeights[i] ?? 0)/total); fractions[i] = flexTotalOrig>0 ? (remaining * orig / flexTotalOrig) : (remaining / flexIdx.length) });
+      }
+
+      let numericWidths = fractions.map(f => Number((f*contentWidth).toFixed(2)));
+      // adjust rounding
+      let diff = Math.round((contentWidth - numericWidths.reduce((s,v) => s+v,0))*100)/100;
+      let id=0; while (Math.abs(diff)>=0.01 && id < numericWidths.length) { numericWidths[id] = Number(((numericWidths[id] ?? 0) + Math.sign(diff)*0.01).toFixed(2)); diff = Math.round((contentWidth - numericWidths.reduce((s,v) => s+(v ?? 0),0))*100)/100; id = (id+1)%numericWidths.length }
+
+      // Cap the last column to prevent it from being too wide and causing overflow
+      const lastColIdx = numericWidths.length - 1;
+      const maxLastColWidth = 215; // max 215pt for last column to prevent overflow
+      if ((numericWidths[lastColIdx] ?? 0) > maxLastColWidth) {
+        const excess = (numericWidths[lastColIdx] ?? 0) - maxLastColWidth;
+        numericWidths[lastColIdx] = maxLastColWidth;
+        // Reduce total width proportionally instead of redistributing to avoid making other columns too wide
+        const currentTotal = numericWidths.reduce((s, v) => s + (v ?? 0), 0);
+        const targetTotal = contentWidth;
+        if (currentTotal > targetTotal) {
+          const scale = targetTotal / currentTotal;
+          numericWidths = numericWidths.map(w => Number((w * scale).toFixed(2)));
+        }
+      }
+
       setProgress(60);
-      
+
       const docDefinition: TDocumentDefinitions = {
         pageSize: 'A4',
         pageOrientation: 'landscape',
-        pageMargins: [10, 75, 10, 40],
+        pageMargins: [leftMargin, 75, rightMargin, 40],
         header: function(currentPage: number, pageCount: number): Content {
           return [
             { text: 'Raport Faktur - mobiFaktura', style: 'header', alignment: 'center' as const, margin: [0, 20, 0, 8] as [number, number, number, number] },
@@ -299,20 +403,18 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
           {
             table: {
               headerRows: 1,
-              widths: ['auto', 'auto', 'auto', 'auto', '*', '*', 'auto', 'auto', 55],
+              widths: numericWidths as any,
               body: [
-                headers.map(h => ({ text: h, style: 'tableHeader', alignment: 'center' })),
-                ...tableBody
+                headers.map(h => ({ text: insertSoftBreaks(String(h || '')), style: 'tableHeader', alignment: 'center' })),
+                ...sanitizedRows
               ]
             },
             layout: {
-              fillColor: function(rowIndex: number) {
-                return rowIndex === 0 ? '#000000' : (rowIndex % 2 === 0 ? '#f5f5f5' : null);
-              },
-              hLineWidth: function() { return 0.5; },
-              vLineWidth: function() { return 0.5; },
-              hLineColor: function() { return '#000000'; },
-              vLineColor: function() { return '#000000'; }
+              fillColor: undefined,
+              hLineWidth: () => 0.5,
+              vLineWidth: () => 0.5,
+              hLineColor: () => '#000000',
+              vLineColor: () => '#000000'
             }
           }
         ],
@@ -338,7 +440,8 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
           }
         },
         defaultStyle: {
-          fontSize: 9
+          fontSize: 9,
+          font: 'Roboto'
         }
       };
       
@@ -346,8 +449,43 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
       
       // Allow UI to update before generating PDF
       await new Promise(resolve => setTimeout(resolve, 100));
-      
-      pdfMake.createPdf(docDefinition).download(`faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}.pdf`);
+
+      // Preflight NaN check
+      const findNaN = (obj: any, path: string[] = []): string | null => {
+        if (obj === null || obj === undefined) return null;
+        if (typeof obj === 'number') return Number.isNaN(obj) ? path.join('.') || 'root' : null;
+        if (typeof obj === 'string' || typeof obj === 'boolean') return null;
+        if (Array.isArray(obj)) {
+          for (let i = 0; i < obj.length; i++) {
+            const res = findNaN(obj[i], [...path, String(i)]);
+            if (res) return res;
+          }
+          return null;
+        }
+        if (typeof obj === 'object') {
+          for (const k of Object.keys(obj)) {
+            const res = findNaN((obj as any)[k], [...path, k]);
+            if (res) return res;
+          }
+        }
+        return null;
+      };
+
+      const nanLocation = findNaN(docDefinition);
+      if (nanLocation) {
+        console.error('PDF generation aborted: found NaN in docDefinition at', nanLocation, { docDefinition });
+        throw new Error(`PDF generation failed: Unsupported number NaN found in docDefinition at ${nanLocation}`);
+      }
+
+      try {
+        pdfMake.createPdf(docDefinition).download(`faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}.pdf`);
+      } catch (e) {
+        console.error('pdfMake generation error:', e, { docDefinition });
+        toast({ title: 'Błąd', description: 'Wystąpił błąd podczas generowania pliku PDF', variant: 'destructive' });
+        setIsGenerating(false);
+        setProgress(0);
+        return;
+      }
       
       setProgress(100);
       await new Promise(resolve => setTimeout(resolve, 200));

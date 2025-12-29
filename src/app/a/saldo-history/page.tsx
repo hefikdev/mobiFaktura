@@ -59,7 +59,7 @@ export default function SaldoHistoryPage() {
   // Export columns
   const exportColumns = [
     { key: "createdAt", header: "Data", formatter: (value: unknown) => formatters.date(value as Date | string) },
-    { key: "transactionType", header: "Typ" },
+    { key: "transactionType", header: "Typ", formatter: (value: unknown) => formatters.transactionType(value as string) },
     { key: "amount", header: "Kwota", formatter: (value: unknown) => formatters.currency(value as number) },
     { key: "balanceBefore", header: "Saldo przed", formatter: (value: unknown) => formatters.currency(value as number) },
     { key: "balanceAfter", header: "Saldo po", formatter: (value: unknown) => formatters.currency(value as number) },
@@ -212,9 +212,39 @@ export default function SaldoHistoryPage() {
           data={[]}
           columns={exportColumns}
           filename="historia-saldo"
-          onExport={async () => {
-            const result = await exportQuery.refetch();
-            return result.data || [];
+          userName={user?.name}
+          filters={[{
+            key: 'createdAt',
+            label: 'Zakres dat',
+            options: [
+              { value: 'all', label: 'Wszystkie' },
+              { value: '7', label: 'Ostatnie 7 dni' },
+              { value: '30', label: 'Ostatnie 30 dni' },
+              { value: '365', label: 'Ostatnie 365 dni' },
+              { value: '__specific_month__', label: 'Konkretne miesiąc' },
+            ]
+          }]}
+          onExport={async (filters) => {
+            // Call the server export with parsed filter input (filters may include dateFrom or specificMonth)
+            // Use a safe any-cast to call the client-side fetch implementation (type definitions sometimes don't expose fetch)
+            try {
+              const fn = (trpc.saldo.exportSaldoHistory as any).fetch;
+              if (typeof fn === 'function') {
+                const data = await fn(filters || {});
+                return data || [];
+              }
+            } catch (e) {
+              console.warn('trpc fetch failed, falling back to refetch', e);
+            }
+
+            // Fallback: if fetch isn't available on the client, use the refetch helper (if available)
+            try {
+              const result = await exportQuery.refetch();
+              return result.data || [];
+            } catch (e) {
+              console.error('Export fallback failed', e);
+              return [];
+            }
           }}
               />
             </div>

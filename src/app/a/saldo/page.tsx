@@ -496,6 +496,15 @@ export default function SaldoManagementPage() {
                 filename="saldo-uzytkownikow"
                 label="Eksportuj saldo"
                 size="sm"
+                filters={[{
+                  key: 'createdAt',
+                  label: 'Data rejestracji',
+                  options: [
+                    { value: 'all', label: 'Wszystkie' },
+                    { value: '30', label: 'Ostatnie 30 dni' },
+                    { value: '__specific_month__', label: 'Konkretne miesiąc' }
+                  ]
+                }]}
               />
           </div>
         </CardHeader>
@@ -598,6 +607,7 @@ export default function SaldoManagementPage() {
                       { value: '7', label: 'Ostatnie 7 dni' },
                       { value: '30', label: 'Ostatnie 30 dni' },
                       { value: '365', label: 'Ostatni rok' },
+                      { value: '__specific_month__', label: 'Konkretne miesiąc' },
                     ] },
                     { key: 'status', label: 'Status', options: [
                       { value: 'all', label: 'Wszystkie' },
@@ -617,7 +627,7 @@ export default function SaldoManagementPage() {
                   label="Eksportuj historię"
                   size="sm"
                   enablePdf={true}
-                  pdfTitle={`Historia ${userStats?.userName || ''}`}
+                  pdfTitle={`Historia Salda`}
                   userName={userStats?.userName}
                 />
               )} 
