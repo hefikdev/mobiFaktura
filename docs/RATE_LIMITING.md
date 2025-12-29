@@ -26,9 +26,9 @@ The application includes lightweight rate limiting to protect against:
 │         ┌──────────────────────┐           │
 │         │  Rate Limit Tiers    │           │
 │         ├──────────────────────┤           │
-│         │ • Global (300/min)   │           │
+│         │ • Global (1000/min)   │           │
 │         │ • Auth (10/min)      │           │
-│         │ • Write (100/min)    │           │
+│         │ • Write (200/min)    │           │
 │         │ • Read (500/min)     │           │
 │         └──────────┬───────────┘           │
 │                    │                        │
@@ -44,13 +44,13 @@ The application includes lightweight rate limiting to protect against:
 
 ### 1. Global Rate Limit
 **Applied to**: All API requests  
-**Limit**: 300 requests per minute  
+**Limit**: 1000 requests per minute  
 **Purpose**: Prevent general API abuse  
 **Identifier**: IP address or IP + User ID
 
 ```typescript
 // Applied automatically to all procedures
-globalRateLimit: 300 requests / 1 minute
+globalRateLimit: 1000 requests / 1 minute
 ```
 
 ### 2. Auth Rate Limit
@@ -68,13 +68,13 @@ authRateLimit: 50 requests / 1 minute
 
 ### 3. Write Rate Limit
 **Applied to**: Create, Update, Delete operations  
-**Limit**: 100 requests per minute  
+**Limit**: 200 requests per minute  
 **Purpose**: Prevent spam and bulk operations  
 **Identifier**: IP + User ID
 
 ```typescript
 // Applied to: mutations that modify data
-writeRateLimit: 100 requests / 1 minute
+writeRateLimit: 200 requests / 1 minute
 ```
 
 ### 4. Read Rate Limit
@@ -163,9 +163,9 @@ Rate limits are applied immediately to all requests.
 
 | Tier | Requests | Window | Applied To |
 |------|----------|--------|------------|
-| Global | 300 | 1 min | All requests |
+| Global | 1000 | 1 min | All requests |
 | Auth | 10 | 1 min | Login, Register |
-| Write | 100 | 1 min | Create, Update, Delete |
+| Write | 200 | 1 min | Create, Update, Delete |
 | Read | 500 | 1 min | List, Get queries |
 
 ### Customizing Limits
@@ -181,20 +181,6 @@ const RATE_LIMITS = {
   auth: {
     requests: 20,     // Increase to 20
     windowMs: 60000,  // 1 minute
-  },
-  // ...
-};
-```
-
-### Per-Environment Limits
-
-For different limits in production:
-
-```typescript
-const RATE_LIMITS = {
-  global: {
-    requests: process.env.NODE_ENV === "production" ? 300 : 9999,
-    windowMs: 60000,
   },
   // ...
 };
@@ -236,28 +222,14 @@ Responses with HTTP status **429** are rate limited:
 
 ```bash
 # Test rate limiting
-for i in {1..400}; do
+for i in {1..1050}; do
   curl -w "%{http_code}\n" -o /dev/null http://localhost:3000/api/health
   sleep 0.1
 done
-# After ~300 requests, you'll see 429 responses
+# After ~1000 requests, you'll see 429 responses
 ```
 
 ## Bypassing Rate Limits
-
-### For Testing
-
-In development, temporarily increase limits:
-
-```typescript
-// src/server/lib/rate-limit.ts
-const RATE_LIMITS = {
-  global: {
-    requests: process.env.NODE_ENV === "development" ? 999999 : 300,
-    windowMs: 60000,
-  },
-};
-```
 
 ### For Trusted IPs
 
@@ -285,7 +257,7 @@ export async function checkRateLimit(
 ### 1. Set Generous Limits
 
 Rate limits should protect, not annoy:
-- ✅ **300 requests/min** → Normal user never hits this
+- ✅ **1000 requests/min** → Normal user never hits this
 - ✅ **500 reads/min** → Allows high-traffic apps
 - ❌ **10 requests/min** → Too restrictive for normal use
 
@@ -322,11 +294,6 @@ Rate limiting is one layer:
 docker-compose restart app
 ```
 
-**Solution 2**: Increase limits temporarily
-```typescript
-requests: process.env.NODE_ENV === "development" ? 999999 : 100
-```
-
 ### Rate Limits Not Working
 
 **Check 1**: Verify middleware is loaded
@@ -336,7 +303,7 @@ docker logs mobifaktura_app | grep -i "rate"
 
 **Check 2**: Test with multiple requests
 ```bash
-for i in {1..350}; do curl http://localhost:3000/api/health; sleep 0.1; done
+for i in {1..1050}; do curl http://localhost:3000/api/health; sleep 0.1; done
 ```
 
 ### Different Limits for Different Users
@@ -350,7 +317,7 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   // Admins get higher limits
   const limiter = ctx.user.role === "admin" 
     ? adminRateLimit  // 1000/min
-    : globalRateLimit; // 300/min
+    : globalRateLimit; // 1000/min
   
   await checkRateLimit(identifier, limiter);
   // ...
@@ -397,7 +364,7 @@ Common bypass attempts:
 ## Summary
 
 ✅ **Simple & Fast**: In-memory, no dependencies  
-✅ **Multi-Tier Protection**: Global (300), Auth (10), Write (100), Read (500)  
+✅ **Multi-Tier Protection**: Global (1000), Auth (10), Write (200), Read (500)  
 ✅ **High Traffic Ready**: Generous limits for production use  
 ✅ **Transparent**: Rate limit headers in every response  
 ✅ **Zero Config**: Works immediately out of the box  

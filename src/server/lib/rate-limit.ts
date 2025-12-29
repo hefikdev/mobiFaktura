@@ -71,7 +71,7 @@ class MemoryRateLimiter {
 const RATE_LIMITS = {
   // Global API rate limit - very generous for high traffic
   global: {
-    requests: 300, // 300 requests per minute
+    requests: 1000, // 1000 requests per minute
     windowMs: 60000, // 1 minute
   },
   // Authentication endpoints - moderate to prevent brute force
@@ -81,7 +81,7 @@ const RATE_LIMITS = {
   },
   // Write operations - generous to not disrupt normal usage
   write: {
-    requests: 100, // 100 requests per minute
+    requests: 200, // 200 requests per minute
     windowMs: 60000, // 1 minute
   },
   // Read operations - very generous for high traffic
