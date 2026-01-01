@@ -43,14 +43,14 @@ import { pl } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
 import { BudgetRequest } from "@/types";
 
-type BudgetRequestStatus = "all" | "pending" | "approved" | "rejected";
+type BudgetRequestStatus = "all" | "pending" | "approved" | "rejected" | "rozliczono";
 
 export default function BudgetRequestsPage() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<BudgetRequestStatus>("pending");
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"review" | "details">("details");
+  const [dialogMode, setDialogMode] = useState<"review" | "details" | "settle">("details");
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
   const [rejectionReason, setRejectionReason] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -200,7 +200,7 @@ export default function BudgetRequestsPage() {
       }
     };
 
-    const badgeStatus = status === "approved" ? "accepted" : status === "rejected" ? "rejected" : "pending";
+    const badgeStatus = status === "approved" || status === "rozliczono" ? "accepted" : status === "rejected" ? "rejected" : "pending";
 
     if (status === "pending") {
       return <InvoiceStatusBadge status={badgeStatus} variant="compact" />;
@@ -258,6 +258,7 @@ export default function BudgetRequestsPage() {
                   <SelectItem value="pending">Oczekujące</SelectItem>
                   <SelectItem value="approved">Zatwierdzone</SelectItem>
                   <SelectItem value="rejected">Odrzucone</SelectItem>
+                  <SelectItem value="rozliczono">Rozliczono</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -273,6 +274,7 @@ export default function BudgetRequestsPage() {
                   <TableHead>Wnioskowana kwota</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data złożenia</TableHead>
+                  <TableHead>Data decyzji</TableHead>
                   <TableHead>Uzasadnienie</TableHead>
                   <TableHead className="text-right">Akcje</TableHead>
                 </TableRow>
@@ -317,6 +319,9 @@ export default function BudgetRequestsPage() {
                           <TableCell className="whitespace-nowrap">
                             {format(new Date(request.createdAt), "dd MMM yyyy HH:mm", { locale: pl })}
                           </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {request.reviewedAt ? format(new Date(request.reviewedAt), "dd MMM yyyy HH:mm", { locale: pl }) : "-"}
+                          </TableCell>
                           <TableCell className="max-w-xs">
                             <div className="truncate" title={request.justification}>
                               {request.justification}
@@ -349,10 +354,25 @@ export default function BudgetRequestsPage() {
                                   Odrzuć
                                 </Button>
                               </div>
+                            ) : request.status === "approved" ? (
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-blue-600 hover:bg-blue-700 text-white dark:text-white"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRequest(request);
+                                    setDialogMode("settle");
+                                    setIsDialogOpen(true);
+                                  }}
+                                >
+                                  <DollarSign className="h-4 w-4 mr-1" />
+                                  Rozlicz
+                                </Button>
+                              </div>
                             ) : (
-                              <span className="text-sm text-muted-foreground">
-                                {request.reviewedAt && format(new Date(request.reviewedAt), "dd MMM yyyy", { locale: pl })}
-                              </span>
+                              <span className="text-sm text-muted-foreground">-</span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -360,7 +380,7 @@ export default function BudgetRequestsPage() {
                     })}
                     {isFetchingNextPage && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-4">
+                        <TableCell colSpan={8} className="text-center py-4">
                           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground inline-block" />
                         </TableCell>
                       </TableRow>
@@ -368,7 +388,7 @@ export default function BudgetRequestsPage() {
                   </>
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       {searchQuery ? "Nie znaleziono próśb" : (statusFilter === "pending" ? "Brak oczekujących próśb" : "Brak próśb")}
                     </TableCell>
                   </TableRow>

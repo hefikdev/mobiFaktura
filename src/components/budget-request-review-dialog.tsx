@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2, DollarSign, User, Mail, Wallet, FileText, XCircle, CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 
 interface BudgetRequestReviewDialogProps {
@@ -31,6 +32,7 @@ interface BudgetRequestReviewDialogProps {
     status: string;
     createdAt: Date;
     reviewedAt?: Date | null;
+    settledAt?: Date | null;
     rejectionReason?: string | null;
     lastBudgetRequestStatus?: string | null;
     lastBudgetRequestAmount?: number | null;
@@ -38,7 +40,7 @@ interface BudgetRequestReviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  mode?: "review" | "details";
+  mode?: "review" | "details" | "settle";
   initialAction?: "approve" | "reject";
 }
 
@@ -54,6 +56,10 @@ export function BudgetRequestReviewDialog({
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">(initialAction);
   const [rejectionReason, setRejectionReason] = useState("");
   const utils = trpc.useUtils();
+  const relatedInvoicesQuery = trpc.budgetRequest.getRelatedInvoices.useQuery(
+    { requestId: request?.id ?? "" },
+    { enabled: !!request }
+  );
 
   // Sync internal state with initialAction prop
   useEffect(() => {
@@ -68,6 +74,25 @@ export function BudgetRequestReviewDialog({
       });
       onOpenChange(false);
       setRejectionReason("");
+      utils.budgetRequest.getAll.invalidate();
+      onSuccess();
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const settleMutation = trpc.budgetRequest.settle.useMutation({
+    onSuccess: (data) => {
+      toast({
+        title: "Sukces",
+        description: data.message,
+      });
+      onOpenChange(false);
       utils.budgetRequest.getAll.invalidate();
       onSuccess();
     },
@@ -134,6 +159,12 @@ export function BudgetRequestReviewDialog({
                 {reviewAction === "approve" 
                   ? "Po zatwierdzeniu saldo użytkownika zostanie automatycznie zwiększone" 
                   : "Podaj powód odrzucenia prośby"}
+              </DialogDescription>
+            )}
+
+            {mode === "settle" && (
+              <DialogDescription>
+                Potwierdź rozliczenie prośby o budżet — operacja oznacza, że prośba została sfinalizowana i oznaczona jako rozliczona.
               </DialogDescription>
             )}
           </DialogHeader>
@@ -205,6 +236,20 @@ export function BudgetRequestReviewDialog({
               </div>
             )}
 
+            {/* Related invoices list */}
+            {relatedInvoicesQuery.data && relatedInvoicesQuery.data.length > 0 && (
+              <div className="p-3 bg-muted rounded-lg border">
+                <Label>Powiązane faktury</Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {relatedInvoicesQuery.data.map((inv) => (
+                    <Button key={inv.id} size="sm" variant="ghost" asChild>
+                      <Link href={`/a/invoice/${inv.id}`}>{inv.invoiceNumber}</Link>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Rejection Reason Input (for review mode when rejecting) */}
             {mode === "review" && reviewAction === "reject" && (
               <div className="space-y-2">
@@ -242,6 +287,11 @@ export function BudgetRequestReviewDialog({
               {request.reviewedAt && (
                 <div>
                   {request.status === "approved" ? "Przyznano" : "Odrzucono"}: {format(new Date(request.reviewedAt), "dd MMM yyyy, HH:mm", { locale: pl })}
+                </div>
+              )}
+              {request.settledAt && (
+                <div>
+                  Rozliczono: {format(new Date(request.settledAt), "dd MMM yyyy, HH:mm", { locale: pl })}
                 </div>
               )}
             </div>
@@ -283,6 +333,30 @@ export function BudgetRequestReviewDialog({
                   Odrzuć
                 </Button>
               )}
+            </DialogFooter>
+          )}
+
+          {mode === "settle" && request.status === "approved" && (
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={settleMutation.isPending}
+              >
+                Anuluj
+              </Button>
+              <Button
+                onClick={() => settleMutation.mutate({ requestId: request.id })}
+                disabled={settleMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white dark:text-white"
+              >
+                {settleMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <DollarSign className="mr-2 h-4 w-4" />
+                )}
+                Rozlicz
+              </Button>
             </DialogFooter>
           )}
 

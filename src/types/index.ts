@@ -10,6 +10,7 @@ export interface BudgetRequest {
   createdAt: Date;
   reviewedBy?: string | null;
   reviewedAt?: Date | null;
+  settledAt?: Date | null;
   rejectionReason?: string | null;
   lastBudgetRequestStatus?: string | null;
   lastBudgetRequestAmount?: number | null;

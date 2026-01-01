@@ -116,7 +116,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
   });
 
   interface FilterParams {
-    statuses: ("all" | "pending" | "approved" | "rejected")[];
+    statuses: ("all" | "pending" | "approved" | "rejected" | "rozliczono")[];
     olderThanMonths?: number;
     year?: number;
     month?: number;
@@ -434,6 +434,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
                       <SelectItem value="approved">Zatwierdzone</SelectItem>
                       <SelectItem value="rejected">Odrzucone</SelectItem>
                       <SelectItem value="pending">Oczekujące</SelectItem>
+                      <SelectItem value="rozliczono">Rozliczono</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

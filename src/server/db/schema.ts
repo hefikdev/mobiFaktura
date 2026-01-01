@@ -250,9 +250,10 @@ export const budgetRequests = pgTable("budget_requests", {
   requestedAmount: numeric("requested_amount", { precision: 12, scale: 2 }).notNull(),
   currentBalanceAtRequest: numeric("current_balance_at_request", { precision: 12, scale: 2 }).notNull(),
   justification: text("justification").notNull(),
-  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected', 'rozliczono'
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
   rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -383,4 +384,4 @@ export type UserRole = "user" | "accountant" | "admin";
 export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
 export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";
 export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund";
-export type BudgetRequestStatus = "pending" | "approved" | "rejected";
+export type BudgetRequestStatus = "pending" | "approved" | "rejected" | "rozliczono";

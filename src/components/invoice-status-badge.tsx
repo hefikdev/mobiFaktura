@@ -28,6 +28,12 @@ export function InvoiceStatusBadge({ status, variant = "default" }: InvoiceStatu
       className: "text-green-600 dark:text-green-400",
       bgClassName: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
     },
+    rozliczono: {
+      label: "Rozliczona",
+      icon: CheckCircle,
+      className: "text-green-600 dark:text-green-400",
+      bgClassName: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+    },
     rejected: {
       label: "Odrzucona",
       icon: XCircle,

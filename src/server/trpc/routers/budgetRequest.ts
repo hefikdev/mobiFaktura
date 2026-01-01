@@ -28,7 +28,7 @@ const reviewBudgetRequestSchema = z.object({
 });
 
 const getBudgetRequestsSchema = z.object({
-  status: z.enum(["pending", "approved", "rejected", "all"]).optional().default("all"),
+  status: z.enum(["pending", "approved", "rejected", "rozliczono", "all"]).optional().default("all"),
   userId: z.string().uuid().optional(),
   cursor: z.number().optional(),
   limit: z.number().min(1).max(200).default(50),
@@ -128,6 +128,7 @@ export const budgetRequestRouter = createTRPCRouter({
           rejectionReason: budgetRequests.rejectionReason,
           createdAt: budgetRequests.createdAt,
           reviewedAt: budgetRequests.reviewedAt,
+          settledAt: budgetRequests.settledAt,
           reviewerName: users.name,
         })
         .from(budgetRequests)
@@ -214,6 +215,7 @@ export const budgetRequestRouter = createTRPCRouter({
           rejectionReason: budgetRequests.rejectionReason,
           createdAt: budgetRequests.createdAt,
           reviewedAt: budgetRequests.reviewedAt,
+          settledAt: budgetRequests.settledAt,
           reviewerName: reviewer.name,
           lastBudgetRequestStatus: sql<string | null>`
             (SELECT status FROM budget_requests br2 
@@ -549,7 +551,7 @@ export const budgetRequestRouter = createTRPCRouter({
   bulkDelete: adminUnlimitedProcedure
     .input(z.object({
       filters: z.object({
-        statuses: z.array(z.enum(["all", "pending", "approved", "rejected"])),
+        statuses: z.array(z.enum(["all", "pending", "approved", "rejected", "rozliczono"])),
         olderThanMonths: z.number().optional(),
         year: z.number().optional(),
         month: z.number().optional(),
@@ -600,7 +602,7 @@ export const budgetRequestRouter = createTRPCRouter({
         conditions.push(
           or(
             ...input.filters.statuses.map((status) => 
-              eq(budgetRequests.status, status as "pending" | "approved" | "rejected")
+              eq(budgetRequests.status, status as "pending" | "approved" | "rejected" | "rozliczono")
             )
           )
         );
@@ -668,6 +670,44 @@ export const budgetRequestRouter = createTRPCRouter({
       };
     }),
 
+  // Settle budget request (mark as 'rozliczono')
+  settle: accountantProcedure
+    .input(z.object({ requestId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Find the request
+      const [request] = await db
+        .select()
+        .from(budgetRequests)
+        .where(eq(budgetRequests.id, input.requestId))
+        .limit(1);
+
+      if (!request) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Prośba nie została znaleziona" });
+      }
+
+      if (request.status !== "approved") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Tylko przyznane prośby można rozliczyć" });
+      }
+
+      // Update status to 'rozliczono' and set settledAt
+      await db
+        .update(budgetRequests)
+        .set({ status: "rozliczono", settledAt: new Date(), updatedAt: new Date() })
+        .where(eq(budgetRequests.id, input.requestId));
+
+      // Notify the user
+      await import("@/server/lib/notifications").then((mod) =>
+        mod.createNotification({
+          userId: request.userId,
+          type: "system_message",
+          title: "Prośba rozliczona",
+          message: "Twoja prośba o zwiększenie budżetu została rozliczona",
+        })
+      );
+
+      return { success: true, message: "Prośba została rozliczona" };
+    }),
+
   // Export budget requests (accountant/admin)
   exportBudgetRequests: accountantProcedure
     .input(getBudgetRequestsSchema.optional())
@@ -721,6 +761,7 @@ export const budgetRequestRouter = createTRPCRouter({
           rejectionReason: budgetRequests.rejectionReason,
           createdAt: budgetRequests.createdAt,
           reviewedAt: budgetRequests.reviewedAt,
+          settledAt: budgetRequests.settledAt,
           reviewerName: sql<string>`reviewer.name`,
         })
         .from(budgetRequests)
@@ -741,7 +782,41 @@ export const budgetRequestRouter = createTRPCRouter({
         rejectionReason: req.rejectionReason,
         createdAt: req.createdAt,
         reviewedAt: req.reviewedAt,
+        settledAt: (req as any).settledAt,
         reviewerName: req.reviewerName,
       }));
+    }),
+
+  // Get invoices related to a budget request (created between approval and settlement/current time)
+  getRelatedInvoices: accountantProcedure
+    .input(z.object({ requestId: z.string().uuid() }))
+    .query(async ({ input }) => {
+      const [request] = await db
+        .select({ userId: budgetRequests.userId, reviewedAt: budgetRequests.reviewedAt, settledAt: budgetRequests.settledAt, status: budgetRequests.status })
+        .from(budgetRequests)
+        .where(eq(budgetRequests.id, input.requestId))
+        .limit(1);
+
+      if (!request || !request.reviewedAt) return [];
+
+      const start = new Date(request.reviewedAt);
+      const end = request.status === "rozliczono" ? (request.settledAt ? new Date(request.settledAt) : new Date()) : new Date();
+
+      const { invoices } = await import("@/server/db/schema");
+
+      const related = await db
+        .select({ id: invoices.id, invoiceNumber: invoices.invoiceNumber })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.userId, request.userId),
+            sql`${invoices.createdAt} >= ${start.toISOString()}`,
+            sql`${invoices.createdAt} <= ${end.toISOString()}`
+          )
+        )
+        .orderBy(desc(invoices.createdAt))
+        .limit(50);
+
+      return related.map(r => ({ id: r.id, invoiceNumber: r.invoiceNumber }));
     }),
 });
