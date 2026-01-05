@@ -87,6 +87,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Prevent gestures from zooming the whole app on mobile (pinch/double-tap) and stop iOS text-size adjustments */
+html, body, button, a, input, textarea, select {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
 /* Prevent zoom on input focus on iOS */
 @media screen and (max-width: 768px) {
   input,

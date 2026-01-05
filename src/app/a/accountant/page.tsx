@@ -198,10 +198,10 @@ export default function AccountantPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {user.role === "admin" ? <AdminHeader /> : <AccountantHeader lastInvoiceSync={lastInvoiceSync} />}
-      <main className="flex-1 p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(98vh-120px)]">
+      <main className="flex-1 p-6 min-h-0 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(98vh-120px)] min-h-0">
           {/* Pending invoices */}
-          <Card className="flex flex-col">
+          <Card className="flex flex-col min-h-0">
             <CardHeader className="shrink-0">
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
@@ -211,13 +211,13 @@ export default function AccountantPage() {
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 p-0 overflow-hidden">
+            <CardContent className="flex-1 p-0 overflow-hidden flex flex-col min-h-0">
               {loadingPending ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (sortedPendingInvoices && sortedPendingInvoices.length > 0) || (budgetRequests && budgetRequests.length > 0) ? (
-                <ScrollArea className="h-full">
+                <ScrollArea className="flex-1">
                   <div>
                     {/* Budget Requests */}
                     {budgetRequests && budgetRequests.length > 0 && (
@@ -305,7 +305,7 @@ export default function AccountantPage() {
           </Card>
 
           {/* Reviewed invoices */}
-          <Card className="flex flex-col">
+          <Card className="flex flex-col min-h-0">
             <CardHeader className="shrink-0">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <CardTitle className="flex items-center gap-2">
@@ -339,7 +339,7 @@ export default function AccountantPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 p-0 overflow-hidden flex flex-col">
+            <CardContent className="flex-1 p-0 overflow-hidden flex flex-col min-h-0">
               {loadingReviewed ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

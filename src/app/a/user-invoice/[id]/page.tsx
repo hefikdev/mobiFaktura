@@ -25,7 +25,7 @@ export default function UserInvoicePage({ params }: { params: Promise<{ id: stri
 }
 
 function UserInvoiceContent({ id }: { id: string }) {
-  const { data: invoice, isLoading, refetch, error } = trpc.invoice.getById.useQuery({ id });
+  const { data: invoice, isLoading, refetch, error } = trpc.invoice.getById.useQuery({ id, claimReview: false });
   const { data: user } = trpc.auth.me.useQuery();
   const [imageZoomed, setImageZoomed] = useState(false);
   const [imageScale, setImageScale] = useState(1);

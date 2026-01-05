@@ -224,7 +224,7 @@ export function BudgetRequestReviewDialog({
                   <div className="text-right">
                     <div className="mb-2">
                       <InvoiceStatusBadge 
-                        status={request.lastBudgetRequestStatus === 'approved' ? 'accepted' : request.lastBudgetRequestStatus === 'rejected' ? 'rejected' : 'pending'} 
+                        status={request.lastBudgetRequestStatus === 'approved' ? 'accepted' : request.lastBudgetRequestStatus === 'rozliczono' ? 'rozliczono' : request.lastBudgetRequestStatus === 'rejected' ? 'rejected' : 'pending'} 
                         variant="compact" 
                       />
                     </div>
@@ -301,38 +301,48 @@ export function BudgetRequestReviewDialog({
             <DialogFooter className="gap-2 sm:gap-0">
               <Button
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => {
+                  setReviewAction(initialAction);
+                  onOpenChange(false);
+                }}
                 disabled={reviewMutation.isPending}
               >
                 Anuluj
               </Button>
-              {reviewAction === "approve" ? (
-                <Button
-                  onClick={handleApprove}
-                  disabled={reviewMutation.isPending}
-                  className="bg-green-600 hover:bg-green-700 text-white dark:text-white"
-                >
-                  {reviewMutation.isPending && reviewMutation.variables?.action === "approve" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                  )}
-                  Przyznaj
-                </Button>
-              ) : (
-                <Button
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={reviewMutation.isPending || rejectionReason.length < 10}
-                >
-                  {reviewMutation.isPending && reviewMutation.variables?.action === "reject" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <XCircle className="mr-2 h-4 w-4" />
-                  )}
-                  Odrzuć
-                </Button>
-              )}
+
+              {/* Approve button (always visible) */}
+              <Button
+                onClick={handleApprove}
+                disabled={reviewMutation.isPending}
+                className="bg-green-600 hover:bg-green-700 text-white dark:text-white"
+              >
+                {reviewMutation.isPending && reviewMutation.variables?.action === "approve" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                )}
+                Przyznaj
+              </Button>
+
+              {/* Reject button: first click toggles reject mode (shows textarea), second click submits */}
+              <Button
+                variant={reviewAction === "reject" ? "destructive" : "outline"}
+                onClick={() => {
+                  if (reviewAction === "reject") {
+                    handleReject();
+                  } else {
+                    setReviewAction("reject");
+                  }
+                }}
+                disabled={reviewMutation.isPending || (reviewAction === "reject" && rejectionReason.length < 10)}
+              >
+                {reviewMutation.isPending && reviewMutation.variables?.action === "reject" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <XCircle className="mr-2 h-4 w-4" />
+                )}
+                Odrzuć
+              </Button>
             </DialogFooter>
           )}
 

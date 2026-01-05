@@ -306,6 +306,27 @@ export const invoiceRouter = createTRPCRouter({
 
   // Get only in_review invoices (for fast polling)
   inReviewInvoices: accountantProcedure.query(async () => {
+    // Release stale reviews (no ping in last 10 seconds) to avoid stuck in_review statuses
+    const staleThreshold = new Date(Date.now() - 10000); // 10 seconds
+    await db
+      .update(invoices)
+      .set({
+        status: "pending",
+        currentReviewer: null,
+        reviewStartedAt: null,
+        lastReviewPing: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(invoices.status, "in_review"),
+          or(
+            isNull(invoices.lastReviewPing),
+            lt(invoices.lastReviewPing, staleThreshold)
+          )
+        )
+      );
+
     const result = await db
       .select()
       .from(invoices)
@@ -479,7 +500,7 @@ export const invoiceRouter = createTRPCRouter({
 
   // Get single invoice with full details
   getById: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ id: z.string().uuid(), claimReview: z.boolean().optional() }))
     .query(async ({ ctx, input }) => {
       const [invoice] = await db
         .select()
@@ -503,7 +524,8 @@ export const invoiceRouter = createTRPCRouter({
       }
 
       // Automatically start review if accountant or admin is viewing and status is pending
-      if ((ctx.user.role === "accountant" || ctx.user.role === "admin") && invoice.status === "pending") {
+      // Only claim review when claimReview is not explicitly false
+      if ((ctx.user.role === "accountant" || ctx.user.role === "admin") && invoice.status === "pending" && (input.claimReview ?? true)) {
         await db
           .update(invoices)
           .set({
@@ -528,6 +550,27 @@ export const invoiceRouter = createTRPCRouter({
           invoice.reviewStartedAt = updatedInvoice.reviewStartedAt;
         }
       }
+
+      // Also release any stale in_review entries (no ping in last 10 seconds) proactively
+      const staleThresholdAll = new Date(Date.now() - 10000); // 10 seconds
+      await db
+        .update(invoices)
+        .set({
+          status: "pending",
+          currentReviewer: null,
+          reviewStartedAt: null,
+          lastReviewPing: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(invoices.status, "in_review"),
+            or(
+              isNull(invoices.lastReviewPing),
+              lt(invoices.lastReviewPing, staleThresholdAll)
+            )
+          )
+        );
 
       // Get presigned URL for image
       const imageUrl = await getPresignedUrl(invoice.imageKey);

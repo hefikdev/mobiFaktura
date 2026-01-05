@@ -44,7 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { Footer } from "@/components/footer";
 import { ExportButton } from "@/components/export-button";
 import { formatters } from "@/lib/export";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import Link from "next/link";
@@ -770,6 +770,7 @@ export default function SaldoManagementPage() {
                           formatter={(value: number) => [`${value.toFixed(2)} PLN`, "Saldo"]}
                           contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
                         />
+                        <ReferenceLine y={0} stroke="#f97316" strokeWidth={2} strokeDasharray="4 4" label={{ position: 'right', value: '0 zł', fill: '#f97316', fontSize: 12 }} />
                         <Line 
                           type="monotone" 
                           dataKey="balance" 

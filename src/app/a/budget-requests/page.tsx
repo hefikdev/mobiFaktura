@@ -200,7 +200,7 @@ export default function BudgetRequestsPage() {
       }
     };
 
-    const badgeStatus = status === "approved" || status === "rozliczono" ? "accepted" : status === "rejected" ? "rejected" : "pending";
+    const badgeStatus = status === "approved" ? "accepted" : status === "rozliczono" ? "rozliczono" : status === "rejected" ? "rejected" : "pending";
 
     if (status === "pending") {
       return <InvoiceStatusBadge status={badgeStatus} variant="compact" />;
@@ -371,6 +371,8 @@ export default function BudgetRequestsPage() {
                                   Rozlicz
                                 </Button>
                               </div>
+                            ) : request.status === "rozliczono" ? (
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">{request.settledAt ? format(new Date(request.settledAt), "dd MMM yyyy HH:mm", { locale: pl }) : "-"}</span>
                             ) : (
                               <span className="text-sm text-muted-foreground">-</span>
                             )}
