@@ -32,6 +32,7 @@ export default function UploadPage() {
   const { isOnline, refresh } = useOnline();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
+  const scanHandledRef = useRef<boolean>(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [ksefNumber, setKsefNumber] = useState("");
@@ -103,6 +104,8 @@ export default function UploadPage() {
     }
 
     setIsScanning(true);
+    // Reset duplicate-scan guard on (re)start
+    scanHandledRef.current = false;
 
     try {
       const scanner = new Html5Qrcode("qr-reader");
@@ -116,6 +119,9 @@ export default function UploadPage() {
           aspectRatio: 1.0,
         },
         (decodedText) => {
+          // Prevent duplicate scans firing multiple times
+          if (scanHandledRef.current) return;
+          scanHandledRef.current = true;
           // Successfully scanned
           setKsefNumber(decodedText);
           toast({
