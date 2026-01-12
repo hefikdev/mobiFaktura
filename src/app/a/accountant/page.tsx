@@ -9,10 +9,12 @@ import { Footer } from "@/components/footer";
 import { InvoiceListItem } from "@/components/invoice-list-item";
 import dynamic from "next/dynamic";
 const BudgetRequestReviewDialog = dynamic(() => import("@/components/budget-request-review-dialog").then(m => m.BudgetRequestReviewDialog));
+const DuplicateConflictsDialog = dynamic(() => import("@/components/duplicate-conflicts-dialog").then(m => m.DuplicateConflictsDialog));
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Unauthorized } from "@/components/unauthorized";
+import { ConflictsBanner } from "@/components/conflicts-banner";
 import {
   Select,
   SelectContent,
@@ -41,6 +43,7 @@ export default function AccountantPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<BudgetRequest | null>(null);
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
+  const [showConflictsDialog, setShowConflictsDialog] = useState(false);
 
   // Refs for infinite scroll
   const pendingObserver = useRef<IntersectionObserver>();
@@ -106,10 +109,19 @@ export default function AccountantPage() {
     }
   );
 
+  // Get duplicate conflicts
+  const { data: conflictsData, isLoading: loadingConflicts } = trpc.invoice.getDuplicates.useQuery(undefined, {
+    refetchInterval: 30000, // 30 seconds - conflicts don't change as frequently
+    refetchOnWindowFocus: true,
+    staleTime: 20000,
+  });
+
   // Flatten paginated data
   const pendingInvoices = pendingData?.pages.flatMap((page) => page.items) || [];
   const reviewedInvoices = reviewedData?.pages.flatMap((page) => page.items) || [];
   const budgetRequests = budgetRequestsData?.items || [];
+  const duplicates = conflictsData?.duplicates || [];
+  const totalConflicts = conflictsData?.totalConflicts || 0;
   
   // Filter and sort reviewed budget requests
   const sortedReviewedBudgetRequests = (reviewedBudgetRequestsData?.items || [])
@@ -198,6 +210,13 @@ export default function AccountantPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {user.role === "admin" ? <AdminHeader /> : <AccountantHeader lastInvoiceSync={lastInvoiceSync} />}
+      
+      {/* Conflicts Banner */}
+      <ConflictsBanner 
+        totalConflicts={totalConflicts}
+        onShowDetails={() => setShowConflictsDialog(true)}
+      />
+
       <main className="flex-1 p-6 min-h-0 overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(98vh-120px)] min-h-0">
           {/* Pending invoices */}
@@ -476,6 +495,13 @@ export default function AccountantPage() {
           refetchBudgetRequests();
           refetchReviewedBudgetRequests();
         }}
+      />
+
+      <DuplicateConflictsDialog
+        open={showConflictsDialog}
+        onOpenChange={setShowConflictsDialog}
+        duplicates={duplicates}
+        totalConflicts={totalConflicts}
       />
     </div>
   );

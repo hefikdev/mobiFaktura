@@ -8,7 +8,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { invoices, users, companies, invoiceEditHistory, saldoTransactions } from "@/server/db/schema";
-import { eq, desc, and, ne, or, isNull, lt } from "drizzle-orm";
+import { eq, desc, and, ne, or, isNull, lt, isNotNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { uploadFile, getPresignedUrl, deleteFile } from "@/server/storage/minio";
 import { compressImage, dataUrlToBuffer } from "@/server/storage/image-processor";
@@ -980,4 +980,76 @@ export const invoiceRouter = createTRPCRouter({
         invoice: updated,
       };
     }),
+
+  // Get duplicate invoices (for conflict detection)
+  getDuplicates: accountantProcedure.query(async () => {
+    // Find invoices with matching kwota, ksefNumber, and companyId that are accepted
+    // Group by these fields and find groups with more than 1 invoice
+    const allInvoices = await db
+      .select({
+        id: invoices.id,
+        userId: invoices.userId,
+        userName: users.name,
+        userEmail: users.email,
+        companyId: invoices.companyId,
+        companyName: companies.name,
+        invoiceNumber: invoices.invoiceNumber,
+        ksefNumber: invoices.ksefNumber,
+        kwota: invoices.kwota,
+        status: invoices.status,
+        createdAt: invoices.createdAt,
+        reviewedAt: invoices.reviewedAt,
+        reviewedBy: invoices.reviewedBy,
+        imageKey: invoices.imageKey,
+      })
+      .from(invoices)
+      .leftJoin(users, eq(invoices.userId, users.id))
+      .leftJoin(companies, eq(invoices.companyId, companies.id))
+      .where(
+        and(
+          eq(invoices.status, "accepted"),
+          isNotNull(invoices.ksefNumber),
+          isNotNull(invoices.kwota)
+        )
+      )
+      .orderBy(desc(invoices.createdAt));
+
+    // Group by kwota, ksefNumber, and companyId
+    const duplicateGroups: Record<string, typeof allInvoices> = {};
+    
+    for (const invoice of allInvoices) {
+      if (!invoice.ksefNumber || !invoice.kwota || !invoice.companyId) continue;
+      
+      const key = `${invoice.kwota}_${invoice.ksefNumber}_${invoice.companyId}`;
+      
+      if (!duplicateGroups[key]) {
+        duplicateGroups[key] = [];
+      }
+      duplicateGroups[key].push(invoice);
+    }
+
+    // Filter out groups with only one invoice
+    const duplicates = Object.values(duplicateGroups)
+      .filter(group => group.length > 1)
+      .map(group => {
+        const firstInvoice = group[0];
+        if (!firstInvoice) {
+          return null;
+        }
+        return {
+          kwota: firstInvoice.kwota,
+          ksefNumber: firstInvoice.ksefNumber,
+          companyId: firstInvoice.companyId,
+          companyName: firstInvoice.companyName,
+          invoices: group,
+          count: group.length,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    return {
+      duplicates,
+      totalConflicts: duplicates.length,
+    };
+  }),
 });
