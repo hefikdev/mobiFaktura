@@ -164,7 +164,7 @@ export const loginLogs = pgTable("login_logs", {
     .defaultNow(),
 });
 
-// Login Attempts table (for rate limiting)
+// Login Attempts table (for security tracking)
 export const loginAttempts = pgTable("login_attempts", {
   id: uuid("id").primaryKey().defaultRandom(),
   identifier: varchar("identifier", { length: 255 }).notNull(), // email or IP address

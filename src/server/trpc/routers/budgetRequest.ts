@@ -547,7 +547,7 @@ export const budgetRequestRouter = createTRPCRouter({
     }),
 
   // Bulk delete budget requests (admin only)
-  // No rate limiting - protected by password verification
+  // Protected by password verification
   bulkDelete: adminUnlimitedProcedure
     .input(z.object({
       filters: z.object({

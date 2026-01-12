@@ -10,7 +10,7 @@ mobiFaktura is an enterprise-grade invoice management platform that enables:
 - **Accountants** to review invoices efficiently with bulk operations and quality control
 - **Admins** to manage users, companies, and oversee system operations
 
-The system is built with security and scalability in mind, featuring end-to-end encryption for sensitive data, comprehensive audit logging, and enterprise backup strategies.
+The system is built with security and scalability in mind, featuring end-to-end encryption for sensitive data and comprehensive audit logging.
 
 ## 🏗️ Architecture
 
@@ -38,7 +38,6 @@ The system is built with security and scalability in mind, featuring end-to-end 
 - **Argon2id** - Industry-standard password hashing (winner of Password Hashing Competition 2015)
 - **JWT Sessions** - Stateful session management with database validation
 - **CSRF Protection** - Origin-based CSRF validation on all mutations
-- **Rate Limiting** - In-memory rate limiting with configurable limits per operation type
 - **Login Attempt Lockout** - Account lockout after 3 failed attempts (30-second cooldown)
 
 ## 📋 Features
@@ -68,7 +67,6 @@ The system is built with security and scalability in mind, featuring end-to-end 
 ### Admin Functions
 - User and company management
 - System monitoring and logging
-- Automatic backups (PostgreSQL + MinIO) with configurable retention
 - Emergency account lockout recovery
 - Notification management and preferences
 
@@ -144,12 +142,6 @@ docker-compose up -d
 - Attackers cannot forge requests from different origins
 - Logged CSRF attempts for security monitoring
 
-### Rate Limiting
-- **Global**: 300 requests/minute per IP
-- **Authentication**: 50 attempts/minute (with 30-second lockout)
-- **Read Operations**: 500 requests/minute
-- **Write Operations**: 100 requests/minute
-
 ### Data Protection
 - All passwords hashed with Argon2id (64MB memory cost, 3 iterations)
 - Session data in encrypted PostgreSQL
@@ -194,12 +186,6 @@ npm run test             # Run unit tests
 npm run test:ui          # Interactive test UI
 npm run test:coverage    # Generate coverage report
 
-# Backups
-npm run backup:postgres  # Backup PostgreSQL database
-npm run backup:minio     # Backup MinIO files
-npm run backup:all       # Backup everything
-npm run backup:list      # List available backups
-
 # Code Quality
 npm run lint             # Run ESLint
 ```
@@ -211,7 +197,6 @@ npm run lint             # Run ESLint
 - **minio** - S3-compatible object storage with console
 - **minio-init** - Automated bucket initialization
 - **app** - Next.js application with health checks
-- **backup** - Automated backup service with cron scheduling
 
 ### Configuration
 All services read from `.env` file. Set `NODE_ENV=production` for production deployments.
@@ -227,7 +212,6 @@ All services read from `.env` file. Set `NODE_ENV=production` for production dep
 - **Next.js Optimization**: Automatic code splitting and image optimization
 - **Database Indexing**: Composite indexes on common query patterns
 - **Caching Strategy**: React Query for client-side caching with stale-while-revalidate
-- **Rate Limiting**: Prevents abuse and ensures fair resource allocation
 - **Session Caching**: React's `cache()` API reduces database queries per request
 - **Container Optimization**: Multi-stage Docker build reduces image size by 60%+
 - **Health Checks**: All services have health checks for automatic recovery
@@ -271,8 +255,6 @@ For detailed information, see:
 - [AUTH_IMPLEMENTATION_GUIDE.md](docs/AUTH_IMPLEMENTATION_GUIDE.md) - Auth system implementation details
 - [AUTH_FIXES_IMPLEMENTED.md](docs/AUTH_FIXES_IMPLEMENTED.md) - Summary of security fixes
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture and design decisions
-- [BACKUP_SYSTEM.md](docs/BACKUP_SYSTEM.md) - Backup and restore procedures
-- [BACKUP_QUICKREF.md](docs/BACKUP_QUICKREF.md) - Quick reference for backups
 - [MONITORING.md](docs/MONITORING.md) - System monitoring and logging
 
 ## 📝 License

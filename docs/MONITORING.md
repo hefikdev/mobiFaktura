@@ -272,7 +272,7 @@ To customize, edit `src/components/error-boundary.tsx`.
 **Infrastructure**:
 - Container health status
 - CPU/Memory usage
-- Disk space (especially for backups)
+- Disk space
 - Network latency
 
 ### 3. Regular Health Checks

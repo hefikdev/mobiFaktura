@@ -199,7 +199,6 @@ KSEF_TOKEN=your_ksef_api_token_here
 ```
 
 ### Optional Customization
-- Rate limit: Edit `src/server/lib/rate-limit.ts`
 - Timeout: Change `AbortSignal.timeout(10000)` in ksef.ts
 - Log level: Set `LOG_LEVEL` env variable
 

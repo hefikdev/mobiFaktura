@@ -218,12 +218,6 @@ KSEF_TOKEN=your_ksef_api_token_here
 LOG_LEVEL=info
 ```
 
-### Rate Limiting
-
-Global rate limit (default: 100 requests per minute per user)
-
-To modify, edit `src/server/lib/rate-limit.ts`
-
 ## Monitoring & Logging
 
 All KSeF operations are logged:

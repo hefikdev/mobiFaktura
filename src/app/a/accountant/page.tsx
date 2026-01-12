@@ -90,7 +90,7 @@ export default function AccountantPage() {
   const { data: budgetRequestsData, isLoading: loadingBudgetRequests, refetch: refetchBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
     { status: "pending", limit: 10, cursor: 0 },
     {
-      refetchInterval: 10000, // 10 seconds - prevent rate limiting
+      refetchInterval: 10000, // 10 seconds
       refetchOnWindowFocus: true,
       staleTime: 20000,
     }
@@ -100,7 +100,7 @@ export default function AccountantPage() {
   const { data: reviewedBudgetRequestsData, refetch: refetchReviewedBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
     { status: "all", limit: 10, cursor: 0 },
     {
-      refetchInterval: 10000, // 10 seconds - prevent rate limiting
+      refetchInterval: 10000, // 10 seconds
       refetchOnWindowFocus: true,
       staleTime: 20000,
     }

@@ -203,7 +203,7 @@ export const authRouter = createTRPCRouter({
       };
     }),
 
-  // Login (with stricter rate limiting)
+  // Login
   login: authProcedure
     .input(
       z.object({

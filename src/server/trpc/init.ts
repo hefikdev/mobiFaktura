@@ -6,13 +6,6 @@ import { ZodError } from "zod";
 import { getCurrentSession } from "@/server/auth/session";
 import { db } from "@/server/db";
 import { headers } from "next/headers";
-import { 
-  globalRateLimit, 
-  authRateLimit, 
-  writeRateLimit, 
-  readRateLimit,
-  checkRateLimit 
-} from "@/server/lib/rate-limit";
 import { trpcLogger, logError } from "@/lib/logger";
 
 // Context creation
@@ -157,25 +150,12 @@ const loggingMiddleware = t.middleware(async ({ path, type, next, ctx }) => {
   }
 });
 
-// Public procedure (no auth required) with rate limiting and CSRF protection
+// Public procedure (no auth required) with CSRF protection
 export const publicProcedure = t.procedure
   .use(loggingMiddleware)
-  .use(csrfMiddleware)
-  .use(async ({ ctx, next }) => {
-    // Apply global rate limit to all public procedures
-    const identifier = `${ctx.ipAddress}:public`;
-    try {
-      await checkRateLimit(identifier, globalRateLimit);
-    } catch (error) {
-      throw new TRPCError({
-        code: "TOO_MANY_REQUESTS",
-        message: error instanceof Error ? error.message : "Zbyt wiele żądań",
-      });
-    }
-    return next({ ctx });
-  });
+  .use(csrfMiddleware);
 
-// Protected procedure (requires authentication) with rate limiting and CSRF protection
+// Protected procedure (requires authentication) with CSRF protection
 export const protectedProcedure = t.procedure
   .use(loggingMiddleware)
   .use(csrfMiddleware)
@@ -184,17 +164,6 @@ export const protectedProcedure = t.procedure
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "Musisz być zalogowany",
-      });
-    }
-    
-    // Apply global rate limit to authenticated users
-    const identifier = `${ctx.ipAddress}:user:${ctx.user.id}`;
-    try {
-      await checkRateLimit(identifier, globalRateLimit);
-    } catch (error) {
-      throw new TRPCError({
-        code: "TOO_MANY_REQUESTS",
-        message: error instanceof Error ? error.message : "Zbyt wiele żądań",
       });
     }
     
@@ -209,9 +178,9 @@ export const protectedProcedure = t.procedure
     });
   });
 
-// Accountant procedure (requires accountant role or admin) with rate limiting
+// Accountant procedure (requires accountant role or admin)
 export const accountantProcedure = protectedProcedure.use(
-  async ({ type, ctx, next }) => {
+  async ({ ctx, next }) => {
     if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -219,24 +188,11 @@ export const accountantProcedure = protectedProcedure.use(
       });
     }
     
-    // Apply appropriate rate limit based on operation type
-    const rateLimiter = type === 'query' ? readRateLimit : writeRateLimit;
-    const identifier = `${ctx.ipAddress}:accountant:${ctx.user.id}`;
-    try {
-      await checkRateLimit(identifier, rateLimiter);
-    } catch (error) {
-      throw new TRPCError({
-        code: "TOO_MANY_REQUESTS",
-        message: "Zbyt wiele operacji. Spróbuj ponownie za chwilę.",
-      });
-    }
-    
     return next({ ctx });
   }
 );
 
-// Accountant unlimited procedure (for bulk operations like batch reviews)
-// No rate limiting - for operations that need to process many items
+// Accountant unlimited procedure (for bulk operations)
 export const accountantUnlimitedProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
     if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
@@ -246,7 +202,6 @@ export const accountantUnlimitedProcedure = protectedProcedure.use(
       });
     }
     
-    // No rate limiting for bulk operations
     return next({ ctx });
   }
 );
@@ -264,9 +219,9 @@ export const userProcedure = protectedProcedure.use(
   }
 );
 
-// Admin procedure (requires admin role) with rate limiting for regular operations
+// Admin procedure (requires admin role)
 export const adminProcedure = protectedProcedure.use(
-  async ({ type, ctx, next }) => {
+  async ({ ctx, next }) => {
     if (ctx.user.role !== "admin") {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -274,24 +229,11 @@ export const adminProcedure = protectedProcedure.use(
       });
     }
     
-    // Apply appropriate rate limit based on operation type
-    const rateLimiter = type === 'query' ? readRateLimit : writeRateLimit;
-    const identifier = `${ctx.ipAddress}:admin:${ctx.user.id}`;
-    try {
-      await checkRateLimit(identifier, rateLimiter);
-    } catch (error) {
-      throw new TRPCError({
-        code: "TOO_MANY_REQUESTS",
-        message: "Zbyt wiele operacji. Spróbuj ponownie za chwilę.",
-      });
-    }
-    
     return next({ ctx });
   }
 );
 
-// Admin unlimited procedure (for bulk operations like bulk delete)
-// No rate limiting - these operations are already protected by password verification
+// Admin unlimited procedure (for bulk operations)
 export const adminUnlimitedProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
     if (ctx.user.role !== "admin") {
@@ -301,49 +243,15 @@ export const adminUnlimitedProcedure = protectedProcedure.use(
       });
     }
     
-    // No rate limiting for bulk operations
     return next({ ctx });
   }
 );
 
-// Auth procedure (for login/register) with stricter rate limiting
-export const authProcedure = publicProcedure.use(async ({ ctx, next }) => {
-  const identifier = `${ctx.ipAddress}:auth`;
-  try {
-    await checkRateLimit(identifier, authRateLimit);
-  } catch (error) {
-    throw new TRPCError({
-      code: "TOO_MANY_REQUESTS",
-      message: "Zbyt wiele prób logowania. Spróbuj ponownie za chwilę.",
-    });
-  }
-  return next({ ctx });
-});
+// Auth procedure (for login/register)
+export const authProcedure = publicProcedure;
 
-// Write procedure (for mutations) with moderate rate limiting
-export const writeProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const identifier = `${ctx.ipAddress}:user:${ctx.user.id}:write`;
-  try {
-    await checkRateLimit(identifier, writeRateLimit);
-  } catch (error) {
-    throw new TRPCError({
-      code: "TOO_MANY_REQUESTS",
-      message: "Zbyt wiele operacji zapisu. Spróbuj ponownie za chwilę.",
-    });
-  }
-  return next({ ctx });
-});
+// Write procedure (for mutations)
+export const writeProcedure = protectedProcedure;
 
-// Read procedure (for queries) with generous rate limiting
-export const readProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const identifier = `${ctx.ipAddress}:user:${ctx.user.id}:read`;
-  try {
-    await checkRateLimit(identifier, readRateLimit);
-  } catch (error) {
-    throw new TRPCError({
-      code: "TOO_MANY_REQUESTS",
-      message: "Zbyt wiele żądań. Spróbuj ponownie za chwilę.",
-    });
-  }
-  return next({ ctx });
-});
+// Read procedure (for queries)
+export const readProcedure = protectedProcedure;

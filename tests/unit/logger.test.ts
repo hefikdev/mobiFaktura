@@ -270,7 +270,7 @@ describe('Logger Utilities', () => {
 
     it('should log failed cron job execution', () => {
       expect(() => logCron(
-        'backup',
+        'cleanup',
         'failed',
         500,
         { error: 'Connection timeout' }
@@ -294,7 +294,7 @@ describe('Logger Utilities', () => {
     });
 
     it('should handle different cron job names', () => {
-      const jobs = ['cleanup', 'backup', 'sync', 'notifications', 'reports'];
+      const jobs = ['cleanup', 'sync', 'notifications', 'reports'];
       
       jobs.forEach(jobName => {
         expect(() => logCron(

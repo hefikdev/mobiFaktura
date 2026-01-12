@@ -25,7 +25,7 @@ This document summarizes the database cleanup mechanisms implemented to prevent 
 2. **`cleanOldLoginAttempts()`**
    - Removes login attempts older than 30 days
    - Runs daily at 1 AM
-   - **Impact:** Keeps rate-limiting data fresh
+   - **Impact:** Keeps login history data clean
 
 3. **`auditOrphanedFiles()`**
    - Scans MinIO for files without database references

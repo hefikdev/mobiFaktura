@@ -16,13 +16,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "backup:postgres": "docker exec mobifaktura_backup /scripts/backup-postgres.sh",
-    "backup:minio": "docker exec mobifaktura_backup /scripts/backup-minio.sh",
-    "backup:all": "npm run backup:postgres && npm run backup:minio",
-    "backup:list": "docker exec mobifaktura_backup ls -lah /backups/postgres && docker exec mobifaktura_backup ls -lah /backups/minio",
-    "restore:postgres": "docker exec -it mobifaktura_backup /scripts/restore-postgres.sh",
-    "restore:minio": "docker exec -it mobifaktura_backup /scripts/restore-minio.sh"
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

@@ -374,7 +374,7 @@ Create an admin dashboard page showing:
 **What to Delete:**
 - Transient notifications
 - Expired sessions
-- Old rate-limiting data
+- Old login history data
 
 ---
 

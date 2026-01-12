@@ -30,13 +30,6 @@ Complete system architecture showing all components, data flow, and interactions
         │   Database    │  │   Storage   │  │  /app/logs   │
         │   Port: 5432  │  │  Port: 9000 │  │              │
         └───────────────┘  └─────────────┘  └──────────────┘
-                │                  │
-                │                  │
-                ▼                  ▼
-        ┌───────────────┐  ┌─────────────┐
-        │ Backup Service│  │ Backup Data │
-        │  (Cron Jobs)  │  │  /backups   │
-        └───────────────┘  └─────────────┘
 ```
 
 ---
@@ -65,7 +58,6 @@ Complete system architecture showing all components, data flow, and interactions
 │  │ → Storage Layer (MinIO Client)                       │      │
 │  │ → Auth Layer (JWT + Argon2)                          │      │
 │  │ → Logging Layer (Pino)                               │      │
-│  │ → Rate Limiting (In-Memory)                          │      │
 │  │ → Cron Jobs (Cleanup tasks)                          │      │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                  │
@@ -162,40 +154,6 @@ Complete system architecture showing all components, data flow, and interactions
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 5. **mobifaktura_backup** (Backup Service)
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Automated Backup Service                    │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Cron Schedule: 0 1 * * * (Daily at 1 AM)                      │
-│                                                                  │
-│  Tasks:                                                          │
-│  1. PostgreSQL Backup                                           │
-│     • pg_dump to /backups/postgres/                            │
-│     • Format: backup_YYYYMMDD_HHMMSS.sql.gz                   │
-│     • Retention: 30 days                                        │
-│                                                                  │
-│  2. MinIO Backup                                                │
-│     • mc mirror to /backups/minio/                             │
-│     • Format: backup_YYYYMMDD_HHMMSS/                         │
-│     • Retention: 30 days                                        │
-│                                                                  │
-│  Volumes:                                                        │
-│  • backup_data → /backups                                      │
-│  • ./scripts/backups → /scripts (read-only)                   │
-│                                                                  │
-│  Manual Commands:                                                │
-│  • npm run backup:postgres                                      │
-│  • npm run backup:minio                                         │
-│  • npm run backup:all                                           │
-│  • npm run backup:list                                          │
-│  • npm run restore:postgres                                     │
-│  • npm run restore:minio                                        │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
 ---
 
 ## 🔄 Data Flow Diagrams
@@ -208,9 +166,6 @@ Complete system architecture showing all components, data flow, and interactions
    │                   │                     │                    │
    │  POST /login      │                     │                    │
    ├──────────────────>│                     │                    │
-   │                   │                     │                    │
-   │              Check rate limit           │                    │
-   │              (10 req/min)               │                    │
    │                   │                     │                    │
    │                   │  auth.login()       │                    │
    │                   ├────────────────────>│                    │
@@ -246,8 +201,7 @@ Complete system architecture showing all components, data flow, and interactions
    │  POST invoice image            │               │              │
    ├─────────────>│                 │               │              │
    │              │                 │               │              │
-   │         Auth + Rate limit      │               │              │
-   │         (100 write/min)        │               │              │
+   │         Auth verification      │               │              │
    │              │                 │               │              │
    │              │  createInvoice()│               │              │
    │              ├────────────────>│               │              │
@@ -389,7 +343,6 @@ mobiFaktura/
 │   │   │   └── minio.ts        # MinIO client
 │   │   │
 │   │   ├── lib/                # Server utilities
-│   │   │   └── rate-limit.ts   # Rate limiting
 │   │   │
 │   │   ├── cron/               # Scheduled tasks
 │   │   │   ├── index.ts        # Cron initialization
@@ -415,19 +368,13 @@ mobiFaktura/
 │
 ├── scripts/                     # Utility scripts
 │   ├── seed.ts                 # Database seeding
-│   ├── create-emergency-admin.ts
-│   └── backups/                # Backup scripts
-│       ├── backup-postgres.sh
-│       ├── backup-minio.sh
-│       ├── restore-postgres.sh
-│       └── restore-minio.sh
+│   └── create-emergency-admin.ts
 │
 ├── tests/                       # Test suite
 │   ├── setup.ts                # Test configuration
 │   ├── unit/                   # Unit tests
 │   │   ├── date-utils.test.ts
-│   │   ├── password.test.ts
-│   │   └── rate-limit.test.ts
+│   │   └── password.test.ts
 │   └── integration/            # Integration tests
 │       ├── health.test.ts
 │       └── security.test.ts
@@ -436,9 +383,7 @@ mobiFaktura/
 │   ├── ARCHITECTURE.md         # This file
 │   ├── LOGGING.md              # Logging system
 │   ├── MONITORING.md           # Health checks
-│   ├── BACKUP_SYSTEM.md        # Backup guide
-│   ├── TESTING.md              # Testing guide
-│   └── RATE_LIMITING.md        # Rate limiting
+│   └── TESTING.md              # Testing guide
 │
 ├── config/                      # Configuration files
 ├── public/                      # Static assets
@@ -474,24 +419,18 @@ mobiFaktura/
 │     • Redirect logged-in users from auth pages                  │
 │     • Redirect unauthenticated users to login                   │
 │                                                                  │
-│  3. Rate Limiting (In-Memory)                                    │
-│     • Global: 300 requests/minute per IP                        │
-│     • Auth endpoints: 50 requests/minute                        │
-│     • Write operations: 100 requests/minute                     │
-│     • Read operations: 500 requests/minute                      │
-│                                                                  │
-│  4. Authentication                                               │
+│  3. Authentication                                               │
 │     • JWT tokens (ES256 algorithm)                              │
 │     • HttpOnly, Secure, SameSite cookies                       │
 │     • Session expiration (7 days)                              │
 │     • Login attempt tracking                                    │
 │                                                                  │
-│  5. Password Security                                            │
+│  4. Password Security                                            │
 │     • Argon2 hashing algorithm                                  │
 │     • Minimum 8 characters                                      │
 │     • Complexity requirements enforced                          │
 │                                                                  │
-│  6. Authorization (RBAC)                                         │
+│  5. Authorization (RBAC)                                         │
 │     • Role-based access control                                 │
 │     • Roles: user, accountant, admin                           │
 │     • Protected tRPC procedures                                 │
@@ -634,7 +573,6 @@ mobiFaktura/
 │  Volumes (Persistent Storage):                                   │
 │  • postgres_data    → PostgreSQL data                           │
 │  • minio_data       → MinIO objects                             │
-│  • backup_data      → Backup archives                           │
 │  • app_logs         → Application logs                          │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -653,11 +591,6 @@ mobiFaktura/
 │  • Indexed columns for fast lookups                             │
 │  • Connection pooling via Drizzle                               │
 │  • Prepared statements prevent SQL injection                    │
-│                                                                  │
-│  Rate Limiting:                                                  │
-│  • In-memory (< 1ms latency)                                    │
-│  • ~5MB memory for 10k unique IPs                              │
-│  • Automatic cleanup after window                               │
 │                                                                  │
 │  Logging:                                                        │
 │  • Pino: < 1ms per log                                          │
@@ -720,7 +653,6 @@ mobiFaktura/
 │     │ 3. MinIO init creates bucket            │                │
 │     │ 4. App waits for dependencies           │                │
 │     │ 5. App starts on port 3000              │                │
-│     │ 6. Backup service starts cron           │                │
 │     └─────────────────────────────────────────┘                │
 │                                                                  │
 │  4. Health Verification                                          │
@@ -823,7 +755,6 @@ mobiFaktura/
 │                                                                  │
 │  🚨 EMERGENCY SUPER ADMIN                                       │
 │  ├─ Hardcoded credentials in .env                              │
-│  ├─ Bypass rate limiting                                        │
 │  ├─ Access even if all DB admins locked                        │
 │  └─ Used for disaster recovery only                             │
 │                                                                  │
@@ -866,10 +797,6 @@ mobiFaktura/
 │  • NODE_ENV                  Environment (production/dev)       │
 │  • LOG_LEVEL                 Logging level (info/debug)         │
 │                                                                  │
-│  Backup:                                                         │
-│  • BACKUP_CRON_SCHEDULE      Cron expression (0 1 * * *)       │
-│  • BACKUP_RETENTION_DAYS     Days to keep (30)                  │
-│                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -907,21 +834,6 @@ npm run db:seed
 npm run create-emergency-admin
 ```
 
-### Backup Operations
-```bash
-# Manual backups
-npm run backup:postgres
-npm run backup:minio
-npm run backup:all
-
-# List backups
-npm run backup:list
-
-# Restore backups
-npm run restore:postgres
-npm run restore:minio
-```
-
 ### Testing
 ```bash
 # Run tests
@@ -955,9 +867,7 @@ docker inspect mobifaktura_app | grep -A 10 Health
 
 - **[LOGGING.md](./LOGGING.md)** - Complete logging guide
 - **[MONITORING.md](./MONITORING.md)** - Health checks and monitoring
-- **[BACKUP_SYSTEM.md](./BACKUP_SYSTEM.md)** - Backup and restore procedures
 - **[TESTING.md](./TESTING.md)** - Testing guide
-- **[RATE_LIMITING.md](./RATE_LIMITING.md)** - Rate limiting details
 - **[ADMIN_README_SNIPPET.md](./ADMIN_README_SNIPPET.md)** - Admin features
 
 ---
@@ -991,7 +901,6 @@ docker inspect mobifaktura_app | grep -A 10 Health
 ### 5. **Resilience**
 - Automatic service restart
 - Health-based recovery
-- Data backup automation
 - Graceful error handling
 
 ### 6. **Maintainability**

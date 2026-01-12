@@ -829,7 +829,7 @@ export const adminRouter = createTRPCRouter({
       };
     }),
 
-  // Bulk delete invoices with verification (no rate limit)
+  // Bulk delete invoices with verification
   bulkDeleteInvoices: adminUnlimitedProcedure
     .input(
       z.object({
@@ -954,7 +954,7 @@ export const adminRouter = createTRPCRouter({
       };
     }),
 
-  // Delete single invoice with verification (step-by-step, no rate limit)
+  // Delete single invoice with verification (step-by-step)
   deleteSingleInvoice: adminUnlimitedProcedure
     .input(
       z.object({

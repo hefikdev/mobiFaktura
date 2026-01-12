@@ -228,28 +228,6 @@ describe('Invoice Deletion Request System', () => {
   });
 });
 
-describe('Rate Limiting', () => {
-  describe('Bulk Operations Rate Limiting', () => {
-    it('should exclude bulk delete from rate limiting', () => {
-      const regularOperation = { rateLimited: true };
-      const bulkOperation = { rateLimited: false, requiresPassword: true };
-      
-      expect(regularOperation.rateLimited).toBe(true);
-      expect(bulkOperation.rateLimited).toBe(false);
-      expect(bulkOperation.requiresPassword).toBe(true); // Extra security
-    });
-
-    it('should use adminUnlimitedProcedure for bulk operations', () => {
-      const procedureTypes = {
-        adminProcedure: 'rate-limited',
-        adminUnlimitedProcedure: 'no-rate-limit',
-      };
-      
-      expect(procedureTypes.adminUnlimitedProcedure).toBe('no-rate-limit');
-    });
-  });
-});
-
 describe('Data Validation', () => {
   describe('Budget Request Validation', () => {
     it('should validate positive amounts only', () => {

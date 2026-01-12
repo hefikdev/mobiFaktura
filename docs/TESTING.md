@@ -14,11 +14,9 @@ tests/
 ├── unit/                     # Unit tests
 │   ├── date-utils.test.ts   # Date formatting utilities
 │   ├── utils.test.ts        # General utilities (cn, etc.)
-│   ├── password.test.ts     # Password validation
-│   └── rate-limit.test.ts   # Rate limiting logic
+│   └── password.test.ts     # Password validation
 └── integration/              # Integration tests
     ├── health.test.ts       # Health check endpoint
-    ├── rate-limit.test.ts   # Rate limiting behavior
     └── security.test.ts     # Security headers & config
 ```
 
@@ -75,7 +73,6 @@ Test individual functions and utilities in isolation.
 - `date-utils.test.ts` - Date formatting functions
 - `utils.test.ts` - Class name merging (cn)
 - `password.test.ts` - Password validation rules
-- `rate-limit.test.ts` - Rate limiting logic
 
 **Run only unit tests:**
 ```bash
@@ -88,7 +85,6 @@ Test API endpoints and system behavior.
 
 **Examples:**
 - `health.test.ts` - Health check endpoint
-- `rate-limit.test.ts` - Rate limiting on actual endpoints
 - `security.test.ts` - Security headers and configuration
 
 **Run only integration tests:**
