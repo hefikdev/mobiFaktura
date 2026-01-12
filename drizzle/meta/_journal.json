@@ -148,6 +148,27 @@
       "when": 1735804800000,
       "tag": "0022_add_settled_at",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1736640000000,
+      "tag": "0023_add_money_transferred_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1736726400000,
+      "tag": "0024_add_settled_by_and_wplynela",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1736812800000,
+      "tag": "0025_rename_wplynela_to_transferred",
+      "breakpoints": true
     }
   ]
 }

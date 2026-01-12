@@ -116,7 +116,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
   });
 
   interface FilterParams {
-    statuses: ("all" | "pending" | "approved" | "rejected" | "rozliczono")[];
+    statuses: ("all" | "pending" | "approved" | "money_transferred" | "rejected" | "settled")[];
     olderThanMonths?: number;
     year?: number;
     month?: number;
@@ -129,7 +129,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
 
   function buildFilters(): FilterParams {
     const filters: FilterParams = {
-      statuses: selectedStatuses as ("all" | "pending" | "approved" | "rejected")[],
+      statuses: selectedStatuses as ("all" | "pending" | "approved" | "money_transferred" | "rejected" | "settled")[],
     };
 
     if (filterType === "user" && selectedUserId) {
@@ -431,10 +431,11 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Wszystkie</SelectItem>
-                      <SelectItem value="approved">Zatwierdzone</SelectItem>
-                      <SelectItem value="rejected">Odrzucone</SelectItem>
                       <SelectItem value="pending">Oczekujące</SelectItem>
-                      <SelectItem value="rozliczono">Rozliczono</SelectItem>
+                      <SelectItem value="approved">Zatwierdzone</SelectItem>
+                      <SelectItem value="money_transferred">Przelew wykonany</SelectItem>
+                      <SelectItem value="rejected">Odrzucone</SelectItem>
+                      <SelectItem value="settled">Rozliczono</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

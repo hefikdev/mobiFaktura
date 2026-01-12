@@ -7,8 +7,10 @@ import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
 import { SearchInput } from "@/components/search-input";
+import { ExportButton } from "@/components/export-button";
 import dynamic from "next/dynamic";
 const BudgetRequestReviewDialog = dynamic(() => import("@/components/budget-request-review-dialog").then(m => m.BudgetRequestReviewDialog));
+const TransferConfirmationDialog = dynamic(() => import("@/components/transfer-confirmation-dialog").then(m => m.TransferConfirmationDialog));
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,13 +45,14 @@ import { pl } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
 import { BudgetRequest } from "@/types";
 
-type BudgetRequestStatus = "all" | "pending" | "approved" | "rejected" | "rozliczono";
+type BudgetRequestStatus = "all" | "pending" | "approved" | "money_transferred" | "rejected" | "settled";
 
 export default function BudgetRequestsPage() {
   const { toast } = useToast();
-  const [statusFilter, setStatusFilter] = useState<BudgetRequestStatus>("pending");
+  const [statusFilter, setStatusFilter] = useState<BudgetRequestStatus>("all");
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"review" | "details" | "settle">("details");
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
   const [rejectionReason, setRejectionReason] = useState("");
@@ -82,15 +85,26 @@ export default function BudgetRequestsPage() {
   // Filter requests based on search
   const filteredRequests = useMemo(() => {
     if (!allRequests) return [];
-    if (!searchQuery) return allRequests;
+    
+    let filtered = [...allRequests];
 
-    const query = searchQuery.toLowerCase();
-    return allRequests.filter(
-      (req) =>
-        req.userName.toLowerCase().includes(query) ||
-        req.userEmail.toLowerCase().includes(query) ||
-        req.justification.toLowerCase().includes(query)
-    );
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (req) =>
+          req.userName.toLowerCase().includes(query) ||
+          req.userEmail.toLowerCase().includes(query) ||
+          req.justification.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort by date descending (newest first) - same as invoices page
+    filtered.sort((a, b) => {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    return filtered;
   }, [allRequests, searchQuery]);
 
   const { data: pendingCount } = trpc.budgetRequest.getPendingCount.useQuery();
@@ -200,7 +214,13 @@ export default function BudgetRequestsPage() {
       }
     };
 
-    const badgeStatus = status === "approved" ? "accepted" : status === "rozliczono" ? "rozliczono" : status === "rejected" ? "rejected" : "pending";
+    // Map budget request statuses to invoice status badge types for consistent color coding
+    const badgeStatus = 
+      status === "approved" ? "accepted" : 
+      status === "settled" ? "settled" : 
+      status === "rejected" ? "rejected" : 
+      status === "money_transferred" ? "transferred" : 
+      "pending";
 
     if (status === "pending") {
       return <InvoiceStatusBadge status={badgeStatus} variant="compact" />;
@@ -257,10 +277,54 @@ export default function BudgetRequestsPage() {
                   <SelectItem value="all">Wszystkie</SelectItem>
                   <SelectItem value="pending">Oczekujące</SelectItem>
                   <SelectItem value="approved">Zatwierdzone</SelectItem>
+                  <SelectItem value="money_transferred">Przelew wykonany</SelectItem>
                   <SelectItem value="rejected">Odrzucone</SelectItem>
-                  <SelectItem value="rozliczono">Rozliczono</SelectItem>
+                  <SelectItem value="settled">Rozliczono</SelectItem>
                 </SelectContent>
               </Select>
+              <ExportButton
+                data={filteredRequests}
+                filename={`prosBy-o-budzet-${format(new Date(), "yyyy-MM-dd")}`}
+                columns={[
+                  { key: "userName", header: "Użytkownik" },
+                  { key: "currentBalanceAtRequest", header: "Saldo (PLN)", formatter: (val: any) => typeof val === "number" ? val.toFixed(2) : "0.00" },
+                  { key: "requestedAmount", header: "Kwota (PLN)", formatter: (val: any) => typeof val === "number" ? val.toFixed(2) : "0.00" },
+                  { key: "status", header: "Status", formatter: (val: any) => {
+                    const statusLabels: Record<string, string> = {
+                      pending: "Oczekujące",
+                      approved: "Zatwierdzone",
+                      money_transferred: "Przelew",
+                      settled: "Rozliczono",
+                      rejected: "Odrzucone"
+                    };
+                    return statusLabels[String(val)] || String(val);
+                  }},
+                  { key: "justification", header: "Uzasadnienie" },
+                  { key: "createdAt", header: "Złożono", formatter: (val: any) => {
+                    const date = val instanceof Date ? val : new Date(String(val));
+                    return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
+                  }},
+                  { key: "reviewedAt", header: "Decyzja", formatter: (val: any) => {
+                    if (!val) return "-";
+                    const date = val instanceof Date ? val : new Date(String(val));
+                    return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
+                  }},
+                  { key: "transferDate", header: "Transfer", formatter: (val: any) => {
+                    if (!val) return "-";
+                    const date = val instanceof Date ? val : new Date(String(val));
+                    return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
+                  }},
+                  { key: "settledAt", header: "Rozliczono", formatter: (val: any) => {
+                    if (!val) return "-";
+                    const date = val instanceof Date ? val : new Date(String(val));
+                    return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
+                  }},
+                  { key: "rejectionReason", header: "Powód odrzucenia", formatter: (val: any) => val || "-" },
+                ]}
+                label="Eksportuj"
+                pdfTitle="Prośby o zwiększenie budżetu - Wszyscy użytkownicy"
+                pdfSubtitle={`Wygenerowano: ${format(new Date(), "dd.MM.yyyy HH:mm", { locale: pl })}`}
+              />
             </div>
           </div>
         </CardHeader>
@@ -275,6 +339,7 @@ export default function BudgetRequestsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Data złożenia</TableHead>
                   <TableHead>Data decyzji</TableHead>
+                  <TableHead>Data transferu</TableHead>
                   <TableHead>Uzasadnienie</TableHead>
                   <TableHead className="text-right">Akcje</TableHead>
                 </TableRow>
@@ -299,7 +364,6 @@ export default function BudgetRequestsPage() {
                           <TableCell>
                             <div>
                               <div className="font-medium">{request.userName}</div>
-                              <div className="text-sm text-muted-foreground">{request.userEmail}</div>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -321,6 +385,9 @@ export default function BudgetRequestsPage() {
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {request.reviewedAt ? format(new Date(request.reviewedAt), "dd MMM yyyy HH:mm", { locale: pl }) : "-"}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {request.transferDate ? format(new Date(request.transferDate), "dd MMM yyyy HH:mm", { locale: pl }) : "-"}
                           </TableCell>
                           <TableCell className="max-w-xs">
                             <div className="truncate" title={request.justification}>
@@ -363,6 +430,22 @@ export default function BudgetRequestsPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedRequest(request);
+                                    setIsTransferDialogOpen(true);
+                                  }}
+                                >
+                                  <DollarSign className="h-4 w-4 mr-1" />
+                                  Potwierdź przelew
+                                </Button>
+                              </div>
+                            ) : request.status === "money_transferred" ? (
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-purple-600 hover:bg-purple-700 text-white dark:text-white"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRequest(request);
                                     setDialogMode("settle");
                                     setIsDialogOpen(true);
                                   }}
@@ -371,7 +454,7 @@ export default function BudgetRequestsPage() {
                                   Rozlicz
                                 </Button>
                               </div>
-                            ) : request.status === "rozliczono" ? (
+                            ) : request.status === "settled" ? (
                               <span className="text-sm text-muted-foreground whitespace-nowrap">{request.settledAt ? format(new Date(request.settledAt), "dd MMM yyyy HH:mm", { locale: pl }) : "-"}</span>
                             ) : (
                               <span className="text-sm text-muted-foreground">-</span>
@@ -390,7 +473,7 @@ export default function BudgetRequestsPage() {
                   </>
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       {searchQuery ? "Nie znaleziono próśb" : (statusFilter === "pending" ? "Brak oczekujących próśb" : "Brak próśb")}
                     </TableCell>
                   </TableRow>
@@ -419,6 +502,17 @@ export default function BudgetRequestsPage() {
         }}
         mode={dialogMode}
         initialAction={reviewAction}
+      />
+
+      {/* Transfer Confirmation Dialog */}
+      <TransferConfirmationDialog
+        request={selectedRequest}
+        open={isTransferDialogOpen}
+        onOpenChange={setIsTransferDialogOpen}
+        onSuccess={() => {
+          setSelectedRequest(null);
+          refetch();
+        }}
       />
 
 

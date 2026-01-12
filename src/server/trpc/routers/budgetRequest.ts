@@ -28,13 +28,18 @@ const reviewBudgetRequestSchema = z.object({
 });
 
 const getBudgetRequestsSchema = z.object({
-  status: z.enum(["pending", "approved", "rejected", "rozliczono", "all"]).optional().default("all"),
+  status: z.enum(["pending", "approved", "money_transferred", "rejected", "settled", "all"]).optional().default("all"),
   userId: z.string().uuid().optional(),
   cursor: z.number().optional(),
   limit: z.number().min(1).max(200).default(50),
   search: z.string().optional(),
   sortBy: z.enum(["createdAt", "requestedAmount", "status"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
+});
+
+const confirmTransferSchema = z.object({
+  requestId: z.string().uuid("Nieprawidłowy identyfikator prośby"),
+  transferNumber: z.string().min(3, "Numer transferu musi zawierać minimum 3 znaki").max(255, "Numer transferu nie może przekraczać 255 znaków"),
 });
 
 export const budgetRequestRouter = createTRPCRouter({
@@ -216,6 +221,10 @@ export const budgetRequestRouter = createTRPCRouter({
           createdAt: budgetRequests.createdAt,
           reviewedAt: budgetRequests.reviewedAt,
           settledAt: budgetRequests.settledAt,
+          transferNumber: budgetRequests.transferNumber,
+          transferDate: budgetRequests.transferDate,
+          transferConfirmedBy: budgetRequests.transferConfirmedBy,
+          transferConfirmedAt: budgetRequests.transferConfirmedAt,
           reviewerName: reviewer.name,
           lastBudgetRequestStatus: sql<string | null>`
             (SELECT status FROM budget_requests br2 
@@ -551,7 +560,7 @@ export const budgetRequestRouter = createTRPCRouter({
   bulkDelete: adminUnlimitedProcedure
     .input(z.object({
       filters: z.object({
-        statuses: z.array(z.enum(["all", "pending", "approved", "rejected", "rozliczono"])),
+        statuses: z.array(z.enum(["all", "pending", "approved", "money_transferred", "rejected", "settled"])),
         olderThanMonths: z.number().optional(),
         year: z.number().optional(),
         month: z.number().optional(),
@@ -602,7 +611,7 @@ export const budgetRequestRouter = createTRPCRouter({
         conditions.push(
           or(
             ...input.filters.statuses.map((status) => 
-              eq(budgetRequests.status, status as "pending" | "approved" | "rejected" | "rozliczono")
+              eq(budgetRequests.status, status as "pending" | "approved" | "money_transferred" | "rejected" | "settled")
             )
           )
         );
@@ -670,7 +679,7 @@ export const budgetRequestRouter = createTRPCRouter({
       };
     }),
 
-  // Settle budget request (mark as 'rozliczono')
+  // Settle budget request (mark as 'settled')
   settle: accountantProcedure
     .input(z.object({ requestId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -685,14 +694,14 @@ export const budgetRequestRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Prośba nie została znaleziona" });
       }
 
-      if (request.status !== "approved") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Tylko przyznane prośby można rozliczyć" });
+      if (request.status !== "money_transferred") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Tylko prośby z potwierdzonym przelewem można rozliczyć" });
       }
 
-      // Update status to 'rozliczono' and set settledAt
+      // Update status to 'settled' and set settledAt and settledBy
       await db
         .update(budgetRequests)
-        .set({ status: "rozliczono", settledAt: new Date(), updatedAt: new Date() })
+        .set({ status: "settled", settledBy: ctx.user.id, settledAt: new Date(), updatedAt: new Date() })
         .where(eq(budgetRequests.id, input.requestId));
 
       // Notify the user
@@ -706,6 +715,54 @@ export const budgetRequestRouter = createTRPCRouter({
       );
 
       return { success: true, message: "Prośba została rozliczona" };
+    }),
+
+  // Confirm transfer (mark as 'money_transferred')
+  confirmTransfer: accountantProcedure
+    .input(confirmTransferSchema)
+    .mutation(async ({ ctx, input }) => {
+      // Find the request
+      const [request] = await db
+        .select()
+        .from(budgetRequests)
+        .where(eq(budgetRequests.id, input.requestId))
+        .limit(1);
+
+      if (!request) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Prośba nie została znaleziona" });
+      }
+
+      if (request.status !== "approved") {
+        throw new TRPCError({ 
+          code: "BAD_REQUEST", 
+          message: "Tylko zatwierdzone prośby mogą być oznaczone jako przelane" 
+        });
+      }
+
+      // Update status to 'money_transferred' and set transfer details
+      await db
+        .update(budgetRequests)
+        .set({ 
+          status: "money_transferred",
+          transferNumber: input.transferNumber,
+          transferDate: new Date(),
+          transferConfirmedBy: ctx.user.id,
+          transferConfirmedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(budgetRequests.id, input.requestId));
+
+      // Notify the user
+      await import("@/server/lib/notifications").then((mod) =>
+        mod.createNotification({
+          userId: request.userId,
+          type: "system_message",
+          title: "Przelew wykonany",
+          message: `Przelew na kwotę ${parseFloat(request.requestedAmount).toFixed(2)} PLN został wykonany. Numer transferu: ${input.transferNumber}`,
+        })
+      );
+
+      return { success: true, message: "Przelew został potwierdzony" };
     }),
 
   // Export budget requests (accountant/admin)
@@ -762,6 +819,8 @@ export const budgetRequestRouter = createTRPCRouter({
           createdAt: budgetRequests.createdAt,
           reviewedAt: budgetRequests.reviewedAt,
           settledAt: budgetRequests.settledAt,
+          transferNumber: budgetRequests.transferNumber,
+          transferDate: budgetRequests.transferDate,
           reviewerName: sql<string>`reviewer.name`,
         })
         .from(budgetRequests)
@@ -783,6 +842,8 @@ export const budgetRequestRouter = createTRPCRouter({
         createdAt: req.createdAt,
         reviewedAt: req.reviewedAt,
         settledAt: (req as any).settledAt,
+        transferNumber: req.transferNumber,
+        transferDate: req.transferDate,
         reviewerName: req.reviewerName,
       }));
     }),
@@ -800,12 +861,17 @@ export const budgetRequestRouter = createTRPCRouter({
       if (!request || !request.reviewedAt) return [];
 
       const start = new Date(request.reviewedAt);
-      const end = request.status === "rozliczono" ? (request.settledAt ? new Date(request.settledAt) : new Date()) : new Date();
+      const end = request.status === "settled" ? (request.settledAt ? new Date(request.settledAt) : new Date()) : new Date();
 
       const { invoices } = await import("@/server/db/schema");
 
       const related = await db
-        .select({ id: invoices.id, invoiceNumber: invoices.invoiceNumber })
+        .select({ 
+          id: invoices.id, 
+          invoiceNumber: invoices.invoiceNumber,
+          kwota: invoices.kwota,
+          status: invoices.status
+        })
         .from(invoices)
         .where(
           and(
@@ -817,6 +883,6 @@ export const budgetRequestRouter = createTRPCRouter({
         .orderBy(desc(invoices.createdAt))
         .limit(50);
 
-      return related.map(r => ({ id: r.id, invoiceNumber: r.invoiceNumber }));
+      return related;
     }),
 });

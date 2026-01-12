@@ -1,7 +1,7 @@
-import { Clock, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { Clock, CheckCircle, XCircle, RefreshCw, DollarSign, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
+type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review" | "money_transferred" | "transferred" | "settled";
 
 interface InvoiceStatusBadgeProps {
   status: InvoiceStatus | string;
@@ -13,38 +13,50 @@ export function InvoiceStatusBadge({ status, variant = "default" }: InvoiceStatu
     pending: {
       label: "Oczekuje",
       icon: Clock,
-      className: "text-yellow-600 dark:text-yellow-400",
-      bgClassName: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+      className: "text-orange-600 dark:text-orange-400",
+      bgClassName: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
     },
     in_review: {
       label: "W trakcie",
       icon: Clock,
-      className: "text-blue-600 dark:text-blue-400",
-      bgClassName: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+      className: "text-orange-600 dark:text-orange-400",
+      bgClassName: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
     },
     accepted: {
       label: "Zaakceptowana",
       icon: CheckCircle,
       className: "text-green-600 dark:text-green-400",
-      bgClassName: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      bgClassName: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
     },
-    rozliczono: {
-      label: "Rozliczona",
+    money_transferred: {
+      label: "Przelew wykonany",
+      icon: DollarSign,
+      className: "text-blue-600 dark:text-blue-400",
+      bgClassName: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+    },
+    transferred: {
+      label: "Wpłynęła",
+      icon: Receipt,
+      className: "text-cyan-600 dark:text-cyan-400",
+      bgClassName: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+    },
+    settled: {
+      label: "Rozliczono",
       icon: CheckCircle,
-      className: "text-green-600 dark:text-green-400",
-      bgClassName: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      className: "text-purple-600 dark:text-purple-400",
+      bgClassName: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
     },
     rejected: {
       label: "Odrzucona",
       icon: XCircle,
       className: "text-red-600 dark:text-red-400",
-      bgClassName: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+      bgClassName: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
     },
     re_review: {
       label: "Ponowna weryfikacja",
       icon: RefreshCw,
       className: "text-orange-600 dark:text-orange-400",
-      bgClassName: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+      bgClassName: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
     },
   };
 

@@ -214,6 +214,12 @@ export function BudgetRequestReviewDialog({
               </div>
             </div>
 
+            {/* Justification */}
+            <div className="p-3 bg-muted border rounded-lg">
+              <Label className="text-sm font-medium">Uzasadnienie</Label>
+              <p className="mt-2 text-sm text-foreground whitespace-pre-wrap">{request.justification}</p>
+            </div>
+
             {/* Last Budget Request Status */}
             {request.lastBudgetRequestStatus && (
               <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-lg">
@@ -224,7 +230,7 @@ export function BudgetRequestReviewDialog({
                   <div className="text-right">
                     <div className="mb-2">
                       <InvoiceStatusBadge 
-                        status={request.lastBudgetRequestStatus === 'approved' ? 'accepted' : request.lastBudgetRequestStatus === 'rozliczono' ? 'rozliczono' : request.lastBudgetRequestStatus === 'rejected' ? 'rejected' : 'pending'} 
+                        status={request.lastBudgetRequestStatus === 'approved' ? 'accepted' : request.lastBudgetRequestStatus === 'settled' ? 'settled' : request.lastBudgetRequestStatus === 'rejected' ? 'rejected' : 'pending'} 
                         variant="compact" 
                       />
                     </div>
@@ -239,13 +245,37 @@ export function BudgetRequestReviewDialog({
             {/* Related invoices list */}
             {relatedInvoicesQuery.data && relatedInvoicesQuery.data.length > 0 && (
               <div className="p-3 bg-muted rounded-lg border">
-                <Label>Powiązane faktury</Label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {relatedInvoicesQuery.data.map((inv) => (
-                    <Button key={inv.id} size="sm" variant="ghost" asChild>
-                      <Link href={`/a/invoice/${inv.id}`}>{inv.invoiceNumber}</Link>
-                    </Button>
-                  ))}
+                <Label>Powiązane faktury ({relatedInvoicesQuery.data.length})</Label>
+                <div className="mt-2 max-h-60 overflow-y-auto border rounded-md">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Numer faktury</th>
+                        <th className="text-left p-2 font-medium">Kwota</th>
+                        <th className="text-left p-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {relatedInvoicesQuery.data.map((inv) => (
+                        <tr key={inv.id} className="border-t hover:bg-muted/30">
+                          <td className="p-2">
+                            <Link 
+                              href={`/a/invoice/${inv.id}`}
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                            >
+                              {inv.invoiceNumber}
+                            </Link>
+                          </td>
+                          <td className="p-2">
+                            {inv.kwota ? `${Number(inv.kwota).toFixed(2)} PLN` : "-"}
+                          </td>
+                          <td className="p-2">
+                            <InvoiceStatusBadge status={inv.status as any} variant="compact" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -346,7 +376,7 @@ export function BudgetRequestReviewDialog({
             </DialogFooter>
           )}
 
-          {mode === "settle" && request.status === "approved" && (
+          {mode === "settle" && request.status === "money_transferred" && (
             <DialogFooter className="gap-2 sm:gap-0">
               <Button
                 variant="outline"

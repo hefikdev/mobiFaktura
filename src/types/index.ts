@@ -10,8 +10,13 @@ export interface BudgetRequest {
   createdAt: Date;
   reviewedBy?: string | null;
   reviewedAt?: Date | null;
+  settledBy?: string | null;
   settledAt?: Date | null;
   rejectionReason?: string | null;
+  transferNumber?: string | null;
+  transferDate?: Date | null;
+  transferConfirmedBy?: string | null;
+  transferConfirmedAt?: Date | null;
   lastBudgetRequestStatus?: string | null;
   lastBudgetRequestAmount?: number | null;
 }
@@ -31,6 +36,10 @@ export interface Invoice {
   justification: string;
   rejectionReason: string | null;
   imageUrl: string | null;
+  transferredBy?: string | null;
+  transferredAt?: Date | null;
+  settledBy?: string | null;
+  settledAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

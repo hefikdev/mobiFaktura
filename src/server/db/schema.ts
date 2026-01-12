@@ -18,6 +18,8 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
   "pending",
   "in_review",
   "accepted",
+  "transferred",
+  "settled",
   "rejected",
   "re_review",
 ]);
@@ -120,6 +122,12 @@ export const invoices = pgTable("invoices", {
   currentReviewer: uuid("current_reviewer").references(() => users.id),
   reviewStartedAt: timestamp("review_started_at", { withTimezone: true }),
   lastReviewPing: timestamp("last_review_ping", { withTimezone: true }), // Heartbeat for active review
+  
+  // Payment tracking
+  transferredBy: uuid("transferred_by").references(() => users.id),
+  transferredAt: timestamp("transferred_at", { withTimezone: true }),
+  settledBy: uuid("settled_by").references(() => users.id),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
   
   // Tracking
   lastEditedBy: uuid("last_edited_by").references(() => users.id),
@@ -250,11 +258,16 @@ export const budgetRequests = pgTable("budget_requests", {
   requestedAmount: numeric("requested_amount", { precision: 12, scale: 2 }).notNull(),
   currentBalanceAtRequest: numeric("current_balance_at_request", { precision: 12, scale: 2 }).notNull(),
   justification: text("justification").notNull(),
-  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected', 'rozliczono'
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'money_transferred', 'rejected', 'settled'
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  settledBy: uuid("settled_by").references(() => users.id),
   settledAt: timestamp("settled_at", { withTimezone: true }),
   rejectionReason: text("rejection_reason"),
+  transferNumber: varchar("transfer_number", { length: 255 }),
+  transferDate: timestamp("transfer_date", { withTimezone: true }),
+  transferConfirmedBy: uuid("transfer_confirmed_by").references(() => users.id),
+  transferConfirmedAt: timestamp("transfer_confirmed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -384,4 +397,4 @@ export type UserRole = "user" | "accountant" | "admin";
 export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
 export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";
 export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund";
-export type BudgetRequestStatus = "pending" | "approved" | "rejected" | "rozliczono";
+export type BudgetRequestStatus = "pending" | "approved" | "money_transferred" | "rejected" | "settled";
