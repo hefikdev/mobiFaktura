@@ -115,7 +115,7 @@ services:
       MINIO_USE_SSL: "false"
       
       # Authentication & Security
-      JWT_SECRET: ${JWT_SECRET:?Error: JWT_SECRET not set in .env file}
+      JWT_SECRET: "${JWT_SECRET:?Error: JWT_SECRET not set in .env file}"
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-mobifaktura_session}
       COOKIE_DOMAIN: localhost
       
