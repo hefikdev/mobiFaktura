@@ -831,7 +831,7 @@ export const invoiceRouter = createTRPCRouter({
       z.object({
         id: z.string().uuid(),
         status: z.enum(["accepted", "rejected"]),
-        rejectionReason: z.string().optional(),
+        rejectionReason: z.string().min(1, "Dekretacja jest wymagana"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -871,21 +871,13 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
-      // Validate rejection reason
-      if (input.status === "rejected" && !input.rejectionReason) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Powód odrzucenia jest wymagany",
-        });
-      }
-
       const [updated] = await db
         .update(invoices)
         .set({
           status: input.status,
           reviewedBy: ctx.user.id,
           reviewedAt: new Date(),
-          rejectionReason: input.status === "rejected" ? input.rejectionReason : null,
+          rejectionReason: input.rejectionReason,
           currentReviewer: null,
           lastReviewPing: null,
           updatedAt: new Date(),

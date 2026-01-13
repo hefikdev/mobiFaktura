@@ -291,6 +291,16 @@ export default function InvoiceReviewPage() {
   const handleAccept = async () => {
     if (!invoice) return;
     
+    // Validate dekretacja is filled
+    if (!description.trim()) {
+      toast({
+        title: "Błąd",
+        description: "Dekretacja jest wymagana",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     // Safety check: verify invoice status before accepting
     const { data: currentInvoice } = await refetch();
     if (currentInvoice?.status === "accepted" || currentInvoice?.status === "rejected") {
@@ -316,6 +326,7 @@ export default function InvoiceReviewPage() {
     finalizeMutation.mutate({
       id: invoiceId,
       status: "accepted",
+      rejectionReason: description,
     });
   };
 
@@ -694,7 +705,7 @@ export default function InvoiceReviewPage() {
 
                   {/* Description */}
                   <div className="space-y-2">
-                    <Label htmlFor="description">Uwagi</Label>
+                    <Label htmlFor="description">Dekretacja *</Label>
                     <Input
                       id="description"
                       value={description}
@@ -702,6 +713,7 @@ export default function InvoiceReviewPage() {
                       disabled={!canEdit}
                       placeholder=""
                       className="h-20"
+                      required
                     />
                   </div>
 
@@ -1097,12 +1109,12 @@ export default function InvoiceReviewPage() {
             )}
             {(newAdminStatus === "accepted" || newAdminStatus === "pending") && (
               <div className="space-y-2">
-                <Label htmlFor="adminStatusReason">Uwagi (opcjonalne)</Label>
+                <Label htmlFor="adminStatusReason">Dekretacja (opcjonalne)</Label>
                 <Textarea
                   id="adminStatusReason"
                   value={adminStatusReason}
                   onChange={(e) => setAdminStatusReason(e.target.value)}
-                  placeholder="Dodatkowe uwagi (opcjonalne)..."
+                  placeholder="Dodatkowa dekretacja (opcjonalne)..."
                   className="min-h-[80px]"
                 />
               </div>
