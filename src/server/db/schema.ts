@@ -10,7 +10,7 @@ import {
   integer,
   index,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["user", "accountant", "admin"]);
@@ -276,13 +276,27 @@ export const budgetRequests = pgTable("budget_requests", {
     .defaultNow(),
 });
 
+// User Company Permissions table - controls which users can access which companies
+export const userCompanyPermissions = pgTable("user_company_permissions", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  companyIds: uuid("company_ids").array().notNull().default(sql`'{}'`),
+}, (table) => ({
+  companyIdsIdx: index("idx_user_company_permissions_company_ids").using("gin", table.companyIds),
+}));
+
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   invoices: many(invoices),
   sessions: many(sessions),
   notifications: many(notifications),
   saldoTransactions: many(saldoTransactions),
   budgetRequests: many(budgetRequests),
+  companyPermissions: one(userCompanyPermissions, {
+    fields: [users.id],
+    references: [userCompanyPermissions.userId],
+  }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
@@ -372,6 +386,13 @@ export const budgetRequestsRelations = relations(budgetRequests, ({ one }) => ({
   }),
 }));
 
+export const userCompanyPermissionsRelations = relations(userCompanyPermissions, ({ one }) => ({
+  user: one(users, {
+    fields: [userCompanyPermissions.userId],
+    references: [users.id],
+  }),
+}));
+
 // Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -393,6 +414,8 @@ export type SaldoTransaction = typeof saldoTransactions.$inferSelect;
 export type NewSaldoTransaction = typeof saldoTransactions.$inferInsert;
 export type BudgetRequest = typeof budgetRequests.$inferSelect;
 export type NewBudgetRequest = typeof budgetRequests.$inferInsert;
+export type UserCompanyPermission = typeof userCompanyPermissions.$inferSelect;
+export type NewUserCompanyPermission = typeof userCompanyPermissions.$inferInsert;
 export type UserRole = "user" | "accountant" | "admin";
 export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
 export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";

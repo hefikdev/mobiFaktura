@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notification-bell";
 import { RequestBudgetDialog } from "@/components/request-budget-dialog";
 import { SaldoBadge } from "@/components/saldo-badge";
-import { LogOut, Settings, Shield, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun, Wallet, DollarSign } from "lucide-react";
+import { LogOut, Settings,Shield, ShieldCheck, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun, Wallet, DollarSign } from "lucide-react";
 import { useTheme } from "next-themes";
 
 interface AdminHeaderProps {
@@ -128,8 +128,15 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                 
                 <Button asChild variant="outline" className="justify-start">
                   <Link href="/a/admin">
-                    <Shield className="mr-2 h-4 w-4" />
+                    <ShieldCheck className="mr-2 h-4 w-4" />
                     Admin
+                  </Link>
+                </Button>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/permissions">
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    Uprawnienia
                   </Link>
                 </Button>
                 
@@ -277,6 +284,17 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
             <Link href="/a/budget-requests">
               <DollarSign className="mr-1 h-3 w-3" />
               Prośby
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-xs"
+          >
+            <Link href="/a/permissions">
+              <ShieldCheck className="mr-1 h-3 w-3" />
+              Uprawnienia
             </Link>
           </Button>
           <Button

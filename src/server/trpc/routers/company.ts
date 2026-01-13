@@ -6,17 +6,14 @@ import { companies, users } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { verifyPassword } from "@/server/auth/password";
 import { createNotification } from "@/server/lib/notifications";
+import { getUserCompanies } from "@/server/permissions";
 
 export const companyRouter = createTRPCRouter({
-  // Get all active companies (for dropdown)
-  list: userProcedure.query(async () => {
-    const activeCompanies = await db
-      .select()
-      .from(companies)
-      .where(eq(companies.active, true))
-      .orderBy(companies.name);
-
-    return activeCompanies;
+  // Get all active companies (for dropdown) - filtered by user permissions
+  list: userProcedure.query(async ({ ctx }) => {
+    // Get companies the user has access to
+    const userCompanies = await getUserCompanies(ctx.user.id);
+    return userCompanies;
   }),
 
   // Get all companies (admin only)

@@ -696,6 +696,11 @@ export default function AdminPage() {
                 </Table>
               </CardContent>
             </Card>
+            {users.length > 0 && (
+              <div className="mt-4 text-sm text-muted-foreground text-center">
+                Wyświetlono {users.length} użytkowników
+              </div>
+            )}
             </>
             )}
           </TabsContent>
@@ -903,6 +908,11 @@ export default function AdminPage() {
                 </Table>
               </CardContent>
             </Card>
+            {companies && companies.length > 0 && (
+              <div className="mt-4 text-sm text-muted-foreground text-center">
+                Wyświetlono {companies.length} firm
+              </div>
+            )}
             </>
             )}
           </TabsContent>
@@ -1032,6 +1042,11 @@ export default function AdminPage() {
                   <p className="text-center text-muted-foreground py-8">
                     Brak logów logowania w wybranym okresie
                   </p>
+                )}
+                {loginLogs && loginLogs.length > 0 && (
+                  <div className="mt-4 text-sm text-muted-foreground text-center">
+                    Wyświetlono {loginLogs.length} logów
+                  </div>
                 )}
               </CardContent>
             </Card>

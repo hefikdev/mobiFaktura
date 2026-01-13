@@ -479,11 +479,14 @@ export default function SaldoManagementPage() {
       ) : (
         <Card>
           <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <SearchInput
-                value={searchQuery}
-                onChange={setSearchQuery}
-              />
+            <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
+              <div className="flex-1 min-w-[200px]">
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  className="w-full"
+                />
+              </div>
               <ExportButton
                 data={exportData || []}
                 columns={[

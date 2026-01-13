@@ -263,11 +263,14 @@ export default function BudgetRequestsPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-row flex-wrap justify-between items-center gap-4">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-            />
+          <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                className="w-full"
+              />
+            </div>
             <div className="flex flex-row items-center gap-4">
               <Select value={statusFilter} onValueChange={(value: BudgetRequestStatus) => setStatusFilter(value)}>
                 <SelectTrigger className="w-[180px]">

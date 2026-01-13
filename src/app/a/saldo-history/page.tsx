@@ -199,8 +199,8 @@ export default function SaldoHistoryPage() {
       {/* Transaction History */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
+          <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
+            <div className="flex-1 min-w-[200px]">
               <SearchInput
                 value={searchQuery}
                 onChange={setSearchQuery}

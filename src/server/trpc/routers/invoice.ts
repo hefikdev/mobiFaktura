@@ -8,10 +8,11 @@ import {
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { invoices, users, companies, invoiceEditHistory, saldoTransactions } from "@/server/db/schema";
-import { eq, desc, and, ne, or, isNull, lt, isNotNull } from "drizzle-orm";
+import { eq, desc, and, ne, or, isNull, lt, isNotNull, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { uploadFile, getPresignedUrl, deleteFile } from "@/server/storage/minio";
 import { compressImage, dataUrlToBuffer } from "@/server/storage/image-processor";
+import { hasCompanyPermission, getUserCompanyIds } from "@/server/permissions";
 
 export const invoiceRouter = createTRPCRouter({
   // Create new invoice (user and admin)
@@ -27,6 +28,15 @@ export const invoiceRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Check if user has permission to create invoices for this company
+      const canAccess = await hasCompanyPermission(ctx.user.id, input.companyId);
+      if (!canAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Nie masz uprawnień do tworzenia faktur dla tej firmy",
+        });
+      }
+
       // Verify company exists
       const [company] = await db
         .select()
@@ -200,6 +210,14 @@ export const invoiceRouter = createTRPCRouter({
   // Get user's invoices (for user dashboard)
   // Get user's own invoices (user only)
   myInvoices: userProcedure.query(async ({ ctx }) => {
+    // Get companies the user has access to
+    const allowedCompanyIds = await getUserCompanyIds(ctx.user.id);
+
+    // If user has no permissions, return empty array
+    if (allowedCompanyIds.length === 0) {
+      return [];
+    }
+
     const result = await db
       .select({
         id: invoices.id,
@@ -214,7 +232,15 @@ export const invoiceRouter = createTRPCRouter({
       })
       .from(invoices)
       .leftJoin(companies, eq(invoices.companyId, companies.id))
-      .where(eq(invoices.userId, ctx.user.id))
+      .where(
+        and(
+          eq(invoices.userId, ctx.user.id),
+          // Filter by allowed companies using inArray
+          allowedCompanyIds.length > 0 
+            ? inArray(invoices.companyId, allowedCompanyIds)
+            : sql`false`
+        )
+      )
       .orderBy(desc(invoices.createdAt));
 
     return result;
@@ -520,6 +546,15 @@ export const invoiceRouter = createTRPCRouter({
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Brak dostępu do tej faktury",
+        });
+      }
+
+      // Check if user has permission for this invoice's company
+      const canAccess = await hasCompanyPermission(ctx.user.id, invoice.companyId);
+      if (!canAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Nie masz uprawnień do przeglądania faktur tej firmy",
         });
       }
 
