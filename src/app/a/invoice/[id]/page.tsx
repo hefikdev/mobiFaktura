@@ -51,6 +51,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
+import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 import dynamic from "next/dynamic";
 
 const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
@@ -77,6 +79,7 @@ export default function InvoiceReviewPage() {
   const [isEditingInvoiceNumber, setIsEditingInvoiceNumber] = useState(false);
   const [isEditingKwota, setIsEditingKwota] = useState(false);
   const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
+  const [budgetRequestDialogOpen, setBudgetRequestDialogOpen] = useState(false);
   const invoiceNumberInputRef = useRef<HTMLDivElement>(null);
   const kwotaInputRef = useRef<HTMLDivElement>(null);
   
@@ -519,6 +522,33 @@ export default function InvoiceReviewPage() {
         />
       )}
 
+      {/* Budget Request Review Dialog */}
+      {invoice.budgetRequest && (
+        <BudgetRequestReviewDialog
+          request={{
+            id: invoice.budgetRequest.id,
+            userId: "",
+            userName: invoice.budgetRequest.userName || "",
+            userEmail: invoice.submitter?.email || "",
+            currentBalanceAtRequest: 0,
+            requestedAmount: invoice.budgetRequest.requestedAmount,
+            justification: "",
+            status: invoice.budgetRequest.status,
+            createdAt: invoice.budgetRequest.createdAt,
+            reviewedAt: invoice.budgetRequest.reviewedAt,
+            settledAt: invoice.budgetRequest.settledAt,
+            companyId: invoice.budgetRequest.companyId,
+            companyName: invoice.budgetRequest.companyName,
+          }}
+          open={budgetRequestDialogOpen}
+          onOpenChange={setBudgetRequestDialogOpen}
+          onSuccess={() => {
+            refetch();
+          }}
+          mode="details"
+        />
+      )}
+
       <main className="flex-1 p-4 max-w-7xl mx-auto w-full">
         <div className="mb-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -684,6 +714,78 @@ export default function InvoiceReviewPage() {
               <CardContent>
                 <div className="space-y-4 mt-7">
                   {/* Justification (read-only) */}
+                  {/* Budget Request Info */}
+                  {invoice.budgetRequest && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Zaliczka</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setBudgetRequestDialogOpen(true)}
+                        >
+                          Zobacz szczegóły
+                        </Button>
+                      </div>
+                      <div 
+                        className="space-y-2 bg-muted/30 p-3 rounded-md cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => setBudgetRequestDialogOpen(true)}
+                      >
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Użytkownik</p>
+                            <p className="font-medium">{invoice.budgetRequest.userName}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Firma</p>
+                            <p className="font-medium">{invoice.budgetRequest.companyName}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Kwota zaliczki</p>
+                            <p className="font-medium">{invoice.budgetRequest.requestedAmount.toFixed(2)} PLN</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Status</p>
+                            <InvoiceStatusBadge status={invoice.budgetRequest.status === "approved" ? "accepted" : invoice.budgetRequest.status === "settled" ? "settled" : invoice.budgetRequest.status === "rejected" ? "rejected" : invoice.budgetRequest.status === "money_transferred" ? "transferred" : "pending"} variant="compact" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Data złożenia</p>
+                            <p className="font-medium">{format(new Date(invoice.budgetRequest.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                          </div>
+                          {invoice.budgetRequest.reviewedAt && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Data decyzji</p>
+                              <p className="font-medium">{format(new Date(invoice.budgetRequest.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                            </div>
+                          )}
+                        </div>
+                        {invoice.budgetRequest.relatedInvoices && invoice.budgetRequest.relatedInvoices.length > 0 && (
+                          <div className="pt-2 mt-2 border-t">
+                            <p className="text-xs text-muted-foreground mb-1">Inne faktury powiązane z tą zaliczką:</p>
+                            <div className="space-y-1">
+                              {invoice.budgetRequest.relatedInvoices.map((relInv) => (
+                                <div
+                                  key={relInv.id}
+                                  className="flex items-center justify-between text-xs p-1.5 bg-background rounded hover:bg-muted"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/a/invoice/${relInv.id}`);
+                                  }}
+                                >
+                                  <span className="font-medium">{relInv.invoiceNumber || "Brak numeru"}</span>
+                                  <div className="flex items-center gap-2">
+                                    {relInv.kwota && <span>{relInv.kwota.toFixed(2)} PLN</span>}
+                                    <InvoiceStatusBadge status={relInv.status} variant="compact" />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {invoice.justification && (
                     <>
                     <div className="flex items-center justify-between">

@@ -7,7 +7,7 @@ import {
 } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { invoices, users, companies, invoiceEditHistory, saldoTransactions } from "@/server/db/schema";
+import { invoices, users, companies, invoiceEditHistory, saldoTransactions, budgetRequests } from "@/server/db/schema";
 import { eq, desc, and, ne, or, isNull, lt, isNotNull, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { uploadFile, getPresignedUrl, deleteFile } from "@/server/storage/minio";
@@ -25,6 +25,7 @@ export const invoiceRouter = createTRPCRouter({
         kwota: z.number().positive("Kwota musi być większa od zera").optional(),
         companyId: z.string().uuid("Firma jest wymagana"),
         justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków"),
+        budgetRequestId: z.string().uuid().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -35,6 +36,36 @@ export const invoiceRouter = createTRPCRouter({
           code: "FORBIDDEN",
           message: "Nie masz uprawnień do tworzenia faktur dla tej firmy",
         });
+      }
+
+      // Validate budget request if provided
+      if (input.budgetRequestId) {
+        const [budgetRequest] = await db
+          .select({ status: budgetRequests.status, companyId: budgetRequests.companyId })
+          .from(budgetRequests)
+          .where(eq(budgetRequests.id, input.budgetRequestId))
+          .limit(1);
+
+        if (!budgetRequest) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Prośba o zwiększenie budżetu nie została znaleziona",
+          });
+        }
+
+        if (budgetRequest.status === "rejected") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Nie można powiązać faktury z odrzuconą prośbą o zwiększenie budżetu",
+          });
+        }
+
+        if (budgetRequest.companyId !== input.companyId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Faktura i prośba o zwiększenie budżetu muszą dotyczyć tej samej firmy",
+          });
+        }
       }
 
       // Verify company exists
@@ -105,6 +136,7 @@ export const invoiceRouter = createTRPCRouter({
               ksefNumber: input.ksefNumber || null,
               kwota: input.kwota?.toString() || null,
               justification: input.justification,
+              budgetRequestId: input.budgetRequestId || null,
               status: "pending",
             })
             .returning();
@@ -229,6 +261,7 @@ export const invoiceRouter = createTRPCRouter({
         imageKey: invoices.imageKey,
         companyId: invoices.companyId,
         companyName: companies.name,
+        budgetRequestId: invoices.budgetRequestId,
       })
       .from(invoices)
       .leftJoin(companies, eq(invoices.companyId, companies.id))
@@ -243,7 +276,38 @@ export const invoiceRouter = createTRPCRouter({
       )
       .orderBy(desc(invoices.createdAt));
 
-    return result;
+    // Enrich with budget request info
+    const enriched = await Promise.all(
+      result.map(async (invoice) => {
+        let budgetRequest = null;
+        if (invoice.budgetRequestId) {
+          const [br] = await db
+            .select({
+              id: budgetRequests.id,
+              requestedAmount: budgetRequests.requestedAmount,
+              status: budgetRequests.status,
+            })
+            .from(budgetRequests)
+            .where(eq(budgetRequests.id, invoice.budgetRequestId))
+            .limit(1);
+          
+          if (br) {
+            budgetRequest = {
+              id: br.id,
+              requestedAmount: br.requestedAmount ? parseFloat(br.requestedAmount) : 0,
+              status: br.status,
+            };
+          }
+        }
+
+        return {
+          ...invoice,
+          budgetRequest,
+        };
+      })
+    );
+
+    return enriched;
   }),
 
   // Get all pending/in_review invoices (for accountant)
@@ -507,6 +571,28 @@ export const invoiceRouter = createTRPCRouter({
             reviewer = rev;
           }
 
+          // Get linked budget request info
+          let budgetRequest = null;
+          if (invoice.budgetRequestId) {
+            const [br] = await db
+              .select({
+                id: budgetRequests.id,
+                requestedAmount: budgetRequests.requestedAmount,
+                status: budgetRequests.status,
+              })
+              .from(budgetRequests)
+              .where(eq(budgetRequests.id, invoice.budgetRequestId))
+              .limit(1);
+            
+            if (br) {
+              budgetRequest = {
+                id: br.id,
+                requestedAmount: br.requestedAmount ? parseFloat(br.requestedAmount) : 0,
+                status: br.status,
+              };
+            }
+          }
+
           return {
             ...invoice,
             userId: invoice.userId,
@@ -514,6 +600,7 @@ export const invoiceRouter = createTRPCRouter({
             userEmail: submitter?.email || "",
             companyName: company?.name || "",
             reviewerName: reviewer?.name || null,
+            budgetRequest,
           };
         })
       );
@@ -677,6 +764,75 @@ export const invoiceRouter = createTRPCRouter({
         },
       }));
 
+      // Get linked budget request details if exists
+      let budgetRequest: {
+        id: string;
+        requestedAmount: number;
+        status: string;
+        createdAt: Date;
+        reviewedAt: Date | null;
+        settledAt: Date | null;
+        userName: string | null;
+        companyId: string;
+        companyName: string | null;
+        relatedInvoices?: Array<{
+          id: string;
+          invoiceNumber: string | null;
+          kwota: number | null;
+          status: string;
+          createdAt: Date;
+        }>;
+      } | null = null;
+      if (invoice.budgetRequestId) {
+        const [br] = await db
+          .select({
+            id: budgetRequests.id,
+            requestedAmount: budgetRequests.requestedAmount,
+            status: budgetRequests.status,
+            createdAt: budgetRequests.createdAt,
+            reviewedAt: budgetRequests.reviewedAt,
+            settledAt: budgetRequests.settledAt,
+            userName: users.name,
+            companyId: budgetRequests.companyId,
+            companyName: companies.name,
+          })
+          .from(budgetRequests)
+          .leftJoin(users, eq(budgetRequests.userId, users.id))
+          .leftJoin(companies, eq(budgetRequests.companyId, companies.id))
+          .where(eq(budgetRequests.id, invoice.budgetRequestId))
+          .limit(1);
+        
+        if (br) {
+          budgetRequest = {
+            ...br,
+            requestedAmount: br.requestedAmount ? parseFloat(br.requestedAmount) : 0,
+          };
+          
+          // Get all other invoices linked to this budget request
+          const relatedInvoices = await db
+            .select({
+              id: invoices.id,
+              invoiceNumber: invoices.invoiceNumber,
+              kwota: invoices.kwota,
+              status: invoices.status,
+              createdAt: invoices.createdAt,
+            })
+            .from(invoices)
+            .where(
+              and(
+                eq(invoices.budgetRequestId, invoice.budgetRequestId),
+                ne(invoices.id, invoice.id) // Exclude current invoice
+              )
+            )
+            .orderBy(desc(invoices.createdAt));
+          
+          budgetRequest.relatedInvoices = relatedInvoices.map(inv => ({
+            ...inv,
+            kwota: inv.kwota ? parseFloat(inv.kwota) : null,
+          }));
+        }
+      }
+
       return {
         ...invoice,
         imageUrl,
@@ -686,6 +842,7 @@ export const invoiceRouter = createTRPCRouter({
         reviewer,
         lastEditor,
         editHistory,
+        budgetRequest,
         // Add flag to indicate if current user is the reviewer
         isCurrentUserReviewing: invoice.currentReviewer === ctx.user.id,
       };

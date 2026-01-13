@@ -92,6 +92,9 @@ export const companies = pgTable("companies", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // Per-company budget field (ready for future implementation)
+  // When implementing: uncomment this field, create migration, migrate user.saldo to company.saldo
+  // saldo: numeric("saldo", { precision: 12, scale: 2 }).default("0.00"),
 });
 
 // Invoices table
@@ -128,6 +131,7 @@ export const invoices = pgTable("invoices", {
   transferredAt: timestamp("transferred_at", { withTimezone: true }),
   settledBy: uuid("settled_by").references(() => users.id),
   settledAt: timestamp("settled_at", { withTimezone: true }),
+  budgetRequestId: uuid("budget_request_id").references(() => budgetRequests.id, { onDelete: "set null" }),
   
   // Tracking
   lastEditedBy: uuid("last_edited_by").references(() => users.id),
@@ -255,6 +259,9 @@ export const budgetRequests = pgTable("budget_requests", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  companyId: uuid("company_id")
+    .notNull()
+    .references(() => companies.id, { onDelete: "cascade" }),
   requestedAmount: numeric("requested_amount", { precision: 12, scale: 2 }).notNull(),
   currentBalanceAtRequest: numeric("current_balance_at_request", { precision: 12, scale: 2 }).notNull(),
   justification: text("justification").notNull(),
@@ -274,7 +281,10 @@ export const budgetRequests = pgTable("budget_requests", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => ({
+  companyIdIdx: index("idx_budget_requests_company_id").on(table.companyId),
+  userCompanyIdx: index("idx_budget_requests_user_company").on(table.userId, table.companyId),
+}));
 
 // User Company Permissions table - controls which users can access which companies
 export const userCompanyPermissions = pgTable("user_company_permissions", {
@@ -323,6 +333,7 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 
 export const companiesRelations = relations(companies, ({ many }) => ({
   invoices: many(invoices),
+  budgetRequests: many(budgetRequests),
 }));
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({
@@ -345,6 +356,10 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   lastEditor: one(users, {
     fields: [invoices.lastEditedBy],
     references: [users.id],
+  }),
+  budgetRequest: one(budgetRequests, {
+    fields: [invoices.budgetRequestId],
+    references: [budgetRequests.id],
   }),
   editHistory: many(invoiceEditHistory),
 }));
@@ -375,7 +390,7 @@ export const saldoTransactionsRelations = relations(saldoTransactions, ({ one })
   }),
 }));
 
-export const budgetRequestsRelations = relations(budgetRequests, ({ one }) => ({
+export const budgetRequestsRelations = relations(budgetRequests, ({ one, many }) => ({
   user: one(users, {
     fields: [budgetRequests.userId],
     references: [users.id],
@@ -384,6 +399,11 @@ export const budgetRequestsRelations = relations(budgetRequests, ({ one }) => ({
     fields: [budgetRequests.reviewedBy],
     references: [users.id],
   }),
+  company: one(companies, {
+    fields: [budgetRequests.companyId],
+    references: [companies.id],
+  }),
+  invoices: many(invoices),
 }));
 
 export const userCompanyPermissionsRelations = relations(userCompanyPermissions, ({ one }) => ({

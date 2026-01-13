@@ -46,6 +46,7 @@ import {
   Calendar,
   FileCheck,
   Trash2,
+  Wallet,
 } from "lucide-react";
 import { SectionLoader } from "@/components/section-loader";
 import { format } from "date-fns";
@@ -96,6 +97,8 @@ export default function InvoicesPage() {
     undefined,
     { enabled: !!user && (user.role === "admin" || user.role === "accountant") }
   );
+
+
 
   // Refetch data when page becomes visible (e.g., when navigating back)
   useEffect(() => {

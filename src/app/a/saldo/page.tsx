@@ -53,6 +53,7 @@ export default function SaldoManagementPage() {
   const { toast } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserSaldo, setSelectedUserSaldo] = useState<number | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [amount, setAmount] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -68,6 +69,11 @@ export default function SaldoManagementPage() {
 
   // Check user role
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
+
+  // Fetch all companies for company selection
+  const { data: companies } = trpc.company.listAll.useQuery(undefined, {
+    enabled: !!user && (user.role === "accountant" || user.role === "admin"),
+  });
 
   // Fetch users with infinite query
   const {
@@ -310,6 +316,15 @@ export default function SaldoManagementPage() {
       return;
     }
 
+    if (!selectedCompanyId) {
+      toast({
+        title: "Błąd",
+        description: "Wybierz firmę",
+        variant: "destructive",
+      });
+      return;
+    }
+
     adjustSaldoMutation.mutate({
       userId: selectedUserId,
       amount: numAmount,
@@ -328,6 +343,7 @@ export default function SaldoManagementPage() {
   const openAdjustDialog = (userId: string) => {
     setSelectedUserId(userId);
     setSelectedUserSaldo(fetchUserSaldo(userId));
+    setSelectedCompanyId(companies && companies.length > 0 ? companies[0]?.id || null : null);
     setAmount("");
     setNotes("");
     setIsDialogOpen(true);
@@ -336,6 +352,7 @@ export default function SaldoManagementPage() {
   const openQuickAddDialog = (userId: string) => {
     setSelectedUserId(userId);
     setSelectedUserSaldo(fetchUserSaldo(userId));
+    setSelectedCompanyId(companies && companies.length > 0 ? companies[0]?.id || null : null);
     setQuickAddAmount("");
     setQuickAddJustification("");
     setIsQuickAddOpen(true);
@@ -357,6 +374,15 @@ export default function SaldoManagementPage() {
       toast({
         title: "Błąd",
         description: "Uzasadnienie musi zawierać minimum 5 znaków",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedCompanyId) {
+      toast({
+        title: "Błąd",
+        description: "Wybierz firmę",
         variant: "destructive",
       });
       return;
@@ -945,6 +971,21 @@ export default function SaldoManagementPage() {
           )}
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
+              <Label htmlFor="company">Firma</Label>
+              <Select value={selectedCompanyId || ""} onValueChange={setSelectedCompanyId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Wybierz firmę" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies?.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="amount">Kwota (PLN)</Label>
               <Input
                 id="amount"
@@ -1005,6 +1046,21 @@ export default function SaldoManagementPage() {
             </div>
           )}
           <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="quickCompany">Firma</Label>
+              <Select value={selectedCompanyId || ""} onValueChange={setSelectedCompanyId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Wybierz firmę" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies?.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="quickAmount">Kwota (PLN)</Label>
               <Input

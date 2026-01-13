@@ -30,6 +30,7 @@ import {
   Wallet,
   DollarSign,
   XCircle,
+  Building2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -251,13 +252,18 @@ export default function AccountantPage() {
                             }}
                           >
                             <div className="flex items-center gap-4">
-                              {/* Left side - User Name and Date */}
+                              {/* Left side - User Name, Company and Date */}
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-base truncate mb-2">{request.userName}</p>
-                                <p className="text-sm text-muted-foreground mb-1.5">
+                                <p className="font-semibold text-base truncate mb-1">{request.userName}</p>
+                                <p className="text-sm text-muted-foreground">
                                   {format(new Date(request.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
-   
+
                               </p>
+                              {request.companyName && (
+                                  <p className="text-xs mb-1 truncate">
+                                    {request.companyName}
+                                  </p>
+                                )}
                             </div>
                               
                               {/* Right side - Amount info */}
@@ -388,13 +394,20 @@ export default function AccountantPage() {
                                   )}
                                 </div>
                                 
-                                {/* Left side - User Name and Date */}
+                                {/* Left side - User Name, Company and Date */}
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-semibold text-base truncate mb-2">{request.userName}</p>
-                                  <p className="text-sm text-muted-foreground mb-1.5">
+                                  <p className="font-semibold text-base truncate mb-1">{request.userName}</p>
+                                  <p className="text-sm text-muted-foreground mb-1">
                                     {format(new Date(request.reviewedAt || request.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
                                   </p>
-                                  <p className="text-xs text-muted-foreground/70 truncate">{request.userEmail}</p>
+                                  {request.companyName && (
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                                      <p className="text-xs text-muted-foreground truncate">
+                                                        {request.companyName}
+                                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                                 
                                 {/* Right side - Amount info */}

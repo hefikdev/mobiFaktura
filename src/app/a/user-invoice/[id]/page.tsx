@@ -5,6 +5,7 @@ import { UserHeader } from "@/components/user-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
+import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 import { ErrorDisplay } from "@/components/error-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ function UserInvoiceContent({ id }: { id: string }) {
   const [imageZoomed, setImageZoomed] = useState(false);
   const [imageScale, setImageScale] = useState(1);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
+  const [budgetRequestDialogOpen, setBudgetRequestDialogOpen] = useState(false);
   const { toast } = useToast();
 
   // KSeF Popup states
@@ -151,6 +153,33 @@ function UserInvoiceContent({ id }: { id: string }) {
     <div className="min-h-screen flex flex-col bg-background">
       {user?.role === "admin" ? <AdminHeader /> : <UserHeader />}
 
+      {/* Budget Request Review Dialog - Only for Accountants/Admins */}
+      {invoice.budgetRequest && (user?.role === "accountant" || user?.role === "admin") && (
+        <BudgetRequestReviewDialog
+          request={{
+            id: invoice.budgetRequest.id,
+            userId: "",
+            userName: invoice.budgetRequest.userName || "",
+            userEmail: invoice.submitter?.email || "",
+            currentBalanceAtRequest: 0,
+            requestedAmount: invoice.budgetRequest.requestedAmount,
+            justification: "",
+            status: invoice.budgetRequest.status,
+            createdAt: invoice.budgetRequest.createdAt,
+            reviewedAt: invoice.budgetRequest.reviewedAt,
+            settledAt: invoice.budgetRequest.settledAt,
+            companyId: invoice.budgetRequest.companyId,
+            companyName: invoice.budgetRequest.companyName,
+          }}
+          open={budgetRequestDialogOpen}
+          onOpenChange={setBudgetRequestDialogOpen}
+          onSuccess={() => {
+            refetch();
+          }}
+          mode="details"
+        />
+      )}
+
       <main className="flex-1 p-4 max-w-6xl mx-auto w-full">
         <div className="mb-4">
           <Link href="/a/dashboard">
@@ -226,6 +255,85 @@ function UserInvoiceContent({ id }: { id: string }) {
             </Link>
           </div>
         )}
+
+            {/* Budget Request Info */}
+            {invoice.budgetRequest && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Zaliczka</CardTitle>
+                    {(user?.role === "accountant" || user?.role === "admin") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBudgetRequestDialogOpen(true)}
+                      >
+                        Zobacz szczegóły
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div 
+                    className={`space-y-2 ${(user?.role === "accountant" || user?.role === "admin") ? "cursor-pointer hover:bg-muted/50 -mx-4 -my-2 p-4 rounded-md transition-colors" : ""}`}
+                    onClick={() => {
+                      if (user?.role === "accountant" || user?.role === "admin") {
+                        setBudgetRequestDialogOpen(true);
+                      }
+                    }}
+                  >
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Użytkownik</p>
+                        <p className="font-medium">{invoice.budgetRequest.userName}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Firma</p>
+                        <p className="font-medium">{invoice.budgetRequest.companyName}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Kwota zaliczki</p>
+                        <p className="font-medium">{invoice.budgetRequest.requestedAmount.toFixed(2)} PLN</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Status</p>
+                        <InvoiceStatusBadge status={invoice.budgetRequest.status === "approved" ? "accepted" : invoice.budgetRequest.status === "settled" ? "settled" : invoice.budgetRequest.status === "rejected" ? "rejected" : invoice.budgetRequest.status === "money_transferred" ? "transferred" : "pending"} variant="compact" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Data złożenia</p>
+                        <p className="font-medium">{format(new Date(invoice.budgetRequest.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                      </div>
+                      {invoice.budgetRequest.reviewedAt && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Data decyzji</p>
+                          <p className="font-medium">{format(new Date(invoice.budgetRequest.reviewedAt), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                        </div>
+                      )}
+                    </div>
+                    {invoice.budgetRequest.relatedInvoices && invoice.budgetRequest.relatedInvoices.length > 0 && (user?.role === "accountant" || user?.role === "admin") && (
+                      <div className="pt-2 mt-2 border-t">
+                        <p className="text-xs text-muted-foreground mb-1">Inne faktury powiązane z tą zaliczką:</p>
+                        <div className="space-y-1">
+                          {invoice.budgetRequest.relatedInvoices.map((relInv: any) => (
+                            <div
+                              key={relInv.id}
+                              className="flex items-center justify-between text-xs p-1.5 bg-background rounded hover:bg-muted"
+                            >
+                              <span className="font-medium">{relInv.invoiceNumber || "Brak numeru"}</span>
+                              <div className="flex items-center gap-2">
+                                {relInv.kwota && <span>{relInv.kwota.toFixed(2)} PLN</span>}
+                                <InvoiceStatusBadge status={relInv.status} variant="compact" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
               </CardHeader>

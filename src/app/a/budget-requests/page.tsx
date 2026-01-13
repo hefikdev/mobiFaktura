@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
@@ -39,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Check, X, Filter, DollarSign } from "lucide-react";
+import { Loader2, Check, X, Filter, DollarSign, User, Calendar, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
@@ -49,7 +50,9 @@ type BudgetRequestStatus = "all" | "pending" | "approved" | "money_transferred" 
 
 export default function BudgetRequestsPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [statusFilter, setStatusFilter] = useState<BudgetRequestStatus>("all");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
@@ -60,6 +63,11 @@ export default function BudgetRequestsPage() {
 
   // Check user role
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
+
+  // Fetch companies for filter
+  const { data: companies } = trpc.company.listAll.useQuery(undefined, {
+    enabled: !!user && (user.role === "accountant" || user.role === "admin"),
+  });
 
   // Fetch budget requests with infinite query
   const {
@@ -82,11 +90,16 @@ export default function BudgetRequestsPage() {
 
   const allRequests = requestsData?.pages.flatMap((page) => page.items) || [];
 
-  // Filter requests based on search
+  // Filter requests based on search and company
   const filteredRequests = useMemo(() => {
     if (!allRequests) return [];
     
     let filtered = [...allRequests];
+
+    // Company filter
+    if (companyFilter && companyFilter !== "all") {
+      filtered = filtered.filter((req) => req.companyId === companyFilter);
+    }
 
     // Search filter
     if (searchQuery) {
@@ -95,7 +108,8 @@ export default function BudgetRequestsPage() {
         (req) =>
           req.userName.toLowerCase().includes(query) ||
           req.userEmail.toLowerCase().includes(query) ||
-          req.justification.toLowerCase().includes(query)
+          req.justification.toLowerCase().includes(query) ||
+          (req.companyName && req.companyName.toLowerCase().includes(query))
       );
     }
 
@@ -105,7 +119,7 @@ export default function BudgetRequestsPage() {
     });
 
     return filtered;
-  }, [allRequests, searchQuery]);
+  }, [allRequests, searchQuery, companyFilter]);
 
   const { data: pendingCount } = trpc.budgetRequest.getPendingCount.useQuery();
 
@@ -156,6 +170,19 @@ export default function BudgetRequestsPage() {
 
     return () => clearInterval(interval);
   }, [refetch]);
+
+  // Handle openRequest URL parameter
+  useEffect(() => {
+    const openRequestId = searchParams.get("openRequest");
+    if (openRequestId && allRequests.length > 0 && !isDialogOpen) {
+      const request = allRequests.find(req => req.id === openRequestId);
+      if (request) {
+        setSelectedRequest(request);
+        setDialogMode("details");
+        setIsDialogOpen(true);
+      }
+    }
+  }, [searchParams, allRequests, isDialogOpen]);
 
   // Review mutation
   const reviewMutation = trpc.budgetRequest.review.useMutation({
@@ -285,11 +312,25 @@ export default function BudgetRequestsPage() {
                   <SelectItem value="settled">Rozliczono</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Firma" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Wszystkie firmy</SelectItem>
+                  {companies && companies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <ExportButton
                 data={filteredRequests}
                 filename={`prosBy-o-budzet-${format(new Date(), "yyyy-MM-dd")}`}
                 columns={[
                   { key: "userName", header: "Użytkownik" },
+                  { key: "companyName", header: "Firma", formatter: (val: any) => val || "-" },
                   { key: "currentBalanceAtRequest", header: "Saldo (PLN)", formatter: (val: any) => typeof val === "number" ? val.toFixed(2) : "0.00" },
                   { key: "requestedAmount", header: "Kwota (PLN)", formatter: (val: any) => typeof val === "number" ? val.toFixed(2) : "0.00" },
                   { key: "status", header: "Status", formatter: (val: any) => {
@@ -308,11 +349,6 @@ export default function BudgetRequestsPage() {
                     return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
                   }},
                   { key: "reviewedAt", header: "Decyzja", formatter: (val: any) => {
-                    if (!val) return "-";
-                    const date = val instanceof Date ? val : new Date(String(val));
-                    return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
-                  }},
-                  { key: "transferDate", header: "Transfer", formatter: (val: any) => {
                     if (!val) return "-";
                     const date = val instanceof Date ? val : new Date(String(val));
                     return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
@@ -337,12 +373,12 @@ export default function BudgetRequestsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Użytkownik</TableHead>
+                  <TableHead>Firma</TableHead>
                   <TableHead>Stan salda przy złożeniu</TableHead>
                   <TableHead>Wnioskowana kwota</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data złożenia</TableHead>
                   <TableHead>Data decyzji</TableHead>
-                  <TableHead>Data transferu</TableHead>
                   <TableHead>Uzasadnienie</TableHead>
                   <TableHead className="text-right">Akcje</TableHead>
                 </TableRow>
@@ -365,9 +401,12 @@ export default function BudgetRequestsPage() {
                           onClick={handleRowClick}
                         >
                           <TableCell>
-                            <div>
-                              <div className="font-medium">{request.userName}</div>
-                            </div>
+                            <div className="font-medium">{request.userName}</div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium text-blue-600 dark:text-blue-400">
+                              {request.companyName || "—"}
+                            </span>
                           </TableCell>
                           <TableCell>
                             <span className={`font-semibold ${
@@ -388,9 +427,6 @@ export default function BudgetRequestsPage() {
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {request.reviewedAt ? format(new Date(request.reviewedAt), "dd MMM yyyy HH:mm", { locale: pl }) : "-"}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {request.transferDate ? format(new Date(request.transferDate), "dd MMM yyyy HH:mm", { locale: pl }) : "-"}
                           </TableCell>
                           <TableCell className="max-w-xs">
                             <div className="truncate" title={request.justification}>

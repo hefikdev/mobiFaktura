@@ -3,6 +3,8 @@ export interface BudgetRequest {
   userId: string;
   userName: string;
   userEmail: string;
+  companyId?: string | null;
+  companyName?: string | null;
   currentBalanceAtRequest: number;
   requestedAmount: number;
   justification: string;

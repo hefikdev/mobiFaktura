@@ -11,6 +11,8 @@ import { eq, desc, and, or, ilike, sql, type SQL } from "drizzle-orm";import { n
 // Zod Schemas
 const adjustSaldoSchema = z.object({
   userId: z.string().uuid("Nieprawidłowy identyfikator użytkownika"),
+  // companyId field ready for future per-company budget implementation
+  // companyId: z.string().uuid("Nieprawidłowy identyfikator firmy"),
   amount: z.number({
     required_error: "Kwota jest wymagana",
     invalid_type_error: "Kwota musi być liczbą",

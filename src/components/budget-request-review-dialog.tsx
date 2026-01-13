@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, DollarSign, User, Mail, Wallet, FileText, XCircle, CheckCircle, Clock } from "lucide-react";
+import { Loader2, DollarSign, User, Mail, Wallet, FileText, XCircle, CheckCircle, Clock, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import Link from "next/link";
@@ -32,10 +32,20 @@ interface BudgetRequestReviewDialogProps {
     status: string;
     createdAt: Date;
     reviewedAt?: Date | null;
+    reviewerName?: string | null;
     settledAt?: Date | null;
+    settledBy?: string | null;
+    settledByName?: string | null;
+    transferNumber?: string | null;
+    transferDate?: Date | null;
+    transferConfirmedBy?: string | null;
+    transferConfirmedAt?: Date | null;
+    transferConfirmedByName?: string | null;
     rejectionReason?: string | null;
     lastBudgetRequestStatus?: string | null;
     lastBudgetRequestAmount?: number | null;
+    companyId?: string | null;
+    companyName?: string | null;
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -94,6 +104,13 @@ export function BudgetRequestReviewDialog({
       });
       onOpenChange(false);
       utils.budgetRequest.getAll.invalidate();
+      // Invalidate invoice lists and specific invoice details so UI updates to 'Rozliczono'
+      utils.invoice.getAllInvoices.invalidate();
+      if (data && (data as any).linkedInvoiceIds && (data as any).linkedInvoiceIds.length > 0) {
+        (data as any).linkedInvoiceIds.forEach((invId: string) => {
+          utils.invoice.getById.invalidate({ id: invId });
+        });
+      }
       onSuccess();
     },
     onError: (error) => {
@@ -169,84 +186,154 @@ export function BudgetRequestReviewDialog({
             )}
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* User Info */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  <span className="font-medium text-white">{request.userName}</span>
+          <div className="space-y-3 py-4">
+            {/* Basic Info Section */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Informacje podstawowe</h3>
+              <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-md">
+                <div>
+                  <p className="font-medium">{request.userName}</p>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  <span className="font-medium text-white">{request.userEmail}</span>
-                </div>
-            </div>
-
-            {/* Financial Info */}
-            <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="font-medium">Stan salda przy złożeniu</span>
-                </div>
-                <p className={`text-lg font-bold ${request.currentBalanceAtRequest < 0 ? "text-red-600 dark:text-red-500" : "text-foreground"}`}>
-                  {request.currentBalanceAtRequest.toFixed(2)} PLN
-                </p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="font-medium">Prosi o</span>
-                </div>
-                <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
-                  +{request.requestedAmount.toFixed(2)} PLN
-                </p>
+                {request.companyName && (
+                  <div>
+                    <p className="text-xs text-muted-foreground"></p>
+                    <p className="font-medium">Dla: {request.companyName}</p>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Result calculation */}
-            <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/30 rounded-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-green-900 dark:text-green-100">
-                  Saldo pracownika po zatwierdzeniu:
-                </span>
-                <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {(request.currentBalanceAtRequest + request.requestedAmount).toFixed(2)} PLN
-                </span>
+            {/* Financial Section */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Kwoty</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-muted/50 rounded-md">
+                  <p className="text-xs text-muted-foreground mb-1">Stan salda</p>
+                  <p className={`text-lg font-bold ${request.currentBalanceAtRequest < 0 ? "text-red-600" : "text-foreground"}`}>
+                    {request.currentBalanceAtRequest.toFixed(2)} PLN
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-md">
+                  <p className="text-xs text-muted-foreground mb-1">Wnioskowana kwota</p>
+                  <p className="text-lg font-bold text-orange-600">
+                    +{request.requestedAmount.toFixed(2)} PLN
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-md">
+                  <p className="text-xs text-muted-foreground mb-1">Po zatwierdzeniu</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {(request.currentBalanceAtRequest + request.requestedAmount).toFixed(2)} PLN
+                  </p>
+                </div>
               </div>
             </div>
+
+            {/* Previous Budget Request Info */}
+            {request.lastBudgetRequestAmount !== null && request.lastBudgetRequestStatus && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Poprzednia zaliczka</h3>
+                <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-md">
+                  <div>
+                    <p className="font-medium text-sm">{request.lastBudgetRequestAmount?.toFixed(2) ?? "0.00"} PLN</p>
+                  </div>
+                  <div>
+                    <InvoiceStatusBadge status={request.lastBudgetRequestStatus === "approved" ? "accepted" : request.lastBudgetRequestStatus === "settled" ? "settled" : request.lastBudgetRequestStatus === "rejected" ? "rejected" : request.lastBudgetRequestStatus === "money_transferred" ? "transferred" : "pending"} variant="compact" />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Justification */}
-            <div className="p-3 bg-muted border rounded-lg">
-              <Label className="text-sm font-medium">Uzasadnienie</Label>
-              <p className="mt-2 text-sm text-foreground whitespace-pre-wrap">{request.justification}</p>
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Uzasadnienie</h3>
+              <div className="p-3 bg-muted/50 rounded-md">
+                <p className="text-sm whitespace-pre-wrap">{request.justification}</p>
+              </div>
             </div>
 
-            {/* Last Budget Request Status */}
-            {request.lastBudgetRequestStatus && (
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    Status i wartość ostatniej zaliczki:
-                  </span>
-                  <div className="text-right">
-                    <div className="mb-2">
-                      <InvoiceStatusBadge 
-                        status={request.lastBudgetRequestStatus === 'approved' ? 'accepted' : request.lastBudgetRequestStatus === 'settled' ? 'settled' : request.lastBudgetRequestStatus === 'rejected' ? 'rejected' : 'pending'} 
-                        variant="compact" 
-                      />
-                    </div>
-                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                      {request.lastBudgetRequestAmount?.toFixed(2)} PLN
+            {/* Timeline Section */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Historia</h3>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-md">
+                  <Clock className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Złożono</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(request.createdAt), "dd MMMM yyyy, HH:mm", { locale: pl })}
+                    </p>
+                  </div>
+                </div>
+
+                {request.reviewedAt && (
+                  <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-md">
+                    {request.status === "rejected" ? (
+                      <XCircle className="h-4 w-4 mt-0.5 text-red-600" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4 mt-0.5 text-green-600" />
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        {request.status === "rejected" ? "Odrzucono" : "Przyznano"}
+                        {request.reviewerName && <span className="text-muted-foreground"> przez {request.reviewerName}</span>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(request.reviewedAt), "dd MMMM yyyy, HH:mm", { locale: pl })}
+                      </p>
                     </div>
                   </div>
+                )}
+
+                {request.transferConfirmedAt && request.transferNumber && (
+                  <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-md">
+                    <DollarSign className="h-4 w-4 mt-0.5 text-blue-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        Przelew potwierdzony
+                        {request.transferConfirmedByName && <span className="text-muted-foreground"> przez {request.transferConfirmedByName}</span>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(request.transferConfirmedAt), "dd MMMM yyyy, HH:mm", { locale: pl })}
+                      </p>
+                      <p className="text-xs font-mono mt-1">Nr: {request.transferNumber}</p>
+                    </div>
+                  </div>
+                )}
+
+                {request.settledAt && (
+                  <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-md">
+                    <CheckCircle className="h-4 w-4 mt-0.5 text-purple-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        Rozliczono
+                        {request.settledByName && <span className="text-muted-foreground"> przez {request.settledByName}</span>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(request.settledAt), "dd MMMM yyyy, HH:mm", { locale: pl })}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Rejection Reason */}
+            {request.status === "rejected" && request.rejectionReason && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Powód odrzucenia</h3>
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-md">
+                  <p className="text-sm text-red-900 dark:text-red-100">{request.rejectionReason}</p>
                 </div>
               </div>
             )}
 
             {/* Related invoices list */}
             {relatedInvoicesQuery.data && relatedInvoicesQuery.data.length > 0 && (
-              <div className="p-3 bg-muted rounded-lg border">
-                <Label>Powiązane faktury ({relatedInvoicesQuery.data.length})</Label>
-                <div className="mt-2 max-h-60 overflow-y-auto border rounded-md">
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Powiązane faktury ({relatedInvoicesQuery.data.length})
+                </h3>
+                <div className="max-h-60 overflow-y-auto border rounded-md bg-muted/30">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50 sticky top-0">
                       <tr>
@@ -299,32 +386,6 @@ export function BudgetRequestReviewDialog({
                 </p>
               </div>
             )}
-
-            {/* Rejection Reason (if rejected) */}
-            {request.status === "rejected" && request.rejectionReason && (
-              <div className="space-y-2 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-lg">
-                <div className="flex items-center gap-2 text-sm font-medium text-red-900 dark:text-red-100">
-                  <XCircle className="h-4 w-4" />
-                  Powód odrzucenia
-                </div>
-                <p className="text-sm text-red-800 dark:text-red-200">{request.rejectionReason}</p>
-              </div>
-            )}
-
-            {/* Request Date */}
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div>Złożono: {format(new Date(request.createdAt), "dd MMM yyyy, HH:mm", { locale: pl })}</div>
-              {request.reviewedAt && (
-                <div>
-                  {request.status === "approved" ? "Przyznano" : "Odrzucono"}: {format(new Date(request.reviewedAt), "dd MMM yyyy, HH:mm", { locale: pl })}
-                </div>
-              )}
-              {request.settledAt && (
-                <div>
-                  Rozliczono: {format(new Date(request.settledAt), "dd MMM yyyy, HH:mm", { locale: pl })}
-                </div>
-              )}
-            </div>
           </div>
 
           {mode === "review" && request.status === "pending" && (

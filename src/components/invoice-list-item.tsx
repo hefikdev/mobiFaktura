@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
-import { FileText, Building2, User, Eye, CheckCircle, XCircle } from "lucide-react";
+import { FileText, Building2, User, Eye, CheckCircle, XCircle, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -19,6 +19,11 @@ interface InvoiceListItemProps {
   reviewedAt?: Date | null;
   variant?: "user" | "accountant";
   href?: string;
+  budgetRequest?: {
+    id: string;
+    requestedAmount: number;
+    status: string;
+  } | null;
 }
 
 export function InvoiceListItem({
@@ -34,6 +39,7 @@ export function InvoiceListItem({
   reviewedAt,
   variant = "user",
   href,
+  budgetRequest,
 }: InvoiceListItemProps) {
   const linkHref = href || (variant === "user" ? `/a/user-invoice/${id}` : `/a/invoice/${id}`);
   

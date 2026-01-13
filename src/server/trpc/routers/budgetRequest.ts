@@ -7,7 +7,7 @@ import {
 } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { users, budgetRequests, saldoTransactions } from "@/server/db/schema";
+import { users, budgetRequests, saldoTransactions, companies, userCompanyPermissions } from "@/server/db/schema";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { verifyPassword } from "@/server/auth/password";
@@ -17,6 +17,7 @@ import { notifyBudgetRequestSubmitted, notifyBudgetRequestApproved, notifyBudget
 const createBudgetRequestSchema = z.object({
   requestedAmount: z.number().positive("Kwota musi być większa od zera"),
   justification: z.string().min(5, "Uzasadnienie musi zawierać minimum 5 znaków").max(1000, "Uzasadnienie nie może przekraczać 1000 znaków"),
+  companyId: z.string().uuid("Nieprawidłowy identyfikator firmy"),
 });
 
 const reviewBudgetRequestSchema = z.object({
@@ -47,13 +48,44 @@ export const budgetRequestRouter = createTRPCRouter({
   create: protectedProcedure
     .input(createBudgetRequestSchema)
     .mutation(async ({ ctx, input }) => {
-      // Check if user already has a pending request
+      // Admins and accountants have access to all companies, regular users need permission check
+      if (ctx.user.role === "user") {
+        const [userPermissions] = await db
+          .select()
+          .from(userCompanyPermissions)
+          .where(eq(userCompanyPermissions.userId, ctx.user.id))
+          .limit(1);
+
+        if (!userPermissions || !userPermissions.companyIds.includes(input.companyId)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Nie masz dostępu do tej firmy",
+          });
+        }
+      }
+
+      // Verify company exists
+      const [company] = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.id, input.companyId))
+        .limit(1);
+
+      if (!company) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Firma nie została znaleziona",
+        });
+      }
+
+      // Check if user already has a pending request FOR THIS COMPANY
       const [existingRequest] = await db
         .select()
         .from(budgetRequests)
         .where(
           and(
             eq(budgetRequests.userId, ctx.user.id),
+            eq(budgetRequests.companyId, input.companyId),
             eq(budgetRequests.status, "pending")
           )
         )
@@ -62,7 +94,7 @@ export const budgetRequestRouter = createTRPCRouter({
       if (existingRequest) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Masz już oczekującą prośbę o zwiększenie budżetu. Poczekaj na rozpatrzenie obecnej prośby.",
+          message: `Masz już oczekującą prośbę o zwiększenie budżetu dla firmy ${company.name}. Poczekaj na rozpatrzenie obecnej prośby.`,
         });
       }
 
@@ -86,6 +118,7 @@ export const budgetRequestRouter = createTRPCRouter({
         .insert(budgetRequests)
         .values({
           userId: ctx.user.id,
+          companyId: input.companyId,
           requestedAmount: input.requestedAmount.toFixed(2),
           currentBalanceAtRequest: currentBalance.toFixed(2),
           justification: input.justification,
@@ -124,6 +157,11 @@ export const budgetRequestRouter = createTRPCRouter({
   // Get user's own budget requests
   myRequests: protectedProcedure
     .query(async ({ ctx }) => {
+      // Create aliases for different user joins
+      const reviewer = alias(users, 'reviewer');
+      const settler = alias(users, 'settler');
+      const transferConfirmer = alias(users, 'transfer_confirmer');
+
       const requests = await db
         .select({
           id: budgetRequests.id,
@@ -134,10 +172,21 @@ export const budgetRequestRouter = createTRPCRouter({
           createdAt: budgetRequests.createdAt,
           reviewedAt: budgetRequests.reviewedAt,
           settledAt: budgetRequests.settledAt,
-          reviewerName: users.name,
+          reviewerName: reviewer.name,
+          settledByName: settler.name,
+          transferNumber: budgetRequests.transferNumber,
+          transferDate: budgetRequests.transferDate,
+          transferConfirmedBy: budgetRequests.transferConfirmedBy,
+          transferConfirmedAt: budgetRequests.transferConfirmedAt,
+          transferConfirmedByName: transferConfirmer.name,
+          companyId: budgetRequests.companyId,
+          companyName: companies.name,
         })
         .from(budgetRequests)
-        .leftJoin(users, eq(budgetRequests.reviewedBy, users.id))
+        .leftJoin(reviewer, eq(budgetRequests.reviewedBy, reviewer.id))
+        .leftJoin(settler, eq(budgetRequests.settledBy, settler.id))
+        .leftJoin(transferConfirmer, eq(budgetRequests.transferConfirmedBy, transferConfirmer.id))
+        .leftJoin(companies, eq(budgetRequests.companyId, companies.id))
         .where(eq(budgetRequests.userId, ctx.user.id))
         .orderBy(desc(budgetRequests.createdAt));
 
@@ -189,8 +238,10 @@ export const budgetRequestRouter = createTRPCRouter({
         orderByClause = sortOrder === "asc" ? budgetRequests.createdAt : desc(budgetRequests.createdAt);
       }
 
-      // Create alias for reviewer join
+      // Create aliases for different user joins
       const reviewer = alias(users, 'reviewer');
+      const settler = alias(users, 'settler');
+      const transferConfirmer = alias(users, 'transfer_confirmer');
 
       // Subquery to get the last approved budget request for each user
       const lastApprovedRequest = db
@@ -226,6 +277,10 @@ export const budgetRequestRouter = createTRPCRouter({
           transferConfirmedBy: budgetRequests.transferConfirmedBy,
           transferConfirmedAt: budgetRequests.transferConfirmedAt,
           reviewerName: reviewer.name,
+          settledByName: settler.name,
+          transferConfirmedByName: transferConfirmer.name,
+          companyId: budgetRequests.companyId,
+          companyName: companies.name,
           lastBudgetRequestStatus: sql<string | null>`
             (SELECT status FROM budget_requests br2 
              WHERE br2.user_id = budget_requests.user_id 
@@ -242,6 +297,9 @@ export const budgetRequestRouter = createTRPCRouter({
         .from(budgetRequests)
         .innerJoin(users, eq(budgetRequests.userId, users.id))
         .leftJoin(reviewer, eq(budgetRequests.reviewedBy, reviewer.id))
+        .leftJoin(settler, eq(budgetRequests.settledBy, settler.id))
+        .leftJoin(transferConfirmer, eq(budgetRequests.transferConfirmedBy, transferConfirmer.id))
+        .leftJoin(companies, eq(budgetRequests.companyId, companies.id))
         .where(whereClause)
         .orderBy(orderByClause)
         .limit(limit + 1)
@@ -258,6 +316,61 @@ export const budgetRequestRouter = createTRPCRouter({
           lastBudgetRequestAmount: req.lastBudgetRequestAmount ? parseFloat(req.lastBudgetRequestAmount) : null,
         })),
         nextCursor: hasMore ? cursor + limit : undefined,
+      };
+    }),
+
+  // Get single budget request by ID
+  getById: accountantProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ input }) => {
+      const reviewer = alias(users, 'reviewer');
+      const settler = alias(users, 'settler');
+      const transferConfirmer = alias(users, 'transfer_confirmer');
+
+      const [result] = await db
+        .select({
+          id: budgetRequests.id,
+          userId: budgetRequests.userId,
+          userName: users.name,
+          userEmail: users.email,
+          currentBalanceAtRequest: budgetRequests.currentBalanceAtRequest,
+          requestedAmount: budgetRequests.requestedAmount,
+          justification: budgetRequests.justification,
+          status: budgetRequests.status,
+          rejectionReason: budgetRequests.rejectionReason,
+          createdAt: budgetRequests.createdAt,
+          reviewedAt: budgetRequests.reviewedAt,
+          settledAt: budgetRequests.settledAt,
+          transferNumber: budgetRequests.transferNumber,
+          transferDate: budgetRequests.transferDate,
+          transferConfirmedBy: budgetRequests.transferConfirmedBy,
+          transferConfirmedAt: budgetRequests.transferConfirmedAt,
+          reviewerName: reviewer.name,
+          settledByName: settler.name,
+          transferConfirmedByName: transferConfirmer.name,
+          companyId: budgetRequests.companyId,
+          companyName: companies.name,
+        })
+        .from(budgetRequests)
+        .innerJoin(users, eq(budgetRequests.userId, users.id))
+        .leftJoin(reviewer, eq(budgetRequests.reviewedBy, reviewer.id))
+        .leftJoin(settler, eq(budgetRequests.settledBy, settler.id))
+        .leftJoin(transferConfirmer, eq(budgetRequests.transferConfirmedBy, transferConfirmer.id))
+        .leftJoin(companies, eq(budgetRequests.companyId, companies.id))
+        .where(eq(budgetRequests.id, input.id))
+        .limit(1);
+
+      if (!result) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Prośba o zwiększenie budżetu nie została znaleziona",
+        });
+      }
+
+      return {
+        ...result,
+        requestedAmount: result.requestedAmount ? parseFloat(result.requestedAmount) : 0,
+        currentBalanceAtRequest: result.currentBalanceAtRequest != null ? parseFloat(result.currentBalanceAtRequest) : 0,
       };
     }),
 
@@ -296,6 +409,7 @@ export const budgetRequestRouter = createTRPCRouter({
         .select({
           id: budgetRequests.id,
           userId: budgetRequests.userId,
+          companyId: budgetRequests.companyId,
           requestedAmount: budgetRequests.requestedAmount,
           justification: budgetRequests.justification,
           status: budgetRequests.status,
@@ -311,6 +425,28 @@ export const budgetRequestRouter = createTRPCRouter({
           code: "NOT_FOUND",
           message: "Prośba nie została znaleziona",
         });
+      }
+
+      // Verify that the target user has access to the company (only for regular users)
+      const [targetUser] = await db
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, request.userId))
+        .limit(1);
+
+      if (targetUser && targetUser.role === "user") {
+        const [targetUserPermissions] = await db
+          .select()
+          .from(userCompanyPermissions)
+          .where(eq(userCompanyPermissions.userId, request.userId))
+          .limit(1);
+
+        if (!targetUserPermissions || !targetUserPermissions.companyIds.includes(request.companyId)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Użytkownik nie ma dostępu do tej firmy",
+          });
+        }
       }
 
       if (request.status !== "pending") {
@@ -704,17 +840,42 @@ export const budgetRequestRouter = createTRPCRouter({
         .set({ status: "settled", settledBy: ctx.user.id, settledAt: new Date(), updatedAt: new Date() })
         .where(eq(budgetRequests.id, input.requestId));
 
+      // Update all linked invoices to 'settled' status
+      const { invoices: invoicesSchema } = await import("@/server/db/schema");
+      const linkedInvoices = await db
+        .update(invoicesSchema)
+        .set({ 
+          status: "settled",
+          settledBy: ctx.user.id,
+          settledAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(
+          and(
+            eq(invoicesSchema.budgetRequestId, input.requestId),
+            // Update invoices that were transferred or accepted so they become settled
+            or(eq(invoicesSchema.status, "transferred"), eq(invoicesSchema.status, "accepted"))
+          )
+        )
+        .returning({ id: invoicesSchema.id });
+
       // Notify the user
       await import("@/server/lib/notifications").then((mod) =>
         mod.createNotification({
           userId: request.userId,
           type: "system_message",
           title: "Prośba rozliczona",
-          message: "Twoja prośba o zwiększenie budżetu została rozliczona",
+          message: `Twoja prośba o zwiększenie budżetu została rozliczona${linkedInvoices.length > 0 ? ` wraz z ${linkedInvoices.length} fakturą(-ami)` : ''}`,
         })
       );
 
-      return { success: true, message: "Prośba została rozliczona" };
+      const linkedInvoiceIds = linkedInvoices.map(i => i.id);
+
+      return { 
+        success: true, 
+        linkedInvoiceIds,
+        message: `Prośba została rozliczona${linkedInvoiceIds.length > 0 ? ` wraz z ${linkedInvoiceIds.length} fakturą(-ami)` : ''}` 
+      };
     }),
 
   // Confirm transfer (mark as 'money_transferred')
@@ -822,10 +983,13 @@ export const budgetRequestRouter = createTRPCRouter({
           transferNumber: budgetRequests.transferNumber,
           transferDate: budgetRequests.transferDate,
           reviewerName: sql<string>`reviewer.name`,
+          companyId: budgetRequests.companyId,
+          companyName: companies.name,
         })
         .from(budgetRequests)
         .leftJoin(users, eq(budgetRequests.userId, users.id))
         .leftJoin(sql`users as reviewer`, eq(budgetRequests.reviewedBy, sql`reviewer.id`))
+        .leftJoin(companies, eq(budgetRequests.companyId, companies.id))
         .where(whereClause)
         .orderBy(orderByClause);
 
@@ -845,6 +1009,8 @@ export const budgetRequestRouter = createTRPCRouter({
         transferNumber: req.transferNumber,
         transferDate: req.transferDate,
         reviewerName: req.reviewerName,
+        companyId: req.companyId,
+        companyName: req.companyName,
       }));
     }),
 
