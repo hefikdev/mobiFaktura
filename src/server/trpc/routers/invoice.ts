@@ -232,8 +232,8 @@ export const invoiceRouter = createTRPCRouter({
       const limit = input?.limit || 50;
       const cursor = input?.cursor || 0;
 
-      // First, release stale reviews (no ping in last 10 seconds)
-      const staleThreshold = new Date(Date.now() - 10000); // 10 seconds
+      // First, release stale reviews (no ping in last 5 seconds)
+      const staleThreshold = new Date(Date.now() - 5000); // 5 seconds
       await db
         .update(invoices)
         .set({
@@ -306,8 +306,8 @@ export const invoiceRouter = createTRPCRouter({
 
   // Get only in_review invoices (for fast polling)
   inReviewInvoices: accountantProcedure.query(async () => {
-    // Release stale reviews (no ping in last 10 seconds) to avoid stuck in_review statuses
-    const staleThreshold = new Date(Date.now() - 10000); // 10 seconds
+    // Release stale reviews (no ping in last 5 seconds) to avoid stuck in_review statuses
+    const staleThreshold = new Date(Date.now() - 5000); // 5 seconds
     await db
       .update(invoices)
       .set({
@@ -551,8 +551,8 @@ export const invoiceRouter = createTRPCRouter({
         }
       }
 
-      // Also release any stale in_review entries (no ping in last 10 seconds) proactively
-      const staleThresholdAll = new Date(Date.now() - 10000); // 10 seconds
+      // Also release any stale in_review entries (no ping in last 5 seconds) proactively
+      const staleThresholdAll = new Date(Date.now() - 5000); // 5 seconds
       await db
         .update(invoices)
         .set({

@@ -34,10 +34,34 @@ export class ErrorBoundary extends React.Component<Props, State> {
       message: error.message,
       stack: error.stack,
       componentStack: errorInfo.componentStack,
+      url: typeof window !== 'undefined' ? window.location.href : undefined,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      time: new Date().toISOString(),
     });
 
-    // In production, you might want to send this to a logging service
-    // For now, we only log to console as this is a client component
+    // Send error to server logs so it's visible in production (non-blocking)
+    try {
+      // Fire-and-forget POST to server-side logging endpoint
+      fetch('/api/client-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: error.message,
+          name: error.name,
+          stack: error.stack,
+          componentStack: errorInfo.componentStack,
+          url: typeof window !== 'undefined' ? window.location.href : undefined,
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+          time: new Date().toISOString(),
+        }),
+      }).catch((sendErr) => {
+        // Ensure failures to send do not crash the app but are visible in the console
+        console.warn('Failed to send client error log to server:', sendErr);
+      });
+    } catch (sendErr) {
+      // Swallow errors but log to console
+      console.warn('Could not send client error log:', sendErr);
+    }
   }
 
   render() {
@@ -69,7 +93,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <h2 className="text-lg font-semibold">Coś poszło nie tak</h2>
             </div>
             <p className="mb-4 text-sm text-muted-foreground">
-              Wystąpił nieoczekiwany błąd. Nasz zespół został powiadomiony o problemie.
+              Wystąpił nieoczekiwany błąd. Poinformuj odpowiedni dział o problemie.
             </p>
             {process.env.NODE_ENV === "development" && this.state.error && (
               <details className="mb-4 rounded bg-muted p-3 text-xs">
