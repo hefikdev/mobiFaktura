@@ -9,6 +9,7 @@ import { budgetRequestRouter } from "./routers/budgetRequest";
 import { invoiceDeletionRequestRouter } from "./routers/invoiceDeletionRequest";
 import { ksefRouter } from "./routers/ksef";
 import { permissionsRouter } from "./routers/permissions";
+import { advancesRouter } from "./routers/advances";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -21,6 +22,7 @@ export const appRouter = createTRPCRouter({
   invoiceDeletionRequest: invoiceDeletionRequestRouter,
   ksef: ksefRouter,
   permissions: permissionsRouter,
+  advances: advancesRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -14,10 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, DollarSign, User, Mail, Wallet, FileText, XCircle, CheckCircle, Clock, Building2 } from "lucide-react";
+import { Loader2, Wallet, XCircle, CheckCircle, Clock, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
-import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 
 interface BudgetRequestReviewDialogProps {
@@ -50,7 +49,7 @@ interface BudgetRequestReviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  mode?: "review" | "details" | "settle";
+  mode?: "review" | "details";
   initialAction?: "approve" | "reject";
 }
 
@@ -66,10 +65,6 @@ export function BudgetRequestReviewDialog({
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">(initialAction);
   const [rejectionReason, setRejectionReason] = useState("");
   const utils = trpc.useUtils();
-  const relatedInvoicesQuery = trpc.budgetRequest.getRelatedInvoices.useQuery(
-    { requestId: request?.id ?? "" },
-    { enabled: !!request }
-  );
 
   // Sync internal state with initialAction prop
   useEffect(() => {
@@ -85,32 +80,6 @@ export function BudgetRequestReviewDialog({
       onOpenChange(false);
       setRejectionReason("");
       utils.budgetRequest.getAll.invalidate();
-      onSuccess();
-    },
-    onError: (error) => {
-      toast({
-        title: "Błąd",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const settleMutation = trpc.budgetRequest.settle.useMutation({
-    onSuccess: (data) => {
-      toast({
-        title: "Sukces",
-        description: data.message,
-      });
-      onOpenChange(false);
-      utils.budgetRequest.getAll.invalidate();
-      // Invalidate invoice lists and specific invoice details so UI updates to 'Rozliczono'
-      utils.invoice.getAllInvoices.invalidate();
-      if (data && (data as any).linkedInvoiceIds && (data as any).linkedInvoiceIds.length > 0) {
-        (data as any).linkedInvoiceIds.forEach((invId: string) => {
-          utils.invoice.getById.invalidate({ id: invId });
-        });
-      }
       onSuccess();
     },
     onError: (error) => {
@@ -179,11 +148,6 @@ export function BudgetRequestReviewDialog({
               </DialogDescription>
             )}
 
-            {mode === "settle" && (
-              <DialogDescription>
-                Potwierdź rozliczenie prośby o budżet — operacja oznacza, że prośba została sfinalizowana i oznaczona jako rozliczona.
-              </DialogDescription>
-            )}
           </DialogHeader>
 
           <div className="space-y-3 py-4">
@@ -284,36 +248,6 @@ export function BudgetRequestReviewDialog({
                   </div>
                 )}
 
-                {request.transferConfirmedAt && request.transferNumber && (
-                  <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-md">
-                    <DollarSign className="h-4 w-4 mt-0.5 text-blue-600" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        Przelew potwierdzony
-                        {request.transferConfirmedByName && <span className="text-muted-foreground"> przez {request.transferConfirmedByName}</span>}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(request.transferConfirmedAt), "dd MMMM yyyy, HH:mm", { locale: pl })}
-                      </p>
-                      <p className="text-xs font-mono mt-1">Nr: {request.transferNumber}</p>
-                    </div>
-                  </div>
-                )}
-
-                {request.settledAt && (
-                  <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-md">
-                    <CheckCircle className="h-4 w-4 mt-0.5 text-purple-600" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        Rozliczono
-                        {request.settledByName && <span className="text-muted-foreground"> przez {request.settledByName}</span>}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(request.settledAt), "dd MMMM yyyy, HH:mm", { locale: pl })}
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -323,46 +257,6 @@ export function BudgetRequestReviewDialog({
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Powód odrzucenia</h3>
                 <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-md">
                   <p className="text-sm text-red-900 dark:text-red-100">{request.rejectionReason}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Related invoices list */}
-            {relatedInvoicesQuery.data && relatedInvoicesQuery.data.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Powiązane faktury ({relatedInvoicesQuery.data.length})
-                </h3>
-                <div className="max-h-60 overflow-y-auto border rounded-md bg-muted/30">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50 sticky top-0">
-                      <tr>
-                        <th className="text-left p-2 font-medium">Numer faktury</th>
-                        <th className="text-left p-2 font-medium">Kwota</th>
-                        <th className="text-left p-2 font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {relatedInvoicesQuery.data.map((inv) => (
-                        <tr key={inv.id} className="border-t hover:bg-muted/30">
-                          <td className="p-2">
-                            <Link 
-                              href={`/a/invoice/${inv.id}`}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
-                            >
-                              {inv.invoiceNumber}
-                            </Link>
-                          </td>
-                          <td className="p-2">
-                            {inv.kwota ? `${Number(inv.kwota).toFixed(2)} PLN` : "-"}
-                          </td>
-                          <td className="p-2">
-                            <InvoiceStatusBadge status={inv.status as any} variant="compact" />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
               </div>
             )}
@@ -433,30 +327,6 @@ export function BudgetRequestReviewDialog({
                   <XCircle className="mr-2 h-4 w-4" />
                 )}
                 Odrzuć
-              </Button>
-            </DialogFooter>
-          )}
-
-          {mode === "settle" && request.status === "money_transferred" && (
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={settleMutation.isPending}
-              >
-                Anuluj
-              </Button>
-              <Button
-                onClick={() => settleMutation.mutate({ requestId: request.id })}
-                disabled={settleMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700 text-white dark:text-white"
-              >
-                {settleMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <DollarSign className="mr-2 h-4 w-4" />
-                )}
-                Rozlicz
               </Button>
             </DialogFooter>
           )}

@@ -113,6 +113,7 @@ export const formatters = {
   transactionType: (value: string) => {
     const typeMap: Record<string, string> = {
       adjustment: 'Korekta',
+      advance_credit: 'Przyznana przez księgowego',
       zasilenie: 'Zasilenie',
       korekta: 'Korekta',
       invoice_deduction: 'odliczenie',

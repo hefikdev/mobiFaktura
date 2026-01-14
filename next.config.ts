@@ -4,6 +4,7 @@ import withPWA from "next-pwa";
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
+  turbopack: {},
   // Security headers
   async headers() {
     return [

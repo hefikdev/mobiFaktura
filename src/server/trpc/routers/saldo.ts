@@ -7,7 +7,8 @@ import {
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { users, saldoTransactions, budgetRequests } from "@/server/db/schema";
-import { eq, desc, and, or, ilike, sql, type SQL } from "drizzle-orm";import { notifySaldoAdjusted } from "@/server/lib/notifications";
+import { eq, desc, and, or, ilike, sql, type SQL } from "drizzle-orm";
+import { notifySaldoAdjusted } from "@/server/lib/notifications";
 // Zod Schemas
 const adjustSaldoSchema = z.object({
   userId: z.string().uuid("Nieprawidłowy identyfikator użytkownika"),
@@ -18,7 +19,7 @@ const adjustSaldoSchema = z.object({
     invalid_type_error: "Kwota musi być liczbą",
   }),
   notes: z.string().min(5, "Notatka musi zawierać minimum 5 znaków").max(500, "Notatka nie może przekraczać 500 znaków"),
-  transactionType: z.enum(["zasilenie", "korekta"], {
+  transactionType: z.enum(["adjustment"], {
     required_error: "Typ transakcji jest wymagany",
     invalid_type_error: "Nieprawidłowy typ transakcji",
   }),

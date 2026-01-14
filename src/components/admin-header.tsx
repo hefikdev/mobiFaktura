@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notification-bell";
 import { RequestBudgetDialog } from "@/components/request-budget-dialog";
 import { SaldoBadge } from "@/components/saldo-badge";
-import { LogOut, Settings,Shield, ShieldCheck, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun, Wallet, DollarSign } from "lucide-react";
+import { LogOut, Settings,Shield, ShieldCheck, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun, Wallet, DollarSign, ArrowRightLeft } from "lucide-react";
 import { useTheme } from "next-themes";
 
 interface AdminHeaderProps {
@@ -70,7 +70,7 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
         </Link>
 
         {/* Mobile Menu */}
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex items-center gap-2 md:hidden">
           {showAddButton && (
             <Button asChild size="icon" variant="ghost">
               <Link href="/a/upload">
@@ -153,6 +153,13 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                     Zarządzaj Saldo
                   </Link>
                 </Button>
+
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/advances">
+                    <ArrowRightLeft className="mr-2 h-4 w-4" />
+                    Zaliczki
+                  </Link>
+                </Button>
                 
                 <Button asChild variant="outline" className="justify-start">
                   <Link href="/a/budget-requests">
@@ -221,7 +228,7 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
         </div>
 
         {/* Desktop Menu */}
-        <div className="hidden lg:flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2">
           {showAddButton && (
             <Button asChild size="icon" variant="ghost">
               <Link href="/a/upload">
@@ -275,6 +282,17 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
               Saldo
             </Link>
           </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      asChild
+                      className="text-xs"
+                    >
+                      <Link href="/a/advances">
+                        <ArrowRightLeft className="mr-1 h-3 w-3" />
+                        Zaliczki
+                      </Link>
+                    </Button>
           <Button
             variant="ghost"
             size="sm"

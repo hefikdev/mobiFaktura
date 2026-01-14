@@ -54,6 +54,7 @@ import { pl } from "date-fns/locale";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 
 const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
 
@@ -98,6 +99,8 @@ export default function InvoiceReviewPage() {
       refetchInterval: 2000, // 2 seconds - fast enough for heartbeat monitoring
     }
   );
+
+  const canViewAdvance = user?.role === "admin" || user?.role === "accountant";
 
   // Release review when leaving page
   const releaseReviewMutation = trpc.invoice.releaseReview.useMutation();
@@ -536,7 +539,6 @@ export default function InvoiceReviewPage() {
             status: invoice.budgetRequest.status,
             createdAt: invoice.budgetRequest.createdAt,
             reviewedAt: invoice.budgetRequest.reviewedAt,
-            settledAt: invoice.budgetRequest.settledAt,
             companyId: invoice.budgetRequest.companyId,
             companyName: invoice.budgetRequest.companyName,
           }}
@@ -746,7 +748,7 @@ export default function InvoiceReviewPage() {
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Status</p>
-                            <InvoiceStatusBadge status={invoice.budgetRequest.status === "approved" ? "accepted" : invoice.budgetRequest.status === "settled" ? "settled" : invoice.budgetRequest.status === "rejected" ? "rejected" : invoice.budgetRequest.status === "money_transferred" ? "transferred" : "pending"} variant="compact" />
+                            <InvoiceStatusBadge status={invoice.budgetRequest.status === "approved" ? "accepted" : invoice.budgetRequest.status === "rejected" ? "rejected" : "pending"} variant="compact" />
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Data złożenia</p>
@@ -782,6 +784,45 @@ export default function InvoiceReviewPage() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  )}
+
+                  {canViewAdvance && invoice.advance && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Powiązana zaliczka</p>
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/a/advances?advanceId=${invoice.advance.id}`}>
+                            Zobacz zaliczkę
+                          </Link>
+                        </Button>
+                      </div>
+                      <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Kwota</p>
+                            <p className="font-medium">{invoice.advance.amount.toFixed(2)} PLN</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Status</p>
+                            <p className="font-medium">
+                              {invoice.advance.status === "pending" ? "Oczekująca" :
+                               invoice.advance.status === "transferred" ? "Przelana" :
+                               invoice.advance.status === "settled" ? "Rozliczona" : invoice.advance.status}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Data utworzenia</p>
+                            <p className="font-medium">{format(new Date(invoice.advance.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                          </div>
+                          {invoice.advance.transferDate && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Data przelewu</p>
+                              <p className="font-medium">{format(new Date(invoice.advance.transferDate), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}

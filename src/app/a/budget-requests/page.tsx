@@ -11,19 +11,10 @@ import { SearchInput } from "@/components/search-input";
 import { ExportButton } from "@/components/export-button";
 import dynamic from "next/dynamic";
 const BudgetRequestReviewDialog = dynamic(() => import("@/components/budget-request-review-dialog").then(m => m.BudgetRequestReviewDialog));
-const TransferConfirmationDialog = dynamic(() => import("@/components/transfer-confirmation-dialog").then(m => m.TransferConfirmationDialog));
+import { AdvanceDetailsDialog } from "@/components/advance-details-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -46,7 +37,7 @@ import { pl } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
 import { BudgetRequest } from "@/types";
 
-type BudgetRequestStatus = "all" | "pending" | "approved" | "money_transferred" | "rejected" | "settled";
+type BudgetRequestStatus = "all" | "pending" | "approved" | "rejected";
 
 export default function BudgetRequestsPage() {
   const { toast } = useToast();
@@ -55,11 +46,12 @@ export default function BudgetRequestsPage() {
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"review" | "details" | "settle">("details");
+  const [dialogMode, setDialogMode] = useState<"review" | "details">("details");
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
   const [rejectionReason, setRejectionReason] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedAdvanceId, setSelectedAdvanceId] = useState<string | null>(null);
+  const [isAdvanceDialogOpen, setIsAdvanceDialogOpen] = useState(false);
 
   // Check user role
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
@@ -68,6 +60,12 @@ export default function BudgetRequestsPage() {
   const { data: companies } = trpc.company.listAll.useQuery(undefined, {
     enabled: !!user && (user.role === "accountant" || user.role === "admin"),
   });
+
+  const openAdvanceDialog = (advanceId: string) => {
+    setSelectedAdvanceId(advanceId);
+    setIsAdvanceDialogOpen(true);
+  };
+
 
   // Fetch budget requests with infinite query
   const {
@@ -244,9 +242,7 @@ export default function BudgetRequestsPage() {
     // Map budget request statuses to invoice status badge types for consistent color coding
     const badgeStatus = 
       status === "approved" ? "accepted" : 
-      status === "settled" ? "settled" : 
       status === "rejected" ? "rejected" : 
-      status === "money_transferred" ? "transferred" : 
       "pending";
 
     if (status === "pending") {
@@ -307,9 +303,7 @@ export default function BudgetRequestsPage() {
                   <SelectItem value="all">Wszystkie</SelectItem>
                   <SelectItem value="pending">Oczekujące</SelectItem>
                   <SelectItem value="approved">Zatwierdzone</SelectItem>
-                  <SelectItem value="money_transferred">Przelew wykonany</SelectItem>
                   <SelectItem value="rejected">Odrzucone</SelectItem>
-                  <SelectItem value="settled">Rozliczono</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={companyFilter} onValueChange={setCompanyFilter}>
@@ -337,8 +331,6 @@ export default function BudgetRequestsPage() {
                     const statusLabels: Record<string, string> = {
                       pending: "Oczekujące",
                       approved: "Zatwierdzone",
-                      money_transferred: "Przelew",
-                      settled: "Rozliczono",
                       rejected: "Odrzucone"
                     };
                     return statusLabels[String(val)] || String(val);
@@ -349,11 +341,6 @@ export default function BudgetRequestsPage() {
                     return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
                   }},
                   { key: "reviewedAt", header: "Decyzja", formatter: (val: any) => {
-                    if (!val) return "-";
-                    const date = val instanceof Date ? val : new Date(String(val));
-                    return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
-                  }},
-                  { key: "settledAt", header: "Rozliczono", formatter: (val: any) => {
                     if (!val) return "-";
                     const date = val instanceof Date ? val : new Date(String(val));
                     return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
@@ -461,40 +448,24 @@ export default function BudgetRequestsPage() {
                                 </Button>
                               </div>
                             ) : request.status === "approved" ? (
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
-                                  variant="default"
-                                  className="bg-blue-600 hover:bg-blue-700 text-white dark:text-white"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedRequest(request);
-                                    setIsTransferDialogOpen(true);
-                                  }}
-                                >
-                                  <DollarSign className="h-4 w-4 mr-1" />
-                                  Potwierdź przelew
-                                </Button>
+                              <div className="flex gap-2 justify-end items-center">
+                                <span className="text-sm text-yellow-600 dark:text-yellow-500 font-medium flex items-center">
+                                  <Calendar className="h-4 w-4 mr-1" />
+                                  Oczekuje na zaliczkę
+                                </span>
+                                {request.advanceId && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openAdvanceDialog(request.advanceId as string);
+                                    }}
+                                  >
+                                    Zaliczka
+                                  </Button>
+                                )}
                               </div>
-                            ) : request.status === "money_transferred" ? (
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
-                                  variant="default"
-                                  className="bg-purple-600 hover:bg-purple-700 text-white dark:text-white"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedRequest(request);
-                                    setDialogMode("settle");
-                                    setIsDialogOpen(true);
-                                  }}
-                                >
-                                  <DollarSign className="h-4 w-4 mr-1" />
-                                  Rozlicz
-                                </Button>
-                              </div>
-                            ) : request.status === "settled" ? (
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">{request.settledAt ? format(new Date(request.settledAt), "dd MMM yyyy HH:mm", { locale: pl }) : "-"}</span>
                             ) : (
                               <span className="text-sm text-muted-foreground">-</span>
                             )}
@@ -543,17 +514,12 @@ export default function BudgetRequestsPage() {
         initialAction={reviewAction}
       />
 
-      {/* Transfer Confirmation Dialog */}
-      <TransferConfirmationDialog
-        request={selectedRequest}
-        open={isTransferDialogOpen}
-        onOpenChange={setIsTransferDialogOpen}
-        onSuccess={() => {
-          setSelectedRequest(null);
-          refetch();
-        }}
+      <AdvanceDetailsDialog
+        advanceId={selectedAdvanceId}
+        open={isAdvanceDialogOpen}
+        onOpenChange={setIsAdvanceDialogOpen}
+        onSuccess={() => refetch()}
       />
-
 
       <div className="hidden md:block">
         <Footer />

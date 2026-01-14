@@ -7,7 +7,7 @@ import {
 } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { invoices, users, companies, invoiceEditHistory, saldoTransactions, budgetRequests } from "@/server/db/schema";
+import { invoices, users, companies, invoiceEditHistory, saldoTransactions, budgetRequests, advances } from "@/server/db/schema";
 import { eq, desc, and, ne, or, isNull, lt, isNotNull, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { uploadFile, getPresignedUrl, deleteFile } from "@/server/storage/minio";
@@ -120,6 +120,19 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
+      // Find latest accepted advance (transferred)
+      const [latestAdvance] = await db
+        .select({ id: advances.id })
+        .from(advances)
+        .where(
+            and(
+                eq(advances.userId, ctx.user.id),
+                eq(advances.status, "transferred")
+            )
+        )
+        .orderBy(desc(advances.transferDate), desc(advances.createdAt))
+        .limit(1);
+
       // Create invoice record in database
       let invoice: typeof invoices.$inferSelect | undefined;
       try {
@@ -137,6 +150,7 @@ export const invoiceRouter = createTRPCRouter({
               kwota: input.kwota?.toString() || null,
               justification: input.justification,
               budgetRequestId: input.budgetRequestId || null,
+              advanceId: latestAdvance?.id || null,
               status: "pending",
             })
             .returning();
@@ -771,7 +785,6 @@ export const invoiceRouter = createTRPCRouter({
         status: string;
         createdAt: Date;
         reviewedAt: Date | null;
-        settledAt: Date | null;
         userName: string | null;
         companyId: string;
         companyName: string | null;
@@ -791,7 +804,6 @@ export const invoiceRouter = createTRPCRouter({
             status: budgetRequests.status,
             createdAt: budgetRequests.createdAt,
             reviewedAt: budgetRequests.reviewedAt,
-            settledAt: budgetRequests.settledAt,
             userName: users.name,
             companyId: budgetRequests.companyId,
             companyName: companies.name,
@@ -833,6 +845,28 @@ export const invoiceRouter = createTRPCRouter({
         }
       }
 
+        let advance = null;
+        if (invoice.advanceId) {
+          const [adv] = await db
+            .select({
+              id: advances.id,
+              amount: advances.amount,
+              status: advances.status,
+              createdAt: advances.createdAt,
+              transferDate: advances.transferDate,
+            })
+            .from(advances)
+            .where(eq(advances.id, invoice.advanceId))
+            .limit(1);
+
+          if (adv) {
+            advance = {
+              ...adv,
+              amount: parseFloat(adv.amount),
+            };
+          }
+        }
+
       return {
         ...invoice,
         imageUrl,
@@ -843,6 +877,7 @@ export const invoiceRouter = createTRPCRouter({
         lastEditor,
         editHistory,
         budgetRequest,
+          advance,
         // Add flag to indicate if current user is the reviewer
         isCurrentUserReviewing: invoice.currentReviewer === ctx.user.id,
       };
@@ -1090,6 +1125,27 @@ export const invoiceRouter = createTRPCRouter({
           code: "CONFLICT",
           message: "Faktura została już rozpatrzona przez innego księgowego",
         });
+      }
+
+      // Check for auto-settlement if linked to a settled advance
+      if (input.status === "accepted" && updated.advanceId) {
+         const [advance] = await db
+           .select({ status: advances.status })
+           .from(advances)
+           .where(eq(advances.id, updated.advanceId))
+           .limit(1);
+         
+         if (advance && advance.status === "settled") {
+            await db
+              .update(invoices)
+              .set({ 
+                status: "settled", 
+                settledAt: new Date(), 
+                settledBy: ctx.user.id,
+                updatedAt: new Date(),
+              })
+              .where(eq(invoices.id, updated.id));
+         }
       }
 
       return {

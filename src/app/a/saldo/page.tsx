@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, PlusCircle, Wallet, Plus, PencilIcon, History, User, ShieldCheck, Clock, XCircle, CheckCircle2, Receipt, FileText } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Wallet, PencilIcon, History, User, ShieldCheck, Clock, XCircle, CheckCircle2, Receipt, FileText } from "lucide-react";
 import { SectionLoader } from "@/components/section-loader";
 import { Badge } from "@/components/ui/badge";
 import { Footer } from "@/components/footer";
@@ -57,9 +57,6 @@ export default function SaldoManagementPage() {
   const [amount, setAmount] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [quickAddAmount, setQuickAddAmount] = useState("");
-  const [quickAddJustification, setQuickAddJustification] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [historyUserId, setHistoryUserId] = useState<string | null>(null);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
@@ -268,12 +265,9 @@ export default function SaldoManagementPage() {
         description: data.message,
       });
       setIsDialogOpen(false);
-      setIsQuickAddOpen(false);
       setSelectedUserId(null);
       setAmount("");
       setNotes("");
-      setQuickAddAmount("");
-      setQuickAddJustification("");
       refetch();
       // Refresh statistics after saldo adjustment
       queryClient.invalidateQueries({ queryKey: [["saldo", "getSaldoStats"]] });
@@ -329,7 +323,7 @@ export default function SaldoManagementPage() {
       userId: selectedUserId,
       amount: numAmount,
       notes,
-      transactionType: "korekta",
+      transactionType: "adjustment",
     });
   };
 
@@ -347,53 +341,6 @@ export default function SaldoManagementPage() {
     setAmount("");
     setNotes("");
     setIsDialogOpen(true);
-  };
-
-  const openQuickAddDialog = (userId: string) => {
-    setSelectedUserId(userId);
-    setSelectedUserSaldo(fetchUserSaldo(userId));
-    setSelectedCompanyId(companies && companies.length > 0 ? companies[0]?.id || null : null);
-    setQuickAddAmount("");
-    setQuickAddJustification("");
-    setIsQuickAddOpen(true);
-  };
-
-  const handleQuickAdd = () => {
-    const numAmount = parseFloat(quickAddAmount);
-    
-    if (!selectedUserId || !quickAddAmount || isNaN(numAmount) || numAmount <= 0) {
-      toast({
-        title: "Błąd",
-        description: "Wprowadź prawidłową dodatnią kwotę",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!quickAddJustification || quickAddJustification.trim().length < 5) {
-      toast({
-        title: "Błąd",
-        description: "Uzasadnienie musi zawierać minimum 5 znaków",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!selectedCompanyId) {
-      toast({
-        title: "Błąd",
-        description: "Wybierz firmę",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    adjustSaldoMutation.mutate({
-      userId: selectedUserId,
-      amount: numAmount,
-      notes: quickAddJustification.trim(),
-      transactionType: "zasilenie",
-    });
   };
 
   if (userLoading) {
@@ -415,6 +362,8 @@ export default function SaldoManagementPage() {
         return "Odliczenie faktury";
       case "invoice_refund":
         return "Zwrot za fakturę";
+      case "advance_credit":
+        return "Przyznana przez księgowego";
       case "zasilenie":
         return "Zasilenie";
       case "korekta":
@@ -574,14 +523,6 @@ export default function SaldoManagementPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openQuickAddDialog(user.id)}
-                              >
-                                <PlusCircle className="h-4 w-4 mr-1" />
-                                Dodaj
-                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1035,78 +976,6 @@ export default function SaldoManagementPage() {
       </Dialog>
 
       {/* Quick Add Funds Dialog */}
-      <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Dodaj środki</DialogTitle>
-          </DialogHeader>
-          {selectedUserSaldo !== null && (
-            <div className="mb-2 text-sm text-muted-foreground">
-              Aktualne saldo {user?.name ?? 'użytkownik'}: <span className={selectedUserSaldo > 0 ? "text-green-600" : selectedUserSaldo < 0 ? "text-red-600" : "text-gray-600"}>{selectedUserSaldo.toFixed(2)} PLN</span>
-            </div>
-          )}
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="quickCompany">Firma</Label>
-              <Select value={selectedCompanyId || ""} onValueChange={setSelectedCompanyId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Wybierz firmę" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies?.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="quickAmount">Kwota (PLN)</Label>
-              <Input
-                id="quickAmount"
-                type="number"
-                step="0.01"
-                placeholder=""
-                value={quickAddAmount}
-                onChange={(e) => setQuickAddAmount(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="quickJustification">Uzasadnienie</Label>
-              <Textarea
-                id="quickJustification"
-                placeholder=""
-                value={quickAddJustification}
-                onChange={(e) => setQuickAddJustification(e.target.value)}
-                rows={3}
-              />
-              <p className="text-sm text-muted-foreground dark:text-muted-foreground/70">
-                {quickAddJustification.length}/5 znaków minimum
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsQuickAddOpen(false)}
-              disabled={adjustSaldoMutation.isPending}
-            >
-              Anuluj
-            </Button>
-            <Button
-              onClick={handleQuickAdd}
-              disabled={adjustSaldoMutation.isPending}
-              className="bg-green-600 hover:bg-green-700 text-white dark:text-white"
-            >
-              {adjustSaldoMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Dodaj
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <div className="hidden md:block">
         <Footer />
       </div>

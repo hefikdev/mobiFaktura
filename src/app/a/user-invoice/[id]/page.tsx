@@ -167,7 +167,6 @@ function UserInvoiceContent({ id }: { id: string }) {
             status: invoice.budgetRequest.status,
             createdAt: invoice.budgetRequest.createdAt,
             reviewedAt: invoice.budgetRequest.reviewedAt,
-            settledAt: invoice.budgetRequest.settledAt,
             companyId: invoice.budgetRequest.companyId,
             companyName: invoice.budgetRequest.companyName,
           }}
@@ -205,6 +204,7 @@ function UserInvoiceContent({ id }: { id: string }) {
               </div>
                       {/* Action buttons */}
         <div className="flex gap-2 mt-4 justify-center lg:justify-end">
+          
           <Button
             variant="outline"
             size="sm"
@@ -246,8 +246,7 @@ function UserInvoiceContent({ id }: { id: string }) {
 
           {/* Details Section */}
           <div className="space-y-6">
-            {/* Status Card */}
-            {user && (user.role === "admin" || user.role === "accountant") && (
+                    {user && (user.role === "admin" || user.role === "accountant") && (
           <div className="mb-4 p-4 bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg flex items-center justify-between">
             <span className="text-sm font-medium">Przeglądasz fakturę w trybie pracownika</span>
             <Link href={`/a/invoice/${id}`}>
@@ -256,6 +255,39 @@ function UserInvoiceContent({ id }: { id: string }) {
           </div>
         )}
 
+            {invoice.advance && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Zaliczka</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Kwota</p>
+                      <p className="font-medium">{invoice.advance.amount.toFixed(2)} PLN</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <p className="font-medium">
+                        {invoice.advance.status === "pending" ? "Oczekująca" :
+                         invoice.advance.status === "transferred" ? "Przelana" :
+                         invoice.advance.status === "settled" ? "Rozliczona" : invoice.advance.status}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Data utworzenia</p>
+                      <p className="font-medium">{format(new Date(invoice.advance.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                    </div>
+                    {invoice.advance.transferDate && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Data przelewu</p>
+                        <p className="font-medium">{format(new Date(invoice.advance.transferDate), "dd.MM.yyyy HH:mm", { locale: pl })}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             {/* Budget Request Info */}
             {invoice.budgetRequest && (
               <Card>
@@ -297,7 +329,7 @@ function UserInvoiceContent({ id }: { id: string }) {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Status</p>
-                        <InvoiceStatusBadge status={invoice.budgetRequest.status === "approved" ? "accepted" : invoice.budgetRequest.status === "settled" ? "settled" : invoice.budgetRequest.status === "rejected" ? "rejected" : invoice.budgetRequest.status === "money_transferred" ? "transferred" : "pending"} variant="compact" />
+                        <InvoiceStatusBadge status={invoice.budgetRequest.status === "approved" ? "accepted" : invoice.budgetRequest.status === "rejected" ? "rejected" : "pending"} variant="compact" />
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Data złożenia</p>

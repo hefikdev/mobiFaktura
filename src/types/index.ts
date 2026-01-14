@@ -12,13 +12,8 @@ export interface BudgetRequest {
   createdAt: Date;
   reviewedBy?: string | null;
   reviewedAt?: Date | null;
-  settledBy?: string | null;
-  settledAt?: Date | null;
   rejectionReason?: string | null;
-  transferNumber?: string | null;
-  transferDate?: Date | null;
-  transferConfirmedBy?: string | null;
-  transferConfirmedAt?: Date | null;
+  advanceId?: string | null;
   lastBudgetRequestStatus?: string | null;
   lastBudgetRequestAmount?: number | null;
 }

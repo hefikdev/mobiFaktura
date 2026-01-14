@@ -126,12 +126,13 @@ export const invoices = pgTable("invoices", {
   reviewStartedAt: timestamp("review_started_at", { withTimezone: true }),
   lastReviewPing: timestamp("last_review_ping", { withTimezone: true }), // Heartbeat for active review
   
-  // Payment tracking
+    // Payment tracking
   transferredBy: uuid("transferred_by").references(() => users.id),
   transferredAt: timestamp("transferred_at", { withTimezone: true }),
   settledBy: uuid("settled_by").references(() => users.id),
   settledAt: timestamp("settled_at", { withTimezone: true }),
-  budgetRequestId: uuid("budget_request_id").references(() => budgetRequests.id, { onDelete: "set null" }),
+    budgetRequestId: uuid("budget_request_id").references(() => budgetRequests.id, { onDelete: "set null" }),
+    advanceId: uuid("zaliczka_id").references(() => advances.id, { onDelete: "set null" }),
   
   // Tracking
   lastEditedBy: uuid("last_edited_by").references(() => users.id),
@@ -217,7 +218,7 @@ export const saldoTransactions = pgTable("saldo_transactions", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   balanceBefore: numeric("balance_before", { precision: 12, scale: 2 }).notNull(),
   balanceAfter: numeric("balance_after", { precision: 12, scale: 2 }).notNull(),
-  transactionType: varchar("transaction_type", { length: 50 }).notNull(), // 'adjustment', 'invoice_deduction', 'invoice_refund'
+  transactionType: varchar("transaction_type", { length: 50 }).notNull(), // 'adjustment', 'invoice_deduction', 'invoice_refund', 'advance_credit'
   referenceId: uuid("reference_id"), // invoice id if related to invoice
   notes: text("notes"),
   createdBy: uuid("created_by")
@@ -265,16 +266,10 @@ export const budgetRequests = pgTable("budget_requests", {
   requestedAmount: numeric("requested_amount", { precision: 12, scale: 2 }).notNull(),
   currentBalanceAtRequest: numeric("current_balance_at_request", { precision: 12, scale: 2 }).notNull(),
   justification: text("justification").notNull(),
-  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'money_transferred', 'rejected', 'settled'
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  settledBy: uuid("settled_by").references(() => users.id),
-  settledAt: timestamp("settled_at", { withTimezone: true }),
   rejectionReason: text("rejection_reason"),
-  transferNumber: varchar("transfer_number", { length: 255 }),
-  transferDate: timestamp("transfer_date", { withTimezone: true }),
-  transferConfirmedBy: uuid("transfer_confirmed_by").references(() => users.id),
-  transferConfirmedAt: timestamp("transfer_confirmed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -284,6 +279,30 @@ export const budgetRequests = pgTable("budget_requests", {
 }, (table) => ({
   companyIdIdx: index("idx_budget_requests_company_id").on(table.companyId),
   userCompanyIdx: index("idx_budget_requests_user_company").on(table.userId, table.companyId),
+}));
+
+// Advances table (DB table name preserved as "zaliczki")
+export const advances = pgTable("zaliczki", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'transferred', 'settled'
+  sourceType: varchar("source_type", { length: 50 }).notNull(), // 'budget_request', 'manual'
+  sourceId: uuid("source_id"), // Can be budgetRequestId or null
+  description: text("description"),
+  transferNumber: varchar("transfer_number", { length: 255 }),
+  transferDate: timestamp("transfer_date", { withTimezone: true }),
+  transferConfirmedBy: uuid("transfer_confirmed_by").references(() => users.id),
+  transferConfirmedAt: timestamp("transfer_confirmed_at", { withTimezone: true }),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+  settledBy: uuid("settled_by").references(() => users.id),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index("idx_zaliczki_user_id").on(table.userId),
+  statusIdx: index("idx_zaliczki_status").on(table.status),
 }));
 
 // User Company Permissions table - controls which users can access which companies
@@ -303,6 +322,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   notifications: many(notifications),
   saldoTransactions: many(saldoTransactions),
   budgetRequests: many(budgetRequests),
+  advances: many(advances),
   companyPermissions: one(userCompanyPermissions, {
     fields: [users.id],
     references: [userCompanyPermissions.userId],
@@ -334,6 +354,7 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 export const companiesRelations = relations(companies, ({ many }) => ({
   invoices: many(invoices),
   budgetRequests: many(budgetRequests),
+  advances: many(advances),
 }));
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({
@@ -360,6 +381,10 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   budgetRequest: one(budgetRequests, {
     fields: [invoices.budgetRequestId],
     references: [budgetRequests.id],
+  }),
+  advance: one(advances, {
+    fields: [invoices.advanceId],
+    references: [advances.id],
   }),
   editHistory: many(invoiceEditHistory),
 }));
@@ -406,6 +431,22 @@ export const budgetRequestsRelations = relations(budgetRequests, ({ one, many })
   invoices: many(invoices),
 }));
 
+export const advancesRelations = relations(advances, ({ one, many }) => ({
+  user: one(users, {
+    fields: [advances.userId],
+    references: [users.id],
+  }),
+  company: one(companies, {
+    fields: [advances.companyId],
+    references: [companies.id],
+  }),
+  creator: one(users, {
+    fields: [advances.createdBy],
+    references: [users.id],
+  }),
+  invoices: many(invoices),
+}));
+
 export const userCompanyPermissionsRelations = relations(userCompanyPermissions, ({ one }) => ({
   user: one(users, {
     fields: [userCompanyPermissions.userId],
@@ -439,5 +480,5 @@ export type NewUserCompanyPermission = typeof userCompanyPermissions.$inferInser
 export type UserRole = "user" | "accountant" | "admin";
 export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
 export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";
-export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund";
-export type BudgetRequestStatus = "pending" | "approved" | "money_transferred" | "rejected" | "settled";
+export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund" | "advance_credit";
+export type BudgetRequestStatus = "pending" | "approved" | "rejected";
