@@ -485,11 +485,11 @@ export default function InvoicesPage() {
 
         {/* Delete Invoice Confirmation Dialog */}
         <Dialog open={deleteInvoiceOpen} onOpenChange={setDeleteInvoiceOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>Potwierdzenie usunięcia faktury</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
               <p className="text-sm">
                 Czy na pewno chcesz usunąć fakturę <span className="font-semibold">{deleteInvoiceNumber}</span>?
               </p>

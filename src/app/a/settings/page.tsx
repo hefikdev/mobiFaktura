@@ -526,14 +526,14 @@ export default function SettingsPage() {
 
         {/* Password Change Dialog */}
         <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>Zmień hasło</DialogTitle>
               <DialogDescription>
                 Wprowadź obecne hasło i wybierz nowe hasło. Hasło musi mieć minimum 8 znaków.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
               <div className="space-y-2">
                 <Label htmlFor="currentPassword">Obecne hasło</Label>
                 <div className="relative">

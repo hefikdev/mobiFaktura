@@ -124,7 +124,7 @@ export function BudgetRequestReviewDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wallet className="h-5 w-5 text-orange-600" />
@@ -150,7 +150,7 @@ export function BudgetRequestReviewDialog({
 
           </DialogHeader>
 
-          <div className="space-y-3 py-4">
+          <div className="space-y-3 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
             {/* Basic Info Section */}
             <div className="space-y-2">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Informacje podstawowe</h3>

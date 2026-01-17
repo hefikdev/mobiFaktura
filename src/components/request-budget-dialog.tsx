@@ -111,7 +111,7 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
         <DialogHeader>
           <DialogTitle>Poproś o zasilenie salda</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
           <div className="grid gap-2">
             <Label htmlFor="company">Firma</Label>
             <Select

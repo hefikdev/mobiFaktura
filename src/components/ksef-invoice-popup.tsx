@@ -50,9 +50,10 @@ const KsefInvoicePopup = memo(function KsefInvoicePopup({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogTitle>Weryfikacja faktury w KSeF</DialogTitle>
 
+        <div className="max-h-[calc(90vh-100px)] overflow-y-auto pr-2">
         {isLoading && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
@@ -124,6 +125,7 @@ const KsefInvoicePopup = memo(function KsefInvoicePopup({
             Zamknij
           </Button>
         </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -131,8 +133,4 @@ const KsefInvoicePopup = memo(function KsefInvoicePopup({
 });
 
 export { KsefInvoicePopup };
-
-// Usage tip: import this component dynamically for best performance:
-// import dynamic from 'next/dynamic';
-// const KsefInvoicePopup = dynamic(() => import('@/components/ksef-invoice-popup').then(m => m.KsefInvoicePopup));
 

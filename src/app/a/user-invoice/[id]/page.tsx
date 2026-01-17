@@ -567,14 +567,14 @@ function UserInvoiceContent({ id }: { id: string }) {
 
       {/* Delete Invoice Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Usuń fakturę</DialogTitle>
             <DialogDescription>
               Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
             <div className="space-y-2 p-3 bg-muted/30 rounded-md">
               <p className="text-sm text-muted-foreground">
                 <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}

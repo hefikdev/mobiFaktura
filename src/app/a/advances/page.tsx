@@ -328,12 +328,12 @@ export default function AdvancesPage() {
         </Card>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[500px] max-h-[90vh]">
                 <DialogHeader>
                     <DialogTitle>Utwórz nową zaliczkę</DialogTitle>
                     <DialogDescription>Manualne dodanie zaliczki dla użytkownika.</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label className="text-right">Użytkownik</Label>
                         <div className="col-span-3">

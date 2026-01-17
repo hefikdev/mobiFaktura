@@ -46,11 +46,11 @@ export function PasswordConfirmationDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
           <p className="text-sm">{description}</p>
           <p className="text-sm font-semibold text-destructive">
             {warningMessage}

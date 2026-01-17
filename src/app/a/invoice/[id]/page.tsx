@@ -1142,14 +1142,14 @@ export default function InvoiceReviewPage() {
 
       {/* Reject Confirmation Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Odrzuć fakturę</DialogTitle>
             <DialogDescription>
               Podaj powód odrzucenia. Użytkownik zobaczy tę wiadomość.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
             <div className="space-y-2 p-3 bg-muted/30 rounded-md">
               <p className="text-sm text-muted-foreground">
                 <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}
@@ -1205,14 +1205,14 @@ export default function InvoiceReviewPage() {
 
       {/* Re-Review Request Dialog */}
       <Dialog open={showReReviewDialog} onOpenChange={setShowReReviewDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Poproś o edycję</DialogTitle>
             <DialogDescription>
               Poproś administratora o ponowną weryfikację tej faktury. Opisz powód prośby.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
             <div className="space-y-2 p-3 bg-muted/30 rounded-md">
               <p className="text-sm text-muted-foreground">
                 <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}
@@ -1271,14 +1271,14 @@ export default function InvoiceReviewPage() {
 
       {/* Admin Status Change Dialog */}
       <Dialog open={showAdminStatusDialog} onOpenChange={setShowAdminStatusDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Zmień status faktury</DialogTitle>
             <DialogDescription>
               Jako administrator możesz ręcznie zmienić status faktury. Ta zmiana zostanie zapisana w historii edycji.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
             <div className="space-y-2 p-3 bg-muted/30 rounded-md">
               <p className="text-sm text-muted-foreground">
                 <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}
@@ -1367,7 +1367,7 @@ export default function InvoiceReviewPage() {
 
       {/* Conflict warning dialog */}
       <Dialog open={showConflictWarning} onOpenChange={setShowConflictWarning}>
-        <DialogContent>
+        <DialogContent className="max-w-md max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-600">
               <AlertTriangle className="h-5 w-5" />
@@ -1439,14 +1439,14 @@ export default function InvoiceReviewPage() {
 
       {/* Delete Invoice Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Usuń fakturę</DialogTitle>
             <DialogDescription>
               Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
             <div className="space-y-2 p-3 bg-muted/30 rounded-md">
               <p className="text-sm text-muted-foreground">
                 <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}

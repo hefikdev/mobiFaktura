@@ -559,11 +559,11 @@ export function ExportButton<T extends Record<string, unknown>>({
             {label}
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Eksport danych</DialogTitle>
+            <DialogTitle>Eksport raportów</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[calc(90vh-120px)] overflow-y-auto pr-2">
             {enablePdf && (
               <div className="space-y-2">
                 <Label htmlFor="format">Format</Label>

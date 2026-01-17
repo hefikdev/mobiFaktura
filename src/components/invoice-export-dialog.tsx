@@ -505,11 +505,11 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
           Eksportuj faktury
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Eksport faktur</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[calc(90vh-120px)] overflow-y-auto pr-2">
           <div className="space-y-2">
             <Label htmlFor="format">Format</Label>
             <Select value={exportFormat} onValueChange={(value: string) => setExportFormat(value as "csv" | "pdf")}>
@@ -679,7 +679,3 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
 });
 
 export { InvoiceExportDialog };
-
-// Usage tip: import this component dynamically for best performance:
-// import dynamic from 'next/dynamic';
-// const InvoiceExportDialog = dynamic(() => import('@/components/invoice-export-dialog').then(m => m.InvoiceExportDialog));

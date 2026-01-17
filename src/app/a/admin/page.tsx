@@ -545,11 +545,11 @@ export default function AdminPage() {
                     Dodaj użytkownika
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-lg max-h-[90vh]">
                   <DialogHeader>
                     <DialogTitle>Nowy użytkownik</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
                     <div className="space-y-2">
                       <Label htmlFor="name">Imię i nazwisko</Label>
                       <Input
@@ -706,11 +706,11 @@ export default function AdminPage() {
 
           {/* Reset Password Dialog */}
           <Dialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
-            <DialogContent>
+            <DialogContent className="max-w-lg max-h-[90vh]">
               <DialogHeader>
                 <DialogTitle>Resetuj hasło użytkownika</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
                 <div className="space-y-2">
                   <Label>Użytkownik</Label>
                   <Input value={resetUserName} disabled />
@@ -799,11 +799,11 @@ export default function AdminPage() {
                     Dodaj firmę
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-lg max-h-[90vh]">
                   <DialogHeader>
                     <DialogTitle>Nowa firma</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
                     <div className="space-y-2">
                       <Label htmlFor="companyName">Nazwa firmy</Label>
                       <Input
@@ -1063,11 +1063,11 @@ export default function AdminPage() {
                         Wyślij powiadomienie
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-lg max-h-[90vh]">
                       <DialogHeader>
                         <DialogTitle>Wyślij powiadomienie systemowe</DialogTitle>
                       </DialogHeader>
-                      <div className="space-y-4">
+                      <div className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
                         <div className="space-y-2">
                           <Label htmlFor="notification-role">Odbiorcy</Label>
                           <Select
@@ -1219,11 +1219,11 @@ export default function AdminPage() {
 
         {/* Delete User Confirmation Dialog */}
         <Dialog open={deleteUserOpen} onOpenChange={setDeleteUserOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>Potwierdzenie usunięcia użytkownika</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
               <p className="text-sm">
                 Czy na pewno chcesz usunąć użytkownika <span className="font-semibold">{deleteUserName}</span>?
               </p>
@@ -1284,11 +1284,11 @@ export default function AdminPage() {
 
         {/* Delete Invoice Confirmation Dialog */}
         <Dialog open={deleteInvoiceOpen} onOpenChange={setDeleteInvoiceOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>Potwierdzenie usunięcia faktury</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
               <p className="text-sm">
                 Czy na pewno chcesz usunąć fakturę <span className="font-semibold">{deleteInvoiceNumber}</span>?
               </p>
@@ -1349,11 +1349,11 @@ export default function AdminPage() {
 
         {/* Edit Company Dialog */}
         <Dialog open={editCompanyOpen} onOpenChange={setEditCompanyOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>Edytuj firmę</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
               <div className="space-y-2">
                 <Label htmlFor="editCompanyName">Nazwa firmy</Label>
                 <Input
@@ -1490,11 +1490,11 @@ export default function AdminPage() {
 
         {/* Delete All Logs Dialog */}
         <Dialog open={deleteAllLogsOpen} onOpenChange={setDeleteAllLogsOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>Usuń wszystkie logi logowania</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
               <p className="text-sm">
                 Ta operacja usunie <strong>WSZYSTKIE</strong> logi logowania z bazy danych.
               </p>

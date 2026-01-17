@@ -898,7 +898,7 @@ export default function SaldoManagementPage() {
 
       {/* Adjust Saldo Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Korekta Saldo</DialogTitle>
             <DialogDescription>
@@ -910,7 +910,7 @@ export default function SaldoManagementPage() {
               Aktualne saldo {user?.name ?? 'użytkownik'}: <span className={selectedUserSaldo > 0 ? "text-green-600" : selectedUserSaldo < 0 ? "text-red-600" : "text-gray-600"}>{selectedUserSaldo.toFixed(2)} PLN</span>
             </div>
           )}
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 max-h-[calc(90vh-250px)] overflow-y-auto pr-2">
             <div className="grid gap-2">
               <Label htmlFor="company">Firma</Label>
               <Select value={selectedCompanyId || ""} onValueChange={setSelectedCompanyId}>
