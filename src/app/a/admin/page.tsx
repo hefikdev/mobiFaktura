@@ -253,7 +253,7 @@ export default function AdminPage() {
     },
   });
 
-  const deleteInvoiceMutation = trpc.admin.deleteInvoice.useMutation({
+  const deleteInvoiceMutation = trpc.invoice.delete.useMutation({
     onSuccess: () => {
       toast({ 
         title: "Faktura usunięta", 
@@ -521,7 +521,6 @@ export default function AdminPage() {
             <TabsList>
               <TabsTrigger value="users">Użytkownicy</TabsTrigger>
               <TabsTrigger value="companies">Firmy</TabsTrigger>
-              <TabsTrigger value="deletion-requests">Prośby o usunięcie</TabsTrigger>
               <TabsTrigger value="logs">Logi logowania</TabsTrigger>
               <TabsTrigger value="other">Inne</TabsTrigger>
             </TabsList>
@@ -917,17 +916,6 @@ export default function AdminPage() {
             )}
           </TabsContent>
 
-          {/* Deletion Requests Tab */}
-          <TabsContent value="deletion-requests" className="space-y-4">
-            <Card>
-              <CardContent>
-                <div className="mt-4 text-center text-muted-foreground">
-                  <p className="text-sm">Funkcja prośb o usunięcie jest dostępna w panelu księgowej i użytkownika</p>
-                  <p className="text-xs mt-2">Prośby będą wyświetlane tutaj gdy użytkownicy/księgowe je utworzą</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Invoices Tab */}
           {/* Login Logs Tab */}
@@ -1308,7 +1296,7 @@ export default function AdminPage() {
                 ⚠️ Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte z bazy danych i serwera plików.
               </p>
               <div className="space-y-2">
-                <Label htmlFor="deleteInvoicePassword">Twoje hasło administratora</Label>
+                <Label htmlFor="deleteInvoicePassword">Twoje hasło</Label>
                 <Input
                   id="deleteInvoicePassword"
                   type="password"
@@ -1333,14 +1321,14 @@ export default function AdminPage() {
                     if (!deleteInvoicePassword) {
                       toast({ 
                         title: "Błąd", 
-                        description: "Hasło administratora jest wymagane", 
+                        description: "Hasło jest wymagane", 
                         variant: "destructive" 
                       });
                       return;
                     }
                     deleteInvoiceMutation.mutate({ 
                       id: deleteInvoiceId,
-                      adminPassword: deleteInvoicePassword 
+                      password: deleteInvoicePassword 
                     });
                   }}
                   disabled={deleteInvoiceMutation.isPending || !deleteInvoicePassword}

@@ -6,7 +6,6 @@ import { adminRouter } from "./routers/admin";
 import { notificationRouter } from "./routers/notification";
 import { saldoRouter } from "./routers/saldo";
 import { budgetRequestRouter } from "./routers/budgetRequest";
-import { invoiceDeletionRequestRouter } from "./routers/invoiceDeletionRequest";
 import { ksefRouter } from "./routers/ksef";
 import { permissionsRouter } from "./routers/permissions";
 import { advancesRouter } from "./routers/advances";
@@ -19,7 +18,6 @@ export const appRouter = createTRPCRouter({
   notification: notificationRouter,
   saldo: saldoRouter,
   budgetRequest: budgetRequestRouter,
-  invoiceDeletionRequest: invoiceDeletionRequestRouter,
   ksef: ksefRouter,
   permissions: permissionsRouter,
   advances: advancesRouter,

@@ -123,8 +123,8 @@ export default function InvoicesPage() {
     };
   }, [refetchInvoices]);
 
-  // Delete invoice mutation (admin only)
-  const deleteInvoiceMutation = trpc.admin.deleteInvoice.useMutation({
+  // Delete invoice mutation (accountants and admins)
+  const deleteInvoiceMutation = trpc.invoice.delete.useMutation({
     onSuccess: () => {
       toast({ 
         title: "Faktura usunięta", 
@@ -497,7 +497,7 @@ export default function InvoicesPage() {
                 ⚠️ Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte z bazy danych i serwera plików.
               </p>
               <div className="space-y-2">
-                <Label htmlFor="deleteInvoicePassword">Twoje hasło administratora</Label>
+                <Label htmlFor="deleteInvoicePassword">Twoje hasło</Label>
                 <Input
                   id="deleteInvoicePassword"
                   type="password"
@@ -522,14 +522,14 @@ export default function InvoicesPage() {
                     if (!deleteInvoicePassword) {
                       toast({ 
                         title: "Błąd", 
-                        description: "Hasło administratora jest wymagane", 
+                        description: "Hasło jest wymagane", 
                         variant: "destructive" 
                       });
                       return;
                     }
                     deleteInvoiceMutation.mutate({ 
                       id: deleteInvoiceId,
-                      adminPassword: deleteInvoicePassword 
+                      password: deleteInvoicePassword 
                     });
                   }}
                   disabled={deleteInvoiceMutation.isPending || !deleteInvoicePassword}

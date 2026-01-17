@@ -1292,4 +1292,112 @@ export const invoiceRouter = createTRPCRouter({
       totalConflicts: duplicates.length,
     };
   }),
+
+  // Delete invoice - users can delete their own, accountants/admins can delete any
+  delete: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        password: z.string().min(1, "Hasło jest wymagane"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify user password
+      const [currentUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!currentUser || !currentUser.passwordHash) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nie znaleziono użytkownika",
+        });
+      }
+
+      // Import password verification
+      const { verifyPassword } = await import("@/server/auth/password");
+      const isValidPassword = await verifyPassword(
+        currentUser.passwordHash,
+        input.password
+      );
+
+      if (!isValidPassword) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Nieprawidłowe hasło",
+        });
+      }
+
+      // Get invoice details
+      const [invoice] = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, input.id))
+        .limit(1);
+
+      if (!invoice) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Faktura nie została znaleziona",
+        });
+      }
+
+      // Check permissions: users can only delete their own invoices
+      if (ctx.user.role === "user" && invoice.userId !== ctx.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Możesz usuwać tylko swoje faktury",
+        });
+      }
+
+      // Users cannot delete transferred or settled invoices
+      if (ctx.user.role === "user" && (invoice.status === "transferred" || invoice.status === "settled")) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Nie możesz usunąć faktury która jest już przelana lub rozliczona",
+        });
+      }
+
+      // Accountants and admins can delete any invoice - no additional check needed
+
+      try {
+        // 1. Delete from MinIO
+        await deleteFile(invoice.imageKey);
+
+        // 2. Delete edit history (cascade should handle this, but being explicit)
+        await db.delete(invoiceEditHistory).where(eq(invoiceEditHistory.invoiceId, input.id));
+
+        // 3. Delete from database (cascade will handle related records)
+        await db.delete(invoices).where(eq(invoices.id, input.id));
+
+        // 4. Verify deletion
+        const [stillExists] = await db
+          .select()
+          .from(invoices)
+          .where(eq(invoices.id, input.id))
+          .limit(1);
+
+        if (stillExists) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Nie udało się usunąć faktury z bazy danych",
+          });
+        }
+
+        return {
+          success: true,
+          message: "Faktura została pomyślnie usunięta",
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Wystąpił błąd podczas usuwania faktury",
+        });
+      }
+    }),
 });

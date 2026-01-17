@@ -31,7 +31,7 @@ import {
   DialogHeader,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { 
+import {
   Loader2, 
   Check, 
   X, 
@@ -47,7 +47,8 @@ import {
   UserIcon,
   UserCircleIcon,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -81,6 +82,8 @@ export default function InvoiceReviewPage() {
   const [isEditingKwota, setIsEditingKwota] = useState(false);
   const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
   const [budgetRequestDialogOpen, setBudgetRequestDialogOpen] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
   const invoiceNumberInputRef = useRef<HTMLDivElement>(null);
   const kwotaInputRef = useRef<HTMLDivElement>(null);
   
@@ -183,7 +186,12 @@ export default function InvoiceReviewPage() {
     }
   }, [invoice]);
 
-  // Handle click outside to exit edit mode
+  // Calculate canEdit
+  const isReviewing = invoice?.status === "in_review";
+  const isCompleted = invoice?.status === "accepted" || invoice?.status === "rejected";
+  const canEdit = isReviewing && !isCompleted;
+
+  // Handle click outside to exit edit mode (only for invoice number and kwota)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (isEditingInvoiceNumber && 
@@ -207,6 +215,28 @@ export default function InvoiceReviewPage() {
       };
     }
   }, [isEditingInvoiceNumber, isEditingKwota, invoiceNumber, description, kwota]);
+
+  // Auto-save description when it changes (with debounce)
+  useEffect(() => {
+    if (!invoice) return;
+    
+    // Don't auto-save if description matches current invoice description
+    if (description === invoice.description) return;
+    
+    // Only auto-save if editing is allowed
+    if (!canEdit) return;
+    
+    const timer = setTimeout(() => {
+      if (description.trim() && description !== invoice.description) {
+        updateMutation.mutate({
+          id: invoiceId,
+          description: description || undefined,
+        });
+      }
+    }, 1000); // 1 second debounce
+
+    return () => clearTimeout(timer);
+  }, [description, invoice, invoiceId, canEdit]);
 
   const updateMutation = trpc.invoice.updateInvoiceData.useMutation({
     onSuccess: async (data) => {
@@ -268,6 +298,24 @@ export default function InvoiceReviewPage() {
       });
       setShowAdminStatusDialog(false);
       setAdminStatusReason("");
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteInvoiceMutation = trpc.invoice.delete.useMutation({
+    onSuccess: () => {
+      toast({
+        title: "Faktura usunięta",
+        description: "Faktura została trwale usunięta",
+      });
+      router.push(user?.role === "accountant" ? "/a/accountant" : "/a/dashboard");
+      router.refresh();
     },
     onError: (error) => {
       toast({
@@ -343,6 +391,16 @@ export default function InvoiceReviewPage() {
   const confirmReject = async () => {
     if (!invoice) return;
     
+    // Validate dekretacja is filled
+    if (!description.trim()) {
+      toast({
+        title: "Błąd",
+        description: "Dekretacja jest wymagana przed odrzuceniem faktury",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!rejectionReason.trim()) {
       toast({
         title: "Błąd",
@@ -364,6 +422,14 @@ export default function InvoiceReviewPage() {
       setRejectionReason("");
       router.refresh();
       return;
+    }
+    
+    // Auto-save description before rejecting
+    if (description !== invoice.description) {
+      await updateMutation.mutateAsync({
+        id: invoiceId,
+        description: description || undefined,
+      });
     }
     
     finalizeMutation.mutate({
@@ -506,10 +572,6 @@ export default function InvoiceReviewPage() {
       </div>
     );
   }
-
-  const isReviewing = invoice.status === "in_review";
-  const isCompleted = invoice.status === "accepted" || invoice.status === "rejected";
-  const canEdit = isReviewing && !isCompleted;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -849,13 +911,13 @@ export default function InvoiceReviewPage() {
                   {/* Description */}
                   <div className="space-y-2">
                     <Label htmlFor="description">Dekretacja *</Label>
-                    <Input
+                    <Textarea
                       id="description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       disabled={!canEdit}
-                      placeholder=""
-                      className="h-20"
+                      placeholder={canEdit ? "Wprowadź dekretację..." : ""}
+                      className="min-h-[80px]"
                       required
                     />
                   </div>
@@ -1011,6 +1073,15 @@ export default function InvoiceReviewPage() {
                   )}
                 </Button>
               )}
+              <Button
+                onClick={() => setShowDeleteDialog(true)}
+                variant="outline"
+                size="lg"
+                className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+              >
+                <Trash2 className="h-8 w-8" />
+                <span className="font-bold text-sm">Usuń fakturę</span>
+              </Button>
               <Button
                 onClick={() => {
                   router.push("/a/invoices");
@@ -1365,6 +1436,98 @@ export default function InvoiceReviewPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Invoice Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Usuń fakturę</DialogTitle>
+            <DialogDescription>
+              Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+              <p className="text-sm text-muted-foreground">
+                <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Firma:</strong> {invoice.company?.name}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deletePassword">Twoje hasło *</Label>
+              <Input
+                id="deletePassword"
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Wprowadź hasło aby potwierdzić"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setDeletePassword("");
+              }}
+            >
+              Anuluj
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                // Validate dekretacja is filled
+                if (!description.trim()) {
+                  toast({
+                    title: "Błąd",
+                    description: "Dekretacja jest wymagana przed usunięciem faktury",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                if (!deletePassword.trim()) {
+                  toast({
+                    title: "Błąd",
+                    description: "Hasło jest wymagane",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                // Auto-save description before deleting
+                if (description !== invoice.description) {
+                  updateMutation.mutate({
+                    id: invoiceId,
+                    description: description || undefined,
+                  });
+                }
+                
+                deleteInvoiceMutation.mutate({
+                  id: invoiceId,
+                  password: deletePassword,
+                });
+                setShowDeleteDialog(false);
+                setDeletePassword("");
+              }}
+              disabled={deleteInvoiceMutation.isPending || !deletePassword.trim()}
+            >
+              {deleteInvoiceMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Usuwanie...
+                </>
+              ) : (
+                "Usuń definitywnie"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="md:hidden">
         <Footer />
       </div>

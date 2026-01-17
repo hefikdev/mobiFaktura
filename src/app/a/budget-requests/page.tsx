@@ -449,10 +449,6 @@ export default function BudgetRequestsPage() {
                               </div>
                             ) : request.status === "approved" ? (
                               <div className="flex gap-2 justify-end items-center">
-                                <span className="text-sm text-yellow-600 dark:text-yellow-500 font-medium flex items-center">
-                                  <Calendar className="h-4 w-4 mr-1" />
-                                  Oczekuje na zaliczkę
-                                </span>
                                 {request.advanceId && (
                                   <Button
                                     size="sm"

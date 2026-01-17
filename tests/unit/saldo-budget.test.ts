@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { db } from '@/server/db';
-import { users, budgetRequests, invoiceDeletionRequests, invoices } from '@/server/db/schema';
+import { users, budgetRequests, invoices } from '@/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 describe('Budget Request System', () => {
@@ -132,102 +132,6 @@ describe('Budget Request System', () => {
   });
 });
 
-describe('Invoice Deletion Request System', () => {
-  describe('Deletion Request Creation', () => {
-    it('should allow users to request deletion of own invoices', () => {
-      const user = { id: 'user-1', role: 'user' };
-      const invoice = { id: 'inv-1', userId: 'user-1' };
-      
-      const canRequest = user.id === invoice.userId;
-      expect(canRequest).toBe(true);
-    });
-
-    it('should prevent users from requesting deletion of others invoices', () => {
-      const user = { id: 'user-1', role: 'user' };
-      const invoice = { id: 'inv-1', userId: 'user-2' };
-      
-      const canRequest = user.role !== 'user' || user.id === invoice.userId;
-      expect(canRequest).toBe(false);
-    });
-
-    it('should allow accountants to request deletion of any invoice', () => {
-      const accountant = { id: 'acc-1', role: 'accountant' };
-      const invoice = { id: 'inv-1', userId: 'user-2' };
-      
-      const canRequest = accountant.role === 'accountant' || accountant.role === 'admin';
-      expect(canRequest).toBe(true);
-    });
-
-    it('should prevent duplicate deletion requests', () => {
-      const existingRequests = [
-        { invoiceId: 'inv-1', status: 'pending' },
-        { invoiceId: 'inv-2', status: 'approved' },
-      ];
-      
-      const newRequestInvoiceId = 'inv-1';
-      const hasPendingRequest = existingRequests.some(
-        r => r.invoiceId === newRequestInvoiceId && r.status === 'pending'
-      );
-      
-      expect(hasPendingRequest).toBe(true); // Should throw CONFLICT
-    });
-
-    it('should require minimum 10 character reason', () => {
-      const validReason = 'This is a valid deletion reason';
-      const invalidReason = 'Too short';
-      
-      expect(validReason.length).toBeGreaterThanOrEqual(10);
-      expect(invalidReason.length).toBeLessThan(10);
-    });
-  });
-
-  describe('Deletion Request Review - Admin Only', () => {
-    it('should require admin password for approval', () => {
-      const mockAdmin = { id: 'admin-1', role: 'admin', passwordHash: '$2a$10$...' };
-      const mockPassword = 'admin-password';
-      
-      expect(mockAdmin.role).toBe('admin');
-      expect(mockAdmin.passwordHash).toBeTruthy();
-      expect(mockPassword).toBeTruthy();
-    });
-
-    it('should prevent concurrent review with atomic WHERE clause', () => {
-      const requestId = 'del-req-1';
-      const currentStatus = 'pending';
-      
-      // Atomic update with status check
-      // UPDATE ... WHERE id = ? AND status = 'pending'
-      // Only returns rows if status is still pending
-      
-      const mockUpdateResult = [{ id: requestId }]; // First admin succeeds
-      const mockEmptyResult = []; // Second admin gets empty (conflict)
-      
-      expect(mockUpdateResult.length).toBeGreaterThan(0);
-      expect(mockEmptyResult.length).toBe(0); // Should throw CONFLICT error
-    });
-
-    it('should delete invoice and update request in transaction on approval', () => {
-      const steps = [
-        'delete_file_from_minio',
-        'delete_invoice_from_db',
-        'update_deletion_request_status',
-      ];
-      
-      // All steps must succeed or all rollback
-      expect(steps.length).toBe(3);
-      expect(steps.includes('update_deletion_request_status')).toBe(true);
-    });
-
-    it('should require rejection reason for rejections', () => {
-      const validRejectionReason = 'This request is not valid because...';
-      const invalidRejectionReason = 'No';
-      
-      expect(validRejectionReason.length).toBeGreaterThanOrEqual(10);
-      expect(invalidRejectionReason.length).toBeLessThan(10);
-    });
-  });
-});
-
 describe('Data Validation', () => {
   describe('Budget Request Validation', () => {
     it('should validate positive amounts only', () => {
@@ -283,13 +187,12 @@ describe('Security', () => {
       const sensitiveOperations = [
         'bulk_delete_invoices',
         'bulk_delete_budget_requests',
-        'approve_deletion_request',
-        'reject_deletion_request',
+        'delete_invoice',
       ];
       
       sensitiveOperations.forEach(operation => {
         expect(operation).toBeTruthy();
-        // Each operation should require admin password verification
+        // Each operation should require password verification
       });
     });
   });

@@ -11,12 +11,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X, ExternalLink, Printer, Download } from "lucide-react";
+import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X, ExternalLink, Printer, Download, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState, use } from "react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
 
@@ -26,16 +30,37 @@ export default function UserInvoicePage({ params }: { params: Promise<{ id: stri
 }
 
 function UserInvoiceContent({ id }: { id: string }) {
+  const router = useRouter();
   const { data: invoice, isLoading, refetch, error } = trpc.invoice.getById.useQuery({ id, claimReview: false });
   const { data: user } = trpc.auth.me.useQuery();
   const [imageZoomed, setImageZoomed] = useState(false);
   const [imageScale, setImageScale] = useState(1);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const [budgetRequestDialogOpen, setBudgetRequestDialogOpen] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
   const { toast } = useToast();
 
   // KSeF Popup states
   const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
+
+  const deleteInvoiceMutation = trpc.invoice.delete.useMutation({
+    onSuccess: () => {
+      toast({
+        title: "Faktura usunięta",
+        description: "Faktura została trwale usunięta",
+      });
+      router.push("/a/dashboard");
+      router.refresh();
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handlePrint = () => {
     if (!invoice) return;
@@ -225,6 +250,18 @@ function UserInvoiceContent({ id }: { id: string }) {
             <Download className="h-4 w-4" />
             <span>Pobierz</span>
           </Button>
+          {user?.role === "user" && invoice.userId === user.id && invoice.status !== "transferred" && invoice.status !== "settled" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              title="Usuń fakturę"
+              className="flex items-center gap-1 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Usuń</span>
+            </Button>
+          )}
                           {invoice.ksefNumber && (
                   <div>
                     <div className="flex items-center gap-2">
@@ -527,6 +564,79 @@ function UserInvoiceContent({ id }: { id: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Invoice Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Usuń fakturę</DialogTitle>
+            <DialogDescription>
+              Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+              <p className="text-sm text-muted-foreground">
+                <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Firma:</strong> {invoice.company?.name}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deletePassword">Twoje hasło *</Label>
+              <Input
+                id="deletePassword"
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Wprowadź hasło aby potwierdzić"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setDeletePassword("");
+              }}
+            >
+              Anuluj
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!deletePassword.trim()) {
+                  toast({
+                    title: "Błąd",
+                    description: "Hasło jest wymagane",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                deleteInvoiceMutation.mutate({
+                  id,
+                  password: deletePassword,
+                });
+                setShowDeleteDialog(false);
+                setDeletePassword("");
+              }}
+              disabled={deleteInvoiceMutation.isPending || !deletePassword.trim()}
+            >
+              {deleteInvoiceMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Usuwanie...
+                </>
+              ) : (
+                "Usuń definitywnie"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="md:hidden">
         <Footer />
       </div>
