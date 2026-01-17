@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,29 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { pl } from "date-fns/locale";
+
+// Utility function moved outside component to prevent recreation
+const getNotificationIcon = (type: string) => {
+  switch (type) {
+    case "invoice_accepted":
+      return "✅";
+    case "invoice_rejected":
+      return "❌";
+    case "invoice_submitted":
+    case "invoice_assigned":
+      return "📄";
+    case "invoice_re_review":
+      return "🔄";
+    case "system_message":
+      return "ℹ️";
+    case "company_updated":
+      return "🏢";
+    case "password_changed":
+      return "🔒";
+    default:
+      return "🔔";
+  }
+};
 
 export function NotificationBell() {
   const router = useRouter();
@@ -139,7 +162,7 @@ export function NotificationBell() {
     },
   });
 
-  const handleNotificationClick = (notification: typeof notifications[0]) => {
+  const handleNotificationClick = useCallback((notification: typeof notifications[0]) => {
     if (!notification.read) {
       markAsReadMutation.mutate({ id: notification.id });
     }
@@ -148,36 +171,26 @@ export function NotificationBell() {
       setOpen(false);
       router.push(`/a/invoice/${notification.invoiceId}`);
     }
-  };
+  }, [markAsReadMutation, router]);
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "invoice_accepted":
-        return "✅";
-      case "invoice_rejected":
-        return "❌";
-      case "invoice_submitted":
-      case "invoice_assigned":
-        return "📄";
-      case "invoice_re_review":
-        return "🔄";
-      case "system_message":
-        return "ℹ️";
-      case "company_updated":
-        return "🏢";
-      case "password_changed":
-        return "🔒";
-      default:
-        return "🔔";
-    }
-  };
-
-  const handleOpenChange = (newOpen: boolean) => {
+  const handleOpenChange = useCallback((newOpen: boolean) => {
     if (newOpen && unreadCount > 0) {
       markAllAsReadMutation.mutate();
     }
     setOpen(newOpen);
-  };
+  }, [unreadCount, markAllAsReadMutation]);
+
+  const handleMarkAllRead = useCallback(() => {
+    markAllAsReadMutation.mutate();
+  }, [markAllAsReadMutation]);
+
+  const handleClearAll = useCallback(() => {
+    clearAllMutation.mutate();
+  }, [clearAllMutation]);
+
+  const handleDeleteNotification = useCallback((id: string) => {
+    deleteMutation.mutate({ id });
+  }, [deleteMutation]);
 
   return (
     <DropdownMenu open={open} onOpenChange={handleOpenChange}>
@@ -199,7 +212,7 @@ export function NotificationBell() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => markAllAsReadMutation.mutate()}
+                onClick={handleMarkAllRead}
                 className="h-7 text-xs"
               >
                 <Check className="h-3 w-3 mr-1" />
@@ -210,7 +223,7 @@ export function NotificationBell() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => clearAllMutation.mutate()}
+                onClick={handleClearAll}
                 className="h-7 text-xs"
               >
                 <Trash2 className="h-3 w-3 mr-1" />
@@ -263,7 +276,7 @@ export function NotificationBell() {
                       className="h-6 w-6 p-0"
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteMutation.mutate({ id: notification.id });
+                        handleDeleteNotification(notification.id);
                       }}
                     >
                       <Trash2 className="h-3 w-3" />

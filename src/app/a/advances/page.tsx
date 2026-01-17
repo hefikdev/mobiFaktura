@@ -39,7 +39,12 @@ export default function AdvancesPage() {
 
     const { data: advancesData, isLoading, refetch } = trpc.advances.getAll.useInfiniteQuery(
         { status: statusFilter as any, search },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor }
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      refetchInterval: 10000, // Auto-refresh every 10 seconds
+      refetchOnWindowFocus: true,
+      staleTime: 2000,
+    }
   );
 
   const advances = advancesData?.pages.flatMap((page) => page.items) || [];
@@ -65,33 +70,6 @@ export default function AdvancesPage() {
             setIsDetailsOpen(true);
         }
     }, [searchParams]);
-
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === "visible") {
-                refetch();
-            }
-        };
-
-        const handleFocus = () => {
-            refetch();
-        };
-
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-        window.addEventListener("focus", handleFocus);
-
-        return () => {
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
-            window.removeEventListener("focus", handleFocus);
-        };
-    }, [refetch]);
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            refetch();
-        }, 10000);
-        return () => clearInterval(interval);
-    }, [refetch]);
 
   const handleCreate = () => {
             const description = createForm.description.trim();

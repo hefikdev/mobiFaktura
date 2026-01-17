@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { shouldRetryMutation, getRetryDelay } from "@/lib/trpc/mutation-config";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,8 @@ export function AdvanceDetailsDialog({
   );
 
   const transferMutation = trpc.advances.transfer.useMutation({
+    retry: shouldRetryMutation,
+    retryDelay: getRetryDelay,
     onSuccess: (data) => {
       toast({
         title: "Sukces",
@@ -50,7 +53,11 @@ export function AdvanceDetailsDialog({
       });
       onOpenChange(false);
       setTransferNumber("");
+      // Invalidate all related queries
       utils.advances.getAll.invalidate();
+      utils.advances.getById.invalidate();
+      utils.saldo.getMySaldo.invalidate();
+      utils.saldo.getAllUsersSaldo.invalidate();
       onSuccess();
     },
     onError: (error) => {
@@ -63,14 +70,19 @@ export function AdvanceDetailsDialog({
   });
 
   const settleMutation = trpc.advances.settle.useMutation({
+    retry: shouldRetryMutation,
+    retryDelay: getRetryDelay,
     onSuccess: (data) => {
       toast({
         title: "Sukces",
         description: data.message,
       });
       onOpenChange(false);
+      // Invalidate all related queries
       utils.advances.getAll.invalidate();
+      utils.advances.getById.invalidate();
       utils.invoice.getAllInvoices.invalidate();
+      utils.invoice.myInvoices.invalidate();
       onSuccess();
     },
     onError: (error) => {

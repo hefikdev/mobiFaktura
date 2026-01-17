@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
@@ -33,16 +33,24 @@ interface UserHeaderProps {
 export function UserHeader({ showAddButton = true }: UserHeaderProps) {
   const router = useRouter();
   const { data: user, dataUpdatedAt } = trpc.auth.me.useQuery();
-  const { data: saldoData } = trpc.saldo.getMySaldo.useQuery();
+  const { data: saldoData } = trpc.saldo.getMySaldo.useQuery(undefined, {
+    refetchInterval: 5000, // Match notification refresh rate
+  });
   const [lastSync, setLastSync] = useState<string>("");
   const { theme, setTheme } = useTheme();
+  
+  const localeOptions = useMemo(() => ({ 
+    hour: "2-digit" as const, 
+    minute: "2-digit" as const, 
+    second: "2-digit" as const 
+  }), []);
   
   useEffect(() => {
     if (dataUpdatedAt) {
       const date = new Date(dataUpdatedAt);
-      setLastSync(date.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      setLastSync(date.toLocaleTimeString("pl-PL", localeOptions));
     }
-  }, [dataUpdatedAt]);
+  }, [dataUpdatedAt, localeOptions]);
   
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
@@ -51,14 +59,38 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
     },
   });
 
-  const initials = user?.name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = useMemo(() => 
+    user?.name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "U",
+    [user?.name]
+  );
 
   const saldo = saldoData?.saldo || 0;
+  
+  const badgeVariant = useMemo(() => 
+    saldo > 0 ? "default" : saldo < 0 ? "destructive" : "secondary",
+    [saldo]
+  );
+  
+  const handleLogout = useCallback(() => {
+    logoutMutation.mutate();
+  }, [logoutMutation]);
+  
+  const handleSetLightTheme = useCallback(() => {
+    setTheme("light");
+  }, [setTheme]);
+  
+  const handleSetDarkTheme = useCallback(() => {
+    setTheme("dark");
+  }, [setTheme]);
+  
+  const handleSetSystemTheme = useCallback(() => {
+    setTheme("system");
+  }, [setTheme]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -75,7 +107,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
           {/* Saldo Badge */}
           <Link href="/a/saldo-history">
             <Badge
-              variant={saldo > 0 ? "default" : saldo < 0 ? "destructive" : "secondary"}
+              variant={badgeVariant}
               className="cursor-pointer"
             >
               <Wallet className="h-3 w-3 mr-1" />
@@ -94,7 +126,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
               <div className="flex flex-col gap-4 mt-6">
                 <div className="flex items-center gap-3 pb-4 border-b">
                   <Avatar className="h-10 w-10">
-                    <AvatarFallback>{initials || "U"}</AvatarFallback>
+                    <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="font-medium">{user?.name}</p>
@@ -114,7 +146,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
                   <Button
                     variant={theme === "light" ? "secondary" : "ghost"}
                     className="w-full justify-start"
-                    onClick={() => setTheme("light")}
+                    onClick={handleSetLightTheme}
                   >
                     <Sun className="mr-2 h-4 w-4" />
                     Jasny
@@ -122,7 +154,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
                   <Button
                     variant={theme === "dark" ? "secondary" : "ghost"}
                     className="w-full justify-start"
-                    onClick={() => setTheme("dark")}
+                    onClick={handleSetDarkTheme}
                   >
                     <Moon className="mr-2 h-4 w-4" />
                     Ciemny
@@ -130,7 +162,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
                   <Button
                     variant={theme === "system" ? "secondary" : "ghost"}
                     className="w-full justify-start"
-                    onClick={() => setTheme("system")}
+                    onClick={handleSetSystemTheme}
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     Systemowy
@@ -140,7 +172,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
                 <Button
                   variant="outline"
                   className="justify-start mt-auto"
-                  onClick={() => logoutMutation.mutate()}
+                  onClick={handleLogout}
                   disabled={logoutMutation.isPending}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
@@ -162,7 +194,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
           {/* Saldo Badge */}
           <Link href="/a/saldo-history">
             <Badge
-              variant={saldo > 0 ? "default" : saldo < 0 ? "destructive" : "secondary"}
+              variant={badgeVariant}
               className="cursor-pointer hover:opacity-80 transition-opacity"
             >
               <Wallet className="h-3 w-3 mr-1" />
@@ -185,7 +217,7 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback>{initials || "U"}</AvatarFallback>
+                  <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
@@ -205,21 +237,21 @@ export function UserHeader({ showAddButton = true }: UserHeaderProps) {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs">Motyw</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => setTheme("light")}>
+              <DropdownMenuItem onClick={handleSetLightTheme}>
                 <Sun className="mr-2 h-4 w-4" />
                 Jasny
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("dark")}>
+              <DropdownMenuItem onClick={handleSetDarkTheme}>
                 <Moon className="mr-2 h-4 w-4" />
                 Ciemny
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("system")}>
+              <DropdownMenuItem onClick={handleSetSystemTheme}>
                 <Settings className="mr-2 h-4 w-4" />
                 Systemowy
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => logoutMutation.mutate()}
+                onClick={handleLogout}
                 disabled={logoutMutation.isPending}
               >
                 <LogOut className="mr-2 h-4 w-4" />

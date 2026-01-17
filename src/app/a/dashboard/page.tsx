@@ -39,9 +39,9 @@ export default function DashboardPage() {
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
   const { data: invoices, isLoading } = trpc.invoice.myInvoices.useQuery(undefined, {
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
     refetchOnWindowFocus: true,
-    staleTime: 5000, // Consider data fresh for 5 seconds
+    staleTime: 2000,
   });
 
   // Filter invoices based on search and filters

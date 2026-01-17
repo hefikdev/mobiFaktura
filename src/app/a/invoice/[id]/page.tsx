@@ -63,6 +63,7 @@ export default function InvoiceReviewPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
+  const utils = trpc.useUtils();
   const invoiceId = params.id as string;
   const { data: user } = trpc.auth.me.useQuery();
 
@@ -253,6 +254,12 @@ export default function InvoiceReviewPage() {
 
   const finalizeMutation = trpc.invoice.finalizeReview.useMutation({
     onSuccess: async () => {
+      // Invalidate all relevant queries
+      utils.invoice.getAllInvoices.invalidate();
+      utils.invoice.pendingInvoices.invalidate();
+      utils.invoice.reviewedInvoices.invalidate();
+      utils.invoice.myInvoices.invalidate();
+      utils.advances.getAll.invalidate();
       await refetch(); // Force immediate refetch
       toast({
         title: "Przegląd zakończony",
@@ -272,6 +279,9 @@ export default function InvoiceReviewPage() {
 
   const reReviewMutation = trpc.invoice.requestReReview.useMutation({
     onSuccess: async () => {
+      utils.invoice.getAllInvoices.invalidate();
+      utils.invoice.pendingInvoices.invalidate();
+      utils.invoice.reviewedInvoices.invalidate();
       await refetch();
       toast({
         title: "Wysłano prośbę",
@@ -291,6 +301,10 @@ export default function InvoiceReviewPage() {
 
   const adminChangeStatusMutation = trpc.admin.changeInvoiceStatus.useMutation({
     onSuccess: async () => {
+      utils.invoice.getAllInvoices.invalidate();
+      utils.invoice.pendingInvoices.invalidate();
+      utils.invoice.reviewedInvoices.invalidate();
+      utils.invoice.myInvoices.invalidate();
       await refetch();
       toast({
         title: "Status zmieniony",
@@ -310,6 +324,10 @@ export default function InvoiceReviewPage() {
 
   const deleteInvoiceMutation = trpc.invoice.delete.useMutation({
     onSuccess: () => {
+      utils.invoice.getAllInvoices.invalidate();
+      utils.invoice.pendingInvoices.invalidate();
+      utils.invoice.reviewedInvoices.invalidate();
+      utils.invoice.myInvoices.invalidate();
       toast({
         title: "Faktura usunięta",
         description: "Faktura została trwale usunięta",

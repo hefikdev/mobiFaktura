@@ -1,4 +1,6 @@
-import { useState } from "react";
+"use client";
+
+import { useState, useCallback, useMemo, memo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +23,7 @@ interface PasswordConfirmationDialogProps {
   confirmButtonText?: string;
 }
 
-export function PasswordConfirmationDialog({
+export const PasswordConfirmationDialog = memo(function PasswordConfirmationDialog({
   open,
   onOpenChange,
   title,
@@ -33,16 +35,28 @@ export function PasswordConfirmationDialog({
 }: PasswordConfirmationDialogProps) {
   const [password, setPassword] = useState("");
 
-  const handleConfirm = () => {
+  const handleConfirm = useCallback(() => {
     if (password) {
       onConfirm(password);
     }
-  };
+  }, [password, onConfirm]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setPassword("");
     onOpenChange(false);
-  };
+  }, [onOpenChange]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && password && !isPending) {
+      handleConfirm();
+    }
+  }, [password, isPending, handleConfirm]);
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  }, []);
+
+  const isSubmitDisabled = useMemo(() => isPending || !password, [isPending, password]);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -62,12 +76,8 @@ export function PasswordConfirmationDialog({
               type="password"
               placeholder="Wprowadź hasło aby potwierdzić"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && password && !isPending) {
-                  handleConfirm();
-                }
-              }}
+              onChange={handlePasswordChange}
+              onKeyDown={handleKeyDown}
             />
           </div>
           <div className="flex gap-2 justify-end">
@@ -77,7 +87,7 @@ export function PasswordConfirmationDialog({
             <Button
               variant="destructive"
               onClick={handleConfirm}
-              disabled={isPending || !password}
+              disabled={isSubmitDisabled}
             >
               {isPending ? (
                 <>
@@ -93,4 +103,4 @@ export function PasswordConfirmationDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});

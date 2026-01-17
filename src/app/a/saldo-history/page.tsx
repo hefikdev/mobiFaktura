@@ -121,6 +121,8 @@ export default function SaldoHistoryPage() {
         return "Odliczenie faktury";
       case "invoice_refund":
         return "Zwrot za fakturę";
+      case "advance_credit":
+        return "Zaliczka";
       default:
         return type;
     }
@@ -134,6 +136,8 @@ export default function SaldoHistoryPage() {
         return <Badge variant="destructive">Odliczenie</Badge>;
       case "invoice_refund":
         return <Badge variant="default" className="bg-green-500">Zwrot</Badge>;
+      case "advance_credit":
+        return <Badge variant="default">Zaliczka</Badge>;
       default:
         return <Badge>{type}</Badge>;
     }

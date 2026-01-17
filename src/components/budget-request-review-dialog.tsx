@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { shouldRetryMutation, getRetryDelay } from "@/lib/trpc/mutation-config";
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,8 @@ export function BudgetRequestReviewDialog({
   }, [initialAction]);
 
   const reviewMutation = trpc.budgetRequest.review.useMutation({
+    retry: shouldRetryMutation,
+    retryDelay: getRetryDelay,
     onSuccess: (data) => {
       toast({
         title: "Sukces",
@@ -79,7 +82,11 @@ export function BudgetRequestReviewDialog({
       });
       onOpenChange(false);
       setRejectionReason("");
+      // Invalidate all related queries
       utils.budgetRequest.getAll.invalidate();
+      utils.budgetRequest.myRequests.invalidate();
+      utils.advances.getAll.invalidate();
+      utils.saldo.getMySaldo.invalidate();
       onSuccess();
     },
     onError: (error) => {

@@ -83,6 +83,9 @@ export default function BudgetRequestsPage() {
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
       enabled: !!user && (user.role === "accountant" || user.role === "admin"),
+      refetchInterval: 10000, // Auto-refresh every 10 seconds
+      refetchOnWindowFocus: true,
+      staleTime: 2000,
     }
   );
 

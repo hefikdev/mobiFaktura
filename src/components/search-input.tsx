@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 
@@ -11,13 +12,22 @@ interface SearchInputProps {
   showIcon?: boolean;
 }
 
-export function SearchInput({
+export const SearchInput = memo(function SearchInput({
   value,
   onChange,
   placeholder = "Szukaj",
   className = "max-w-sm",
   showIcon = false,
 }: SearchInputProps) {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(e.target.value);
+  }, [onChange]);
+  
+  const inputClassName = useMemo(() => 
+    showIcon ? `${className} pl-10` : className,
+    [showIcon, className]
+  );
+  
   return (
     <div className="relative">
       {showIcon && (
@@ -26,9 +36,9 @@ export function SearchInput({
       <Input
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={showIcon ? `${className} pl-10` : className}
+        onChange={handleChange}
+        className={inputClassName}
       />
     </div>
   );
-}
+});

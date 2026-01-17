@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { shouldRetryMutation, getRetryDelay } from "@/lib/trpc/mutation-config";
 import {
   Dialog,
   DialogContent,
@@ -40,13 +41,21 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
   // Fetch user info to determine role
   const { data: currentUser } = trpc.auth.me.useQuery();
 
+  // Memoize query type to prevent recalculation on every render
+  const queryType = useMemo(() => 
+    currentUser?.role === "admin" || currentUser?.role === "accountant" ? "listAll" : "list",
+    [currentUser?.role]
+  );
+
   // Fetch companies - all companies for admins/accountants, user's accessible companies for regular users
-  const companiesQuery = trpc.company[currentUser?.role === "admin" || currentUser?.role === "accountant" ? "listAll" : "list"].useQuery(
+  const companiesQuery = trpc.company[queryType].useQuery(
     undefined,
     { enabled: !!currentUser }
   );
 
   const createRequestMutation = trpc.budgetRequest.create.useMutation({
+    retry: shouldRetryMutation,
+    retryDelay: getRetryDelay,
     onSuccess: (data) => {
       toast({
         title: "Sukces",
@@ -56,8 +65,9 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
       setAmount("");
       setJustification("");
       setSelectedCompanyId("");
-      // Refresh requests list
+      // Invalidate all related queries
       utils.budgetRequest.myRequests.invalidate();
+      utils.budgetRequest.getAll.invalidate();
     },
     onError: (error) => {
       toast({
@@ -68,7 +78,7 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
     },
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     const numAmount = parseFloat(amount);
     
     if (!amount || isNaN(numAmount) || numAmount <= 0) {
@@ -103,7 +113,24 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
       justification: justification.trim(),
       companyId: selectedCompanyId,
     });
-  };
+  }, [amount, justification, selectedCompanyId, toast, createRequestMutation]);
+  
+  const handleAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setAmount(e.target.value);
+  }, []);
+  
+  const handleJustificationChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setJustification(e.target.value);
+  }, []);
+  
+  const handleDialogClose = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+  
+  const charCountText = useMemo(() => 
+    `${justification.length}/5 znaków minimum`,
+    [justification.length]
+  );
 
   return (
     <Dialog open={controlledOpen} onOpenChange={setControlledOpen}>
@@ -153,7 +180,7 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
               step="0.01"
               placeholder=""
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={handleAmountChange}
               disabled={createRequestMutation.isPending}
             />
           </div>
@@ -163,19 +190,19 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
               id="justification"
               placeholder=""
               value={justification}
-              onChange={(e) => setJustification(e.target.value)}
+              onChange={handleJustificationChange}
               rows={6}
               disabled={createRequestMutation.isPending}
             />
             <p className="text-sm text-muted-foreground">
-              {justification.length}/5 znaków minimum
+              {charCountText}
             </p>
           </div>
         </div>
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => setIsOpen(false)}
+            onClick={handleDialogClose}
             disabled={createRequestMutation.isPending}
           >
             Anuluj
