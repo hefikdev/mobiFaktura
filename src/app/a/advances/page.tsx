@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
-import { Loader2, Plus, DollarSign, Wallet, Calendar, User, Building2, CheckCircle, Info } from "lucide-react";
+import { Loader2, Plus, ArrowRightLeft, Wallet, Calendar, User, Building2, CheckCircle, Info } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { AdvanceDetailsDialog } from "@/components/advance-details-dialog";
@@ -93,7 +93,7 @@ export default function AdvancesPage() {
     const filteredUsers = useMemo(() => {
         const query = userSearch.trim().toLowerCase();
         if (!query) return usersData?.items || [];
-        return (usersData?.items || []).filter((user: any) =>
+        return (usersData?.items || []).filter((user: { name?: string; email?: string }) =>
             user.name?.toLowerCase().includes(query) ||
             user.email?.toLowerCase().includes(query)
         );
@@ -111,7 +111,7 @@ export default function AdvancesPage() {
       settled: "bg-green-100 text-green-800 dark:bg-green-600/20 dark:text-green-400",
   };
 
-  const openDetails = (advance: any) => {
+  const openDetails = (advance: { id: string; userId: string; companyId: string; amount: number; status: string; createdAt: Date; transferDate: Date | null; settledAt: Date | null }) => {
     setSelectedAdvance(advance);
     setIsDetailsOpen(true);
   };
@@ -123,7 +123,7 @@ export default function AdvancesPage() {
       <main className="flex-1 container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-3">
             <div className="flex items-center gap-3">
-                <Wallet className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+                <ArrowRightLeft className="h-6 w-6 md:h-8 md:w-8 text-primary" />
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Zaliczki</h1>
             </div>
                         <div className="flex items-center gap-2">
@@ -174,7 +174,7 @@ export default function AdvancesPage() {
                                             label: "Firma",
                                             options: [
                                                 { value: "all", label: "Wszystkie" },
-                                                ...(companiesData || []).map((company: any) => ({
+                                                ...(companiesData || []).map((company: { id: string; name: string }) => ({
                                                     value: company.id,
                                                     label: company.name,
                                                 })),
@@ -185,9 +185,9 @@ export default function AdvancesPage() {
                                             label: "Użytkownik",
                                             options: [
                                                 { value: "all", label: "Wszyscy" },
-                                                ...((usersData?.items || []).map((user: any) => ({
+                                                ...((usersData?.items || []).map((user: { id: string; name: string; email?: string }) => ({
                                                     value: user.id,
-                                                    label: `${user.name} (${user.email})`,
+                                                    label: user.email ? `${user.name} (${user.email})` : user.name,
                                                 }))),
                                             ],
                                         },
@@ -279,7 +279,7 @@ export default function AdvancesPage() {
                                                     onClick={(event) => { event.stopPropagation(); openDetails(advance); }}>
                                                     {advance.status === "pending" ? (
                                                         <>
-                                                            <DollarSign className="h-3 w-3 mr-1" />
+                                                            <ArrowRightLeft className="h-3 w-3 mr-1" />
                                                             Przelew
                                                         </>
                                                     ) : (
@@ -327,7 +327,7 @@ export default function AdvancesPage() {
                                         placeholder="Szukaj użytkownika..."
                                       />
                                     </div>
-                                    {filteredUsers.map((user: any) => (
+                                    {filteredUsers.map((user: { id: string; name: string; email: string }) => (
                                         <SelectItem key={user.id} value={user.id}>{user.name} ({user.email})</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -342,7 +342,7 @@ export default function AdvancesPage() {
                                     <SelectValue placeholder="Wybierz firmę" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {companiesData?.map((company: any) => (
+                                    {companiesData?.map((company: { id: string; name: string }) => (
                                         <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
                                     ))}
                                 </SelectContent>

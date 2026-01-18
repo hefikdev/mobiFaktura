@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notification-bell";
 import { RequestBudgetDialog } from "@/components/request-budget-dialog";
 import { SaldoBadge } from "@/components/saldo-badge";
-import { LogOut, Settings, Menu, Plus, FileText, User, BookCheck, Moon, Sun, Wallet, DollarSign, ArrowRightLeft } from "lucide-react";
+import { LogOut, Settings, Menu, Plus, FileText, User, BookCheck, Moon, Sun, Wallet, DollarSign, ArrowRightLeft, FilePen } from "lucide-react";
 import { useTheme } from "next-themes";
 
 interface AccountantHeaderProps {
@@ -119,6 +119,13 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
                   <Link href="/a/invoices">
                     <FileText className="mr-2 h-4 w-4" />
                     Wszystkie faktury
+                  </Link>
+                </Button>
+                
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/corrections">
+                    <FilePen className="mr-2 h-4 w-4" />
+                    Korekty
                   </Link>
                 </Button>
                 
@@ -222,6 +229,13 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
             <Link href="/a/invoices">
               <FileText className="mr-2 h-4 w-4" />
               Faktury
+            </Link>
+          </Button>
+
+          <Button asChild variant="ghost">
+            <Link href="/a/corrections">
+              <FilePen className="mr-2 h-4 w-4" />
+              Korekty
             </Link>
           </Button>
 

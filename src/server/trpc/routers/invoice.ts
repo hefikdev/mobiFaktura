@@ -7,7 +7,7 @@ import {
 } from "@/server/trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { invoices, users, companies, invoiceEditHistory, saldoTransactions, budgetRequests, advances } from "@/server/db/schema";
+import { invoices, users, companies, invoiceEditHistory, invoiceActionLogs, saldoTransactions, budgetRequests, advances } from "@/server/db/schema";
 import { eq, desc, and, ne, or, isNull, lt, isNotNull, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { uploadFile, getPresignedUrl, deleteFile } from "@/server/storage/minio";
@@ -21,6 +21,7 @@ export const invoiceRouter = createTRPCRouter({
       z.object({
         imageDataUrl: z.string().min(1, "Zdjęcie jest wymagane"),
         invoiceNumber: z.string().min(1, "Numer faktury jest wymagany"),
+        invoiceType: z.enum(["einvoice", "receipt"]).default("einvoice"),
         ksefNumber: z.string().optional(),
         kwota: z.number().positive("Kwota musi być większa od zera").optional(),
         companyId: z.string().uuid("Firma jest wymagana"),
@@ -29,6 +30,14 @@ export const invoiceRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate: receipt should not have ksefNumber
+      if (input.invoiceType === "receipt" && input.ksefNumber) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Paragon nie może mieć numeru KSeF",
+        });
+      }
+
       // Check if user has permission to create invoices for this company
       const canAccess = await hasCompanyPermission(ctx.user.id, input.companyId);
       if (!canAccess) {
@@ -144,6 +153,7 @@ export const invoiceRouter = createTRPCRouter({
             .values({
               userId: ctx.user.id,
               companyId: input.companyId,
+              invoiceType: input.invoiceType,
               imageKey: objectKey,
               invoiceNumber: input.invoiceNumber,
               ksefNumber: input.ksefNumber || null,
@@ -364,12 +374,15 @@ export const invoiceRouter = createTRPCRouter({
           id: invoices.id,
           userId: invoices.userId,
           companyId: invoices.companyId,
+          invoiceType: invoices.invoiceType,
           invoiceNumber: invoices.invoiceNumber,
           ksefNumber: invoices.ksefNumber,
           kwota: invoices.kwota,
           description: invoices.description,
           justification: invoices.justification,
           imageKey: invoices.imageKey,
+          originalInvoiceId: invoices.originalInvoiceId,
+          correctionAmount: invoices.correctionAmount,
           status: invoices.status,
           reviewedBy: invoices.reviewedBy,
           reviewedAt: invoices.reviewedAt,
@@ -494,12 +507,15 @@ export const invoiceRouter = createTRPCRouter({
           id: invoices.id,
           userId: invoices.userId,
           companyId: invoices.companyId,
+          invoiceType: invoices.invoiceType,
           invoiceNumber: invoices.invoiceNumber,
           ksefNumber: invoices.ksefNumber,
           kwota: invoices.kwota,
           description: invoices.description,
           justification: invoices.justification,
           imageKey: invoices.imageKey,
+          originalInvoiceId: invoices.originalInvoiceId,
+          correctionAmount: invoices.correctionAmount,
           status: invoices.status,
           reviewedBy: invoices.reviewedBy,
           reviewedAt: invoices.reviewedAt,
@@ -642,6 +658,13 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
+      if (invoice.invoiceType === "correction") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Nie można zmieniać statusu faktury korygującej",
+        });
+      }
+
       // Check access - user can only see their own invoices, accountant and admin can see all
       if (ctx.user.role !== "accountant" && ctx.user.role !== "admin" && invoice.userId !== ctx.user.id) {
         throw new TRPCError({
@@ -708,8 +731,13 @@ export const invoiceRouter = createTRPCRouter({
           )
         );
 
-      // Get presigned URL for image
-      const imageUrl = await getPresignedUrl(invoice.imageKey);
+      // Get presigned URL for image (may be missing for corrections)
+      let imageUrl: string | null = null;
+      try {
+        imageUrl = await getPresignedUrl(invoice.imageKey);
+      } catch {
+        imageUrl = null;
+      }
 
       // Get submitter details
       const [submitter] = await db
@@ -1399,5 +1427,304 @@ export const invoiceRouter = createTRPCRouter({
           message: "Wystąpił błąd podczas usuwania faktury",
         });
       }
+    }),
+
+  // Get invoices eligible for correction (accountant/admin only)
+  getCorrectableInvoices: accountantProcedure
+    .input(
+      z.object({
+        searchQuery: z.string().optional(),
+        companyId: z.string().uuid().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      // Build where conditions
+      const conditions = [
+        eq(invoices.status, "accepted"),
+        ne(invoices.invoiceType, "correction"), // Can't correct a correction
+      ];
+
+      if (input.companyId) {
+        conditions.push(eq(invoices.companyId, input.companyId));
+      }
+
+      if (input.searchQuery) {
+        conditions.push(
+          sql`${invoices.invoiceNumber} ILIKE ${`%${input.searchQuery}%`}`
+        );
+      }
+
+      const correctableInvoices = await db
+        .select({
+          id: invoices.id,
+          invoiceNumber: invoices.invoiceNumber,
+          companyId: invoices.companyId,
+          companyName: companies.name,
+          userId: invoices.userId,
+          userName: users.name,
+          kwota: invoices.kwota,
+          createdAt: invoices.createdAt,
+        })
+        .from(invoices)
+        .leftJoin(users, eq(invoices.userId, users.id))
+        .leftJoin(companies, eq(invoices.companyId, companies.id))
+        .where(and(...conditions))
+        .orderBy(desc(invoices.createdAt))
+        .limit(50);
+
+      return correctableInvoices;
+    }),
+
+  // Create correction invoice (accountant/admin only)
+  createCorrection: accountantProcedure
+    .input(
+      z.object({
+        originalInvoiceId: z.string().uuid("Wybierz oryginalną fakturę"),
+        correctionAmount: z.number().positive("Kwota korekty musi być większa od zera"),
+        justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get original invoice
+      const [originalInvoice] = await db
+        .select({
+          id: invoices.id,
+          invoiceNumber: invoices.invoiceNumber,
+          userId: invoices.userId,
+          companyId: invoices.companyId,
+          status: invoices.status,
+          invoiceType: invoices.invoiceType,
+        })
+        .from(invoices)
+        .where(eq(invoices.id, input.originalInvoiceId))
+        .limit(1);
+
+      if (!originalInvoice) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Oryginalna faktura nie została znaleziona",
+        });
+      }
+
+      if (originalInvoice.status !== "accepted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Można korygować tylko zaakceptowane faktury",
+        });
+      }
+
+      if (originalInvoice.invoiceType === "correction") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Nie można korygować faktury korygującej",
+        });
+      }
+
+      // Create correction invoice in transaction
+      let correctionInvoice: typeof invoices.$inferSelect | undefined;
+      try {
+        await db.transaction(async (tx) => {
+          // Generate unique correction invoice number
+          const [existingCount] = await tx
+            .select({ count: sql<number>`count(*)` })
+            .from(invoices)
+            .where(
+              and(
+                eq(invoices.invoiceType, "correction"),
+                eq(invoices.originalInvoiceId, originalInvoice.id)
+              )
+            );
+          const correctionIndex = Number(existingCount?.count || 0) + 1;
+          const correctionNumber = `${originalInvoice.invoiceNumber}-KOREKTA-${correctionIndex}`;
+
+          // Create correction invoice (no image for corrections)
+          const [createdCorrection] = await tx
+            .insert(invoices)
+            .values({
+              userId: originalInvoice.userId,
+              companyId: originalInvoice.companyId,
+              invoiceType: "correction",
+              imageKey: `corrections/placeholder-${Date.now()}.jpg`, // Placeholder since corrections don't have images
+              invoiceNumber: correctionNumber,
+              originalInvoiceId: originalInvoice.id,
+              correctionAmount: input.correctionAmount.toString(),
+              justification: input.justification,
+              status: "accepted", // Corrections are auto-accepted
+              reviewedBy: ctx.user.id,
+              reviewedAt: new Date(),
+            })
+            .returning();
+
+          if (!createdCorrection) {
+            throw new Error("Failed to create correction invoice");
+          }
+
+          correctionInvoice = createdCorrection;
+
+          // Log correction creation action (audit trail)
+          await tx.insert(invoiceActionLogs).values({
+            invoiceId: createdCorrection.id,
+            action: "correction_created",
+            performedBy: ctx.user.id,
+          });
+
+          // Update user's saldo (positive adjustment)
+          const [currentUser] = await tx
+            .select({ saldo: users.saldo })
+            .from(users)
+            .where(eq(users.id, originalInvoice.userId))
+            .limit(1);
+
+          if (!currentUser) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Użytkownik nie został znaleziony",
+            });
+          }
+
+          const balanceBefore = currentUser.saldo ? parseFloat(currentUser.saldo) : 0;
+          const balanceAfter = balanceBefore + input.correctionAmount;
+
+          // Update user saldo
+          await tx
+            .update(users)
+            .set({
+              saldo: balanceAfter.toString(),
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, originalInvoice.userId));
+
+          // Create saldo transaction record
+          await tx.insert(saldoTransactions).values({
+            userId: originalInvoice.userId,
+            amount: input.correctionAmount.toString(),
+            balanceBefore: balanceBefore.toString(),
+            balanceAfter: balanceAfter.toString(),
+            transactionType: "invoice_refund",
+            notes: `Korekta faktury ${originalInvoice.invoiceNumber}`,
+            referenceId: createdCorrection.id,
+            createdBy: ctx.user.id,
+          });
+        });
+
+        return {
+          success: true,
+          correctionInvoice,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Nie udało się utworzyć faktury korygującej",
+        });
+      }
+    }),
+
+  // Get all correction invoices (accountant/admin only)
+  getCorrectionInvoices: accountantProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(50),
+        cursor: z.string().uuid().optional(),
+        companyId: z.string().uuid().optional(),
+        searchQuery: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [eq(invoices.invoiceType, "correction")];
+
+      if (input.companyId) {
+        conditions.push(eq(invoices.companyId, input.companyId));
+      }
+
+      if (input.searchQuery) {
+        conditions.push(
+          sql`${invoices.invoiceNumber} ILIKE ${`%${input.searchQuery}%`}`
+        );
+      }
+
+      if (input.cursor) {
+        conditions.push(lt(invoices.createdAt, 
+          sql`(SELECT created_at FROM invoices WHERE id = ${input.cursor})`
+        ));
+      }
+
+      const reviewer = alias(users, "reviewer");
+      const originalInvoiceAlias = alias(invoices, "original_invoice");
+
+      const corrections = await db
+        .select({
+          id: invoices.id,
+          userId: invoices.userId,
+          userName: users.name,
+          userEmail: users.email,
+          companyId: invoices.companyId,
+          companyName: companies.name,
+          invoiceNumber: invoices.invoiceNumber,
+          imageKey: invoices.imageKey,
+          originalInvoiceId: invoices.originalInvoiceId,
+          originalInvoiceNumber: originalInvoiceAlias.invoiceNumber,
+          correctionAmount: invoices.correctionAmount,
+          justification: invoices.justification,
+          status: invoices.status,
+          reviewedBy: invoices.reviewedBy,
+          reviewedAt: invoices.reviewedAt,
+          reviewerName: reviewer.name,
+          createdAt: invoices.createdAt,
+          updatedAt: invoices.updatedAt,
+        })
+        .from(invoices)
+        .leftJoin(users, eq(invoices.userId, users.id))
+        .leftJoin(companies, eq(invoices.companyId, companies.id))
+        .leftJoin(reviewer, eq(invoices.reviewedBy, reviewer.id))
+        .leftJoin(originalInvoiceAlias, eq(invoices.originalInvoiceId, originalInvoiceAlias.id))
+        .where(and(...conditions))
+        .orderBy(desc(invoices.createdAt))
+        .limit(input.limit + 1);
+
+      let nextCursor: string | undefined = undefined;
+      if (corrections.length > input.limit) {
+        const nextItem = corrections.pop();
+        nextCursor = nextItem?.id;
+      }
+
+      return {
+        items: corrections,
+        nextCursor,
+      };
+    }),
+
+  // Get corrections for a specific original invoice
+  getCorrectionsForInvoice: protectedProcedure
+    .input(z.object({ invoiceId: z.string().uuid() }))
+    .query(async ({ input }) => {
+      const reviewer = alias(users, "reviewer");
+      
+      const corrections = await db
+        .select({
+          id: invoices.id,
+          invoiceNumber: invoices.invoiceNumber,
+          correctionAmount: invoices.correctionAmount,
+          justification: invoices.justification,
+          createdAt: invoices.createdAt,
+          reviewedAt: invoices.reviewedAt,
+          reviewerName: reviewer.name,
+        })
+        .from(invoices)
+        .leftJoin(reviewer, eq(invoices.reviewedBy, reviewer.id))
+        .where(
+          and(
+            eq(invoices.invoiceType, "correction"),
+            eq(invoices.originalInvoiceId, input.invoiceId)
+          )
+        )
+        .orderBy(desc(invoices.createdAt));
+
+      return corrections.map(c => ({
+        ...c,
+        correctionAmount: c.correctionAmount ? parseFloat(c.correctionAmount) : 0,
+      }));
     }),
 });

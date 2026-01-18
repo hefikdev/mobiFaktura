@@ -700,6 +700,13 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
+      if (invoice.invoiceType === "correction") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Nie można zmieniać statusu faktury korygującej",
+        });
+      }
+
       let minioDeleted = false;
       let dbDeleted = false;
 

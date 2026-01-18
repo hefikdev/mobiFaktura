@@ -23,6 +23,11 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
   "rejected",
   "re_review",
 ]);
+export const invoiceTypeEnum = pgEnum("invoice_type", [
+  "einvoice",
+  "receipt",
+  "correction",
+]);
 export const notificationTypeEnum = pgEnum("notification_type", [
   "invoice_accepted",
   "invoice_rejected",
@@ -107,15 +112,23 @@ export const invoices = pgTable("invoices", {
     .notNull()
     .references(() => companies.id, { onDelete: "restrict" }),
   
+  // Invoice type
+  invoiceType: invoiceTypeEnum("invoice_type").notNull().default("einvoice"),
+  
   // File storage
   imageKey: text("image_key").notNull(), // MinIO object key
   
   // User-provided data
   invoiceNumber: varchar("invoice_number", { length: 100 }).notNull(),
-  ksefNumber: varchar("ksef_number", { length: 100 }), // KSEF number (letters and numbers)
+  ksefNumber: varchar("ksef_number", { length: 100 }), // KSEF number (letters and numbers) - only for einvoice
   kwota: numeric("kwota", { precision: 12, scale: 2 }), // Invoice amount
   description: text("description"),
   justification: text("justification"), // Reason for invoice submission
+  
+  // Correction invoice fields
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  originalInvoiceId: uuid("original_invoice_id").references((): any => invoices.id, { onDelete: "restrict" }), // For correction invoices
+  correctionAmount: numeric("correction_amount", { precision: 12, scale: 2 }), // Positive amount for corrections
   
   // Review workflow
   status: invoiceStatusEnum("status").notNull().default("pending"),
@@ -163,6 +176,25 @@ export const invoiceEditHistory = pgTable("invoice_edit_history", {
     .notNull()
     .defaultNow(),
 });
+
+// Invoice Action Logs table (audit trail)
+export const invoiceActionLogs = pgTable("invoice_action_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id")
+    .notNull()
+    .references(() => invoices.id, { onDelete: "cascade" }),
+  action: varchar("action", { length: 100 }).notNull(),
+  performedBy: uuid("performed_by")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (table) => ({
+  invoiceIdIdx: index("invoice_action_logs_invoice_id_idx").on(table.invoiceId),
+  performedByIdx: index("invoice_action_logs_performed_by_idx").on(table.performedBy),
+  createdAtIdx: index("invoice_action_logs_created_at_idx").on(table.createdAt),
+}));
 
 // Login Logs table
 export const loginLogs = pgTable("login_logs", {
@@ -387,6 +419,7 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
     references: [advances.id],
   }),
   editHistory: many(invoiceEditHistory),
+  actionLogs: many(invoiceActionLogs),
 }));
 
 export const invoiceEditHistoryRelations = relations(invoiceEditHistory, ({ one }) => ({
@@ -396,6 +429,17 @@ export const invoiceEditHistoryRelations = relations(invoiceEditHistory, ({ one 
   }),
   editor: one(users, {
     fields: [invoiceEditHistory.editedBy],
+    references: [users.id],
+  }),
+}));
+
+export const invoiceActionLogsRelations = relations(invoiceActionLogs, ({ one }) => ({
+  invoice: one(invoices, {
+    fields: [invoiceActionLogs.invoiceId],
+    references: [invoices.id],
+  }),
+  actor: one(users, {
+    fields: [invoiceActionLogs.performedBy],
     references: [users.id],
   }),
 }));
@@ -465,6 +509,8 @@ export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
 export type InvoiceEditHistory = typeof invoiceEditHistory.$inferSelect;
 export type NewInvoiceEditHistory = typeof invoiceEditHistory.$inferInsert;
+export type InvoiceActionLog = typeof invoiceActionLogs.$inferSelect;
+export type NewInvoiceActionLog = typeof invoiceActionLogs.$inferInsert;
 export type LoginLog = typeof loginLogs.$inferSelect;
 export type NewLoginLog = typeof loginLogs.$inferInsert;
 export type LoginAttempt = typeof loginAttempts.$inferSelect;
@@ -479,6 +525,7 @@ export type UserCompanyPermission = typeof userCompanyPermissions.$inferSelect;
 export type NewUserCompanyPermission = typeof userCompanyPermissions.$inferInsert;
 export type UserRole = "user" | "accountant" | "admin";
 export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
+export type InvoiceType = "einvoice" | "receipt" | "correction";
 export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";
 export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund" | "advance_credit";
 export type BudgetRequestStatus = "pending" | "approved" | "rejected";

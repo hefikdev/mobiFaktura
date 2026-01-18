@@ -285,6 +285,40 @@ export default function BudgetRequestsPage() {
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Prośby o zwiększenie budżetu</h1>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <ExportButton
+              data={filteredRequests}
+              filename={`prosBy-o-budzet-${format(new Date(), "yyyy-MM-dd")}`}
+              columns={[
+                { key: "userName", header: "Użytkownik" },
+                { key: "companyName", header: "Firma", formatter: (val: unknown): string => (val ? String(val) : "-") },
+                { key: "currentBalanceAtRequest", header: "Saldo (PLN)", formatter: (val: unknown) => typeof val === "number" ? val.toFixed(2) : "0.00" },
+                { key: "requestedAmount", header: "Kwota (PLN)", formatter: (val: unknown) => typeof val === "number" ? val.toFixed(2) : "0.00" },
+                { key: "status", header: "Status", formatter: (val: unknown) => {
+                  const statusLabels: Record<string, string> = {
+                    pending: "Oczekujące",
+                    approved: "Zatwierdzone",
+                    rejected: "Odrzucone"
+                  };
+                  return statusLabels[String(val)] || String(val);
+                }},
+                { key: "justification", header: "Uzasadnienie" },
+                { key: "createdAt", header: "Złożono", formatter: (val: unknown) => {
+                  const date = val instanceof Date ? val : new Date(String(val));
+                  return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
+                }},
+                { key: "reviewedAt", header: "Decyzja", formatter: (val: unknown) => {
+                  if (!val) return "-";
+                  const date = val instanceof Date ? val : new Date(String(val));
+                  return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
+                }},
+                { key: "rejectionReason", header: "Powód odrzucenia", formatter: (val: unknown): string => (val ? String(val) : "-") },
+              ]}
+              label="Eksportuj"
+              pdfTitle="Prośby o zwiększenie budżetu - Wszyscy użytkownicy"
+              pdfSubtitle={`Wygenerowano: ${format(new Date(), "dd.MM.yyyy HH:mm", { locale: pl })}`}
+            />
+          </div>
         </div>
 
       <Card>
@@ -322,38 +356,6 @@ export default function BudgetRequestsPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <ExportButton
-                data={filteredRequests}
-                filename={`prosBy-o-budzet-${format(new Date(), "yyyy-MM-dd")}`}
-                columns={[
-                  { key: "userName", header: "Użytkownik" },
-                  { key: "companyName", header: "Firma", formatter: (val: any) => val || "-" },
-                  { key: "currentBalanceAtRequest", header: "Saldo (PLN)", formatter: (val: any) => typeof val === "number" ? val.toFixed(2) : "0.00" },
-                  { key: "requestedAmount", header: "Kwota (PLN)", formatter: (val: any) => typeof val === "number" ? val.toFixed(2) : "0.00" },
-                  { key: "status", header: "Status", formatter: (val: any) => {
-                    const statusLabels: Record<string, string> = {
-                      pending: "Oczekujące",
-                      approved: "Zatwierdzone",
-                      rejected: "Odrzucone"
-                    };
-                    return statusLabels[String(val)] || String(val);
-                  }},
-                  { key: "justification", header: "Uzasadnienie" },
-                  { key: "createdAt", header: "Złożono", formatter: (val: any) => {
-                    const date = val instanceof Date ? val : new Date(String(val));
-                    return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
-                  }},
-                  { key: "reviewedAt", header: "Decyzja", formatter: (val: any) => {
-                    if (!val) return "-";
-                    const date = val instanceof Date ? val : new Date(String(val));
-                    return format(date, "dd.MM.yyyy HH:mm", { locale: pl });
-                  }},
-                  { key: "rejectionReason", header: "Powód odrzucenia", formatter: (val: any) => val || "-" },
-                ]}
-                label="Eksportuj"
-                pdfTitle="Prośby o zwiększenie budżetu - Wszyscy użytkownicy"
-                pdfSubtitle={`Wygenerowano: ${format(new Date(), "dd.MM.yyyy HH:mm", { locale: pl })}`}
-              />
             </div>
           </div>
         </CardHeader>

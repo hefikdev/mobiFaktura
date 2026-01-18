@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notification-bell";
 import { RequestBudgetDialog } from "@/components/request-budget-dialog";
 import { SaldoBadge } from "@/components/saldo-badge";
-import { LogOut, Settings,Shield, ShieldCheck, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun, Wallet, DollarSign, ArrowRightLeft } from "lucide-react";
+import { LogOut, Settings,Shield, ShieldCheck, User, Calculator, LayoutDashboard, BarChart3, Plus, FileIcon, Menu, Moon, Sun, Wallet, DollarSign, ArrowRightLeft, KeyRound, FilePen } from "lucide-react";
 import { useTheme } from "next-themes";
 
 interface AdminHeaderProps {
@@ -127,6 +127,13 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                 </Button>
                 
                 <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/corrections">
+                    <FilePen className="mr-2 h-4 w-4" />
+                    Korekty
+                  </Link>
+                </Button>
+                
+                <Button asChild variant="outline" className="justify-start">
                   <Link href="/a/admin">
                     <ShieldCheck className="mr-2 h-4 w-4" />
                     Admin
@@ -135,7 +142,7 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
                 
                 <Button asChild variant="outline" className="justify-start">
                   <Link href="/a/permissions">
-                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    <KeyRound className="mr-2 h-4 w-4" />
                     Uprawnienia
                   </Link>
                 </Button>
@@ -271,6 +278,17 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
               Faktury
             </Link>
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-xs"
+          >
+            <Link href="/a/corrections">
+              <FilePen className="mr-1 h-3 w-3" />
+              Korekty
+            </Link>
+          </Button>
                     <Button
             variant="ghost"
             size="sm"
@@ -311,7 +329,7 @@ export function AdminHeader({ showAddButton = true }: AdminHeaderProps) {
             className="text-xs"
           >
             <Link href="/a/permissions">
-              <ShieldCheck className="mr-1 h-3 w-3" />
+              <KeyRound className="mr-1 h-3 w-3" />
               Uprawnienia
             </Link>
           </Button>

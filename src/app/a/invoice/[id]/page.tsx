@@ -8,6 +8,7 @@ import { UserHeader } from "@/components/user-header";
 import { AdminHeader } from "@/components/admin-header";
 import { AccountantHeader } from "@/components/accountant-header";
 import { Footer } from "@/components/footer";
+import { ErrorDisplay } from "@/components/error-display";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,11 +49,13 @@ import {
   UserCircleIcon,
   ExternalLink,
   RefreshCw,
-  Trash2
+  Trash2,
+  ImageOff
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
+import { InvoiceTypeBadge } from "@/components/invoice-type-badge";
 import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -68,6 +71,7 @@ export default function InvoiceReviewPage() {
   const { data: user } = trpc.auth.me.useQuery();
 
   const [imageZoomed, setImageZoomed] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const [imageScale, setImageScale] = useState(1);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -93,7 +97,7 @@ export default function InvoiceReviewPage() {
   const [description, setDescription] = useState("");
   const [kwota, setKwota] = useState("");
 
-  const { data: invoice, isLoading, refetch } = trpc.invoice.getById.useQuery(
+  const { data: invoice, isLoading, refetch, error } = trpc.invoice.getById.useQuery(
     { id: invoiceId },
     {
       enabled: !!invoiceId,
@@ -101,6 +105,14 @@ export default function InvoiceReviewPage() {
       refetchOnMount: true,
       staleTime: 0,
       refetchInterval: 2000, // 2 seconds - fast enough for heartbeat monitoring
+    }
+  );
+
+  // Query for corrections of this invoice
+  const { data: corrections } = trpc.invoice.getCorrectionsForInvoice.useQuery(
+    { invoiceId },
+    {
+      enabled: !!invoiceId && !!user && (user.role === "accountant" || user.role === "admin"),
     }
   );
 
@@ -190,6 +202,8 @@ export default function InvoiceReviewPage() {
   // Calculate canEdit
   const isReviewing = invoice?.status === "in_review";
   const isCompleted = invoice?.status === "accepted" || invoice?.status === "rejected";
+  const isCorrection = invoice?.invoiceType === "correction";
+  const canChangeStatus = !isCorrection;
   const canEdit = isReviewing && !isCompleted;
 
   // Handle click outside to exit edit mode (only for invoice number and kwota)
@@ -504,7 +518,14 @@ export default function InvoiceReviewPage() {
   };
 
   const handlePrint = () => {
-    if (!invoice) return;
+    if (!invoice || !invoice.imageUrl) {
+      toast({
+        title: "Brak obrazu",
+        description: "Nie można wydrukować faktury bez obrazu",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Create a hidden iframe to load and print the image
     const iframe = document.createElement('iframe');
@@ -537,11 +558,20 @@ export default function InvoiceReviewPage() {
   };
 
   const handleDownload = async () => {
-    if (!invoice) return;
+    if (!invoice || !invoice.imageUrl) {
+      toast({
+        title: "Brak obrazu",
+        description: "Nie można pobrać faktury bez obrazu",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const imageUrl = invoice.imageUrl;
     
     try {
       // Fetch the image as a blob
-      const response = await fetch(invoice.imageUrl);
+      const response = await fetch(imageUrl);
       const blob = await response.blob();
       
       // Create a download link
@@ -584,8 +614,16 @@ export default function InvoiceReviewPage() {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         {user?.role === "admin" ? <AdminHeader /> : <AccountantHeader />}
-        <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Faktura nie została znaleziona</p>
+        <main className="flex-1 p-6">
+          {error ? (
+            <ErrorDisplay
+              title="Błąd podczas ładowania faktury"
+              message={error.message}
+              error={error}
+            />
+          ) : (
+            <p className="text-muted-foreground">Faktura nie została znaleziona</p>
+          )}
         </main>
       </div>
     );
@@ -713,15 +751,26 @@ export default function InvoiceReviewPage() {
           <div className="w-full lg:w-2/5">
             <Card className="h-full">
               <CardContent className="pt-6">
-                <div
-                  className="relative cursor-pointer border rounded-lg overflow-hidden"
-                  onClick={() => setImageZoomed(true)}
-                >
-                  <img
-                    src={invoice.imageUrl}
-                    alt="Faktura"
-                    className="w-full h-auto"
-                  />
+                <div className="relative border rounded-lg overflow-hidden">
+                  {invoice.imageUrl && !imageLoadError ? (
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => setImageZoomed(true)}
+                    >
+                      <img
+                        src={invoice.imageUrl}
+                        alt="Faktura"
+                        className="w-full h-auto"
+                        onError={() => setImageLoadError(true)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+                      <ImageOff className="h-8 w-8" />
+                      <p className="text-sm">Brak obrazu faktury</p>
+                      <p className="text-xs">Nie znaleziono pliku lub jest niedostępny</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -742,7 +791,10 @@ export default function InvoiceReviewPage() {
                       autoFocus
                     />
                   ) : (
-                    <CardTitle className="text-xl md:text-2xl">{invoiceNumber || "Brak numeru"}</CardTitle>
+                    <div className="flex flex-col gap-2">
+                      <CardTitle className="text-xl md:text-2xl">{invoiceNumber || "Brak numeru"}</CardTitle>
+                      <InvoiceTypeBadge type={invoice.invoiceType || "einvoice"} />
+                    </div>
                   )}
                   {invoice.ksefNumber && (
                     <Button
@@ -790,11 +842,40 @@ export default function InvoiceReviewPage() {
                       </p>
                     )}
                   </div>
+                  {isCorrection && (
+                    <p className="text-sm font-semibold mt-1 text-green-700">
+                      Kwota korekty: {invoice.correctionAmount ? parseFloat(invoice.correctionAmount).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', ',') : '0,00'} PLN
+                    </p>
+                  )}
                 </div>
                 
               </CardHeader>
               <CardContent>
                 <div className="space-y-4 mt-7">
+                  {/* Correction Info */}
+                  {corrections && corrections.length > 0 && (
+                    <div className="space-y-2 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-3 rounded-md">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Ta faktura posiada korekty</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                        >
+                          <Link href={`/a/corrections?original=${invoiceId}`}>
+                            Zobacz korekty
+                          </Link>
+                        </Button>
+                      </div>
+                      <div className="text-xs text-amber-800 dark:text-amber-200">
+                        Liczba korekt: {corrections.length}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Justification (read-only) */}
                   {/* Budget Request Info */}
                   {invoice.budgetRequest && (
@@ -978,7 +1059,7 @@ export default function InvoiceReviewPage() {
           </div>
 
           {/* Right: BIG Action Buttons */}
-          {isReviewing && !isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
+          {isReviewing && !isCompleted && canChangeStatus && (user?.role === "accountant" || user?.role === "admin") && (
             <div className="w-full lg:w-48 flex flex-row lg:flex-col gap-3 lg:gap-4">
               <Button
                 onClick={handleAccept}
@@ -1059,7 +1140,7 @@ export default function InvoiceReviewPage() {
 
           {isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
             <div className="w-full lg:w-48 flex flex-col gap-3">
-              {user?.role === "admin" && (
+              {user?.role === "admin" && canChangeStatus && (
                 <Button
                   onClick={handleAdminStatusChange}
                   variant="outline"
@@ -1070,7 +1151,7 @@ export default function InvoiceReviewPage() {
                   <span className="font-bold text-sm">Zmień status</span>
                 </Button>
               )}
-              {user?.role === "accountant" && invoice.status !== "re_review" && (
+              {user?.role === "accountant" && invoice.status !== "re_review" && canChangeStatus && (
                 <Button
                   onClick={handleRequestReReview}
                   variant="outline"
@@ -1424,33 +1505,44 @@ export default function InvoiceReviewPage() {
             <X className="h-4 w-4" />
           </Button>
           <div className="relative w-full h-[85vh] overflow-auto scrollbar-hide flex items-start justify-center">
-            <img
-              src={invoice.imageUrl}
-              alt="Faktura - powiększenie"
-              className="max-w-full h-auto object-contain cursor-zoom-in transition-transform duration-100 ease-out hidden sm:block"
-              style={{
-                transform: `scale(${imageScale})`,
-                transformOrigin: `${imagePosition.x}% ${imagePosition.y}%`
-              }}
-              onMouseEnter={() => setImageScale(2.5)}
-              onMouseLeave={() => {
-                setImageScale(1);
-                setImagePosition({ x: 50, y: 50 });
-              }}
-              onMouseMove={(e) => {
-                if (imageScale > 1) {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = ((e.clientX - rect.left) / rect.width) * 100;
-                  const y = ((e.clientY - rect.top) / rect.height) * 100;
-                  setImagePosition({ x, y });
-                }
-              }}
-            />
-            <img
-              src={invoice.imageUrl}
-              alt="Faktura - powiększenie"
-              className="max-w-full h-auto object-contain sm:hidden"
-            />
+            {invoice.imageUrl && !imageLoadError ? (
+              <>
+                <img
+                  src={invoice.imageUrl}
+                  alt="Faktura - powiększenie"
+                  className="max-w-full h-auto object-contain cursor-zoom-in transition-transform duration-100 ease-out hidden sm:block"
+                  style={{
+                    transform: `scale(${imageScale})`,
+                    transformOrigin: `${imagePosition.x}% ${imagePosition.y}%`
+                  }}
+                  onMouseEnter={() => setImageScale(2.5)}
+                  onMouseLeave={() => {
+                    setImageScale(1);
+                    setImagePosition({ x: 50, y: 50 });
+                  }}
+                  onMouseMove={(e) => {
+                    if (imageScale > 1) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = ((e.clientX - rect.left) / rect.width) * 100;
+                      const y = ((e.clientY - rect.top) / rect.height) * 100;
+                      setImagePosition({ x, y });
+                    }
+                  }}
+                  onError={() => setImageLoadError(true)}
+                />
+                <img
+                  src={invoice.imageUrl}
+                  alt="Faktura - powiększenie"
+                  className="max-w-full h-auto object-contain sm:hidden"
+                  onError={() => setImageLoadError(true)}
+                />
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <ImageOff className="h-8 w-8" />
+                <p className="text-sm">Brak obrazu faktury</p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1498,7 +1590,7 @@ export default function InvoiceReviewPage() {
               variant="destructive"
               onClick={() => {
                 // Validate dekretacja is filled
-                if (!description.trim()) {
+                if (!isCorrection && !description.trim()) {
                   toast({
                     title: "Błąd",
                     description: "Dekretacja jest wymagana przed usunięciem faktury",
@@ -1517,7 +1609,7 @@ export default function InvoiceReviewPage() {
                 }
                 
                 // Auto-save description before deleting
-                if (description !== invoice.description) {
+                if (!isCorrection && description !== invoice.description) {
                   updateMutation.mutate({
                     id: invoiceId,
                     description: description || undefined,

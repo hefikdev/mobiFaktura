@@ -6,12 +6,13 @@ import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
+import { CorrectionsDialog } from "@/components/corrections-dialog";
 import { ErrorDisplay } from "@/components/error-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X, ExternalLink, Printer, Download, Trash2 } from "lucide-react";
+import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X, ExternalLink, Printer, Download, Trash2, FilePen, ImageOff } from "lucide-react";
 import Link from "next/link";
 import { useState, use } from "react";
 import { format } from "date-fns";
@@ -36,13 +37,21 @@ function UserInvoiceContent({ id }: { id: string }) {
   const [imageZoomed, setImageZoomed] = useState(false);
   const [imageScale, setImageScale] = useState(1);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
+  const [imageLoadError, setImageLoadError] = useState(false);
   const [budgetRequestDialogOpen, setBudgetRequestDialogOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
+  const [correctionsDialogOpen, setCorrectionsDialogOpen] = useState(false);
   const { toast } = useToast();
 
   // KSeF Popup states
   const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
+  
+  // Query corrections for this invoice
+  const { data: corrections } = trpc.invoice.getCorrectionsForInvoice.useQuery(
+    { invoiceId: id },
+    { enabled: !!invoice }
+  );
 
   const deleteInvoiceMutation = trpc.invoice.delete.useMutation({
     onSuccess: () => {
@@ -63,7 +72,14 @@ function UserInvoiceContent({ id }: { id: string }) {
   });
 
   const handlePrint = () => {
-    if (!invoice) return;
+    if (!invoice || !invoice.imageUrl) {
+      toast({
+        title: "Brak obrazu",
+        description: "Nie można wydrukować faktury bez obrazu",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Create a hidden iframe to load and print the image
     const iframe = document.createElement('iframe');
@@ -96,11 +112,20 @@ function UserInvoiceContent({ id }: { id: string }) {
   };
 
   const handleDownload = async () => {
-    if (!invoice) return;
+    if (!invoice || !invoice.imageUrl) {
+      toast({
+        title: "Brak obrazu",
+        description: "Nie można pobrać faktury bez obrazu",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const imageUrl = invoice.imageUrl;
 
     try {
       // Fetch the image as a blob
-      const response = await fetch(invoice.imageUrl);
+      const response = await fetch(imageUrl);
       const blob = await response.blob();
 
       // Create a download link
@@ -218,14 +243,27 @@ function UserInvoiceContent({ id }: { id: string }) {
           <Card>
             <CardContent>
               <div
-                className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setImageZoomed(true)}
+                className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border"
               >
-                <img
-                  src={invoice.imageUrl}
-                  alt="Faktura"
-                  className="w-full h-full object-contain"
-                />
+                {invoice.imageUrl && !imageLoadError ? (
+                  <div
+                    className="w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setImageZoomed(true)}
+                  >
+                    <img
+                      src={invoice.imageUrl}
+                      alt="Faktura"
+                      className="w-full h-full object-contain"
+                      onError={() => setImageLoadError(true)}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                    <ImageOff className="h-8 w-8" />
+                    <p className="text-sm">Brak obrazu faktury</p>
+                    <p className="text-xs">Nie znaleziono pliku lub jest niedostępny</p>
+                  </div>
+                )}
               </div>
                       {/* Action buttons */}
         <div className="flex gap-2 mt-4 justify-center lg:justify-end">
@@ -275,6 +313,21 @@ function UserInvoiceContent({ id }: { id: string }) {
                       </Button>
                     </div>
                   </div>
+                )}
+                {corrections && corrections.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCorrectionsDialogOpen(true)}
+                    title="Zobacz faktury korygujące"
+                    className="flex items-center gap-1"
+                  >
+                    <FilePen className="h-4 w-4" />
+                    <span>Korekty</span>
+                    <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded">
+                      {corrections.length}
+                    </span>
+                  </Button>
                 )}
         </div>
             </CardContent>
@@ -383,7 +436,7 @@ function UserInvoiceContent({ id }: { id: string }) {
                       <div className="pt-2 mt-2 border-t">
                         <p className="text-xs text-muted-foreground mb-1">Inne faktury powiązane z tą zaliczką:</p>
                         <div className="space-y-1">
-                          {invoice.budgetRequest.relatedInvoices.map((relInv: any) => (
+                          {invoice.budgetRequest.relatedInvoices.map((relInv: { id: string; invoiceNumber: string | null; kwota: number | null; status: string }) => (
                             <div
                               key={relInv.id}
                               className="flex items-center justify-between text-xs p-1.5 bg-background rounded hover:bg-muted"
@@ -534,33 +587,44 @@ function UserInvoiceContent({ id }: { id: string }) {
             <X className="h-4 w-4" />
           </Button>
           <div className="relative w-full h-[85vh] overflow-auto scrollbar-hide flex items-start justify-center">
-            <img
-              src={invoice.imageUrl}
-              alt="Faktura - powiększenie"
-              className="max-w-full h-auto object-contain cursor-zoom-in transition-transform duration-100 ease-out hidden sm:block"
-              style={{
-                transform: `scale(${imageScale})`,
-                transformOrigin: `${imagePosition.x}% ${imagePosition.y}%`
-              }}
-              onMouseEnter={() => setImageScale(2.5)}
-              onMouseLeave={() => {
-                setImageScale(1);
-                setImagePosition({ x: 50, y: 50 });
-              }}
-              onMouseMove={(e) => {
-                if (imageScale > 1) {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = ((e.clientX - rect.left) / rect.width) * 100;
-                  const y = ((e.clientY - rect.top) / rect.height) * 100;
-                  setImagePosition({ x, y });
-                }
-              }}
-            />
-            <img
-              src={invoice.imageUrl}
-              alt="Faktura - powiększenie"
-              className="max-w-full h-auto object-contain sm:hidden"
-            />
+            {invoice.imageUrl && !imageLoadError ? (
+              <>
+                <img
+                  src={invoice.imageUrl}
+                  alt="Faktura - powiększenie"
+                  className="max-w-full h-auto object-contain cursor-zoom-in transition-transform duration-100 ease-out hidden sm:block"
+                  style={{
+                    transform: `scale(${imageScale})`,
+                    transformOrigin: `${imagePosition.x}% ${imagePosition.y}%`
+                  }}
+                  onMouseEnter={() => setImageScale(2.5)}
+                  onMouseLeave={() => {
+                    setImageScale(1);
+                    setImagePosition({ x: 50, y: 50 });
+                  }}
+                  onMouseMove={(e) => {
+                    if (imageScale > 1) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = ((e.clientX - rect.left) / rect.width) * 100;
+                      const y = ((e.clientY - rect.top) / rect.height) * 100;
+                      setImagePosition({ x, y });
+                    }
+                  }}
+                  onError={() => setImageLoadError(true)}
+                />
+                <img
+                  src={invoice.imageUrl}
+                  alt="Faktura - powiększenie"
+                  className="max-w-full h-auto object-contain sm:hidden"
+                  onError={() => setImageLoadError(true)}
+                />
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <ImageOff className="h-8 w-8" />
+                <p className="text-sm">Brak obrazu faktury</p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -650,6 +714,13 @@ function UserInvoiceContent({ id }: { id: string }) {
           onOpenChange={setKsefPopupOpen}
         />
       )}
+      
+      {/* Corrections Dialog */}
+      <CorrectionsDialog
+        invoiceId={id}
+        open={correctionsDialogOpen}
+        onOpenChange={setCorrectionsDialogOpen}
+      />
     </div>
   );
 }

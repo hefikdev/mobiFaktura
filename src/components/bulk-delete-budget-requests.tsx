@@ -66,7 +66,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
   const [filterType, setFilterType] = useState<"older" | "year" | "range" | "user">("older");
   const [olderThanMonths, setOlderThanMonths] = useState("2");
   const [year, setYear] = useState(new Date().getFullYear().toString());
-  const [month, setMonth] = useState<string>("");
+  const [month, setMonth] = useState<string>("__all__");
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["all"]);
@@ -138,7 +138,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
       filters.olderThanMonths = parseInt(olderThanMonths);
     } else if (filterType === "year") {
       filters.year = parseInt(year);
-      if (month) {
+      if (month && month !== "__all__") {
         filters.month = parseInt(month);
       }
     } else if (filterType === "range") {
@@ -325,7 +325,7 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
                           <SelectValue placeholder="Wszystkie" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Wszystkie</SelectItem>
+                          <SelectItem value="__all__">Wszystkie</SelectItem>
                           <SelectItem value="1">Styczeń</SelectItem>
                           <SelectItem value="2">Luty</SelectItem>
                           <SelectItem value="3">Marzec</SelectItem>

@@ -37,6 +37,7 @@ import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 const InvoiceExportDialog = dynamic(() => import("@/components/invoice-export-dialog").then(m => m.InvoiceExportDialog));
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
+import { InvoiceTypeBadge } from "@/components/invoice-type-badge";
 import {
   Loader2,
   FileText,
@@ -53,6 +54,33 @@ import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 
+// Type for enriched invoice data from getAllInvoices query
+type EnrichedInvoice = {
+  id: string;
+  invoiceNumber: string;
+  companyId: string;
+  userId: string;
+  ksefNumber: string | null;
+  kwota: string | null; // Changed from 'amount' to 'kwota' to match schema
+  status: string;
+  description: string | null;
+  createdAt: Date;
+  reviewedAt: Date | null;
+  reviewedBy: string | null;
+  userName: string;
+  userEmail: string;
+  companyName: string;
+  reviewerName: string | null;
+  invoiceType: "einvoice" | "paragon" | "correction" | null;
+  originalInvoiceId: string | null;
+  correctionAmount: string | null;
+  budgetRequest: {
+    id: string;
+    requestedAmount: number;
+    status: string;
+  } | null;
+};
+
 export default function InvoicesPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -60,8 +88,8 @@ export default function InvoicesPage() {
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterCompany, setFilterCompany] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterCompany, setFilterCompany] = useState<string>("__all__");
+  const [filterStatus, setFilterStatus] = useState<string>("__all__");
 
   // Delete invoice dialog states
   const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
@@ -93,7 +121,7 @@ export default function InvoicesPage() {
     }
   );
 
-  const allInvoices = invoicesData?.pages.flatMap((page) => page.items) || [];
+  const allInvoices = (invoicesData?.pages.flatMap((page) => page.items) || []) as EnrichedInvoice[];
   
   const { data: companies } = trpc.company.list.useQuery();
   const { data: usersData } = trpc.admin.getUsers.useQuery(
@@ -167,7 +195,10 @@ export default function InvoicesPage() {
   const filteredInvoices = useMemo(() => {
     if (!allInvoices) return [];
 
-    let filtered = [...allInvoices];
+    let filtered: EnrichedInvoice[] = [...allInvoices];
+
+    // Exclude correction invoices (they have their own page /korekty)
+    filtered = filtered.filter((inv) => inv.invoiceType !== "correction");
 
     // Search filter
     if (searchQuery) {
@@ -183,12 +214,12 @@ export default function InvoicesPage() {
     }
 
     // Status filter
-    if (filterStatus !== "all") {
+    if (filterStatus !== "__all__") {
       filtered = filtered.filter((inv) => inv.status === filterStatus);
     }
 
     // Company filter
-    if (filterCompany !== "all") {
+    if (filterCompany !== "__all__") {
       filtered = filtered.filter((inv) => inv.companyId === filterCompany);
     }
 
@@ -260,7 +291,7 @@ export default function InvoicesPage() {
                           <SelectValue placeholder="Wszystkie firmy" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Wszystkie firmy</SelectItem>
+                          <SelectItem value="__all__">Wszystkie firmy</SelectItem>
                           {companies?.map((company) => (
                             <SelectItem key={company.id} value={company.id}>
                               {company.name}
@@ -273,7 +304,7 @@ export default function InvoicesPage() {
                           <SelectValue placeholder="Wszystkie statusy" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Wszystkie</SelectItem>
+                          <SelectItem value="__all__">Wszystkie</SelectItem>
                           <SelectItem value="pending">Oczekuje</SelectItem>
                           <SelectItem value="in_review">W trakcie</SelectItem>
                           <SelectItem value="accepted">Zaakceptowane</SelectItem>
@@ -311,7 +342,10 @@ export default function InvoicesPage() {
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center justify-between mb-1">
                                         <div className="font-semibold truncate">{invoice.invoiceNumber || "Brak numeru"}</div>
-                                        <InvoiceStatusBadge status={invoice.status} variant="compact" />
+                                        <div className="flex gap-1">
+                                          <InvoiceTypeBadge type={(invoice.invoiceType || "einvoice") as "einvoice" | "receipt" | "correction"} variant="compact" />
+                                          <InvoiceStatusBadge status={invoice.status} variant="compact" />
+                                        </div>
                                       </div>
                                       <div className="space-y-1 text-sm text-muted-foreground">
                                         {invoice.companyName && (
@@ -390,6 +424,7 @@ export default function InvoicesPage() {
                               <TableHeader>
                                 <TableRow>
                                   <TableHead>Numer faktury</TableHead>
+                                  <TableHead>Typ</TableHead>
                                   <TableHead>KSeF</TableHead>
                                   <TableHead>Firma</TableHead>
                                   <TableHead>Użytkownik</TableHead>
@@ -411,6 +446,7 @@ export default function InvoicesPage() {
                                       onClick={() => router.push(`/a/invoice/${invoice.id}`)}
                                     >
                                       <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                                      <TableCell><InvoiceTypeBadge type={(invoice.invoiceType || "einvoice") as "einvoice" | "receipt" | "correction"} variant="compact" /></TableCell>
                                       <TableCell className="text-sm text-muted-foreground">{invoice.ksefNumber || "-"}</TableCell>
                                       <TableCell>{invoice.companyName}</TableCell>
                                       <TableCell>{invoice.userName}</TableCell>
