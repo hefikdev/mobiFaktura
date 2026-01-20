@@ -658,13 +658,6 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
-      if (invoice.invoiceType === "correction") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Nie można zmieniać statusu faktury korygującej",
-        });
-      }
-
       // Check access - user can only see their own invoices, accountant and admin can see all
       if (ctx.user.role !== "accountant" && ctx.user.role !== "admin" && invoice.userId !== ctx.user.id) {
         throw new TRPCError({
@@ -684,7 +677,8 @@ export const invoiceRouter = createTRPCRouter({
 
       // Automatically start review if accountant or admin is viewing and status is pending
       // Only claim review when claimReview is not explicitly false
-      if ((ctx.user.role === "accountant" || ctx.user.role === "admin") && invoice.status === "pending" && (input.claimReview ?? true)) {
+      // Don't auto-claim review for correction invoices
+      if ((ctx.user.role === "accountant" || ctx.user.role === "admin") && invoice.status === "pending" && invoice.invoiceType !== "correction" && (input.claimReview ?? true)) {
         await db
           .update(invoices)
           .set({
@@ -784,6 +778,17 @@ export const invoiceRouter = createTRPCRouter({
           .where(eq(users.id, invoice.lastEditedBy))
           .limit(1);
         lastEditor = editor;
+      }
+
+      // Get settled by user details if exists
+      let settledByUser = null;
+      if (invoice.settledBy) {
+        const [settled] = await db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, invoice.settledBy))
+          .limit(1);
+        settledByUser = settled;
       }
 
       // Get edit history
@@ -903,6 +908,7 @@ export const invoiceRouter = createTRPCRouter({
         currentReviewer,
         reviewer,
         lastEditor,
+        settledByUser,
         editHistory,
         budgetRequest,
           advance,

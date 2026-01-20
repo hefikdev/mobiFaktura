@@ -1,24 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-
-// Mock database
-vi.mock('@/server/db', () => ({
-  db: {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    transaction: vi.fn(),
-  },
-}));
-
-// Mock server-only
-vi.mock('server-only', () => ({}));
+import { describe, it, expect } from 'vitest';
 
 describe('Duplicate Invoice Detection', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('Duplicate Detection Logic', () => {
     it('should detect duplicates with same kwota, ksefNumber, and companyId', () => {
       const invoices = [

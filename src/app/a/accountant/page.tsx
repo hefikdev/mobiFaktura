@@ -372,96 +372,130 @@ export default function AccountantPage() {
               ) : filteredAndSortedInvoices && filteredAndSortedInvoices.length > 0 || sortedReviewedBudgetRequests.length > 0 ? (
                 <>
                   <ScrollArea className="flex-1">
-                    <div>                      {/* Reviewed Budget Requests */}
-                      {sortedReviewedBudgetRequests.length > 0 && (
-                        <div className="border-b-2 border-muted">
-                          {sortedReviewedBudgetRequests.map((request) => (
-                            <div
-                              key={`reviewed-budget-${request.id}`}
-                              className="py-4 px-4 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
-                              onClick={() => {
-                                setSelectedBudgetRequest(request);
-                                setShowBudgetDialog(true);
-                              }}
-                            >
-                              <div className="flex items-center gap-4">
-                                {/* Status icon on far left */}
-                                <div className="flex items-center shrink-0">
-                                  {request.status === "approved" ? (
-                                    <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
-                                  ) : (
-                                    <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" />
-                                  )}
-                                </div>
-                                
-                                {/* Left side - User Name, Company and Date */}
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-semibold text-base truncate mb-1">{request.userName}</p>
-                                  <p className="text-sm text-muted-foreground mb-1">
-                                    {format(new Date(request.reviewedAt || request.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
-                                  </p>
-                                  {request.companyName && (
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                                                      <p className="text-xs text-muted-foreground truncate">
-                                                        {request.companyName}
-                                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Right side - Amount info */}
-                                <div className="shrink-0 text-right">
-                                  <p className={`text-sm font-bold ${
-                                    request.status === "approved" 
-                                      ? "text-green-600 dark:text-green-500" 
-                                      : "text-red-600 dark:text-red-500"
-                                  }`}>
-                                    {request.status === "approved" ? "+" : ""}{request.requestedAmount.toFixed(2)} PLN
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {request.status === "approved" ? "Przyznano" : "Odrzucono"}
-                                  </p>
+                    <div>
+                      {/* Merge reviewed budget requests + reviewed invoices into a single date-sorted feed */}
+                      {(() => {
+                        type Entry = {
+                          type: "budget" | "invoice";
+                          date: number;
+                          id: string;
+                          payload: any;
+                        };
+
+                        const budgetEntries: Entry[] = (sortedReviewedBudgetRequests || []).map((r) => ({
+                          type: "budget",
+                          date: new Date(r.reviewedAt || r.createdAt).getTime(),
+                          id: `budget-${r.id}`,
+                          payload: r,
+                        }));
+
+                        const invoiceEntries: Entry[] = (filteredAndSortedInvoices || []).map((i) => ({
+                          type: "invoice",
+                          date: new Date(i.reviewedAt || i.createdAt).getTime(),
+                          id: `invoice-${i.id}`,
+                          payload: i,
+                        }));
+
+                        const merged: Entry[] = [...budgetEntries, ...invoiceEntries].sort((a, b) => {
+                          return sortOrder === "asc" ? a.date - b.date : b.date - a.date;
+                        });
+
+                        // Find last invoice id from currently loaded invoice page to attach infinite-scroll ref
+                        // use `at(-1)` + optional chaining to avoid "possibly undefined" index access
+                        const lastLoadedInvoiceId = filteredAndSortedInvoices.length > 0 ? filteredAndSortedInvoices[filteredAndSortedInvoices.length - 1]?.id ?? null : null;
+
+                        if (merged.length === 0) return null;
+
+                        return merged.map((entry, idx) => {
+                          if (entry.type === "budget") {
+                            const request = entry.payload as typeof sortedReviewedBudgetRequests[number];
+                            return (
+                              <div
+                                key={entry.id}
+                                className="py-4 px-4 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  setSelectedBudgetRequest(request);
+                                  setShowBudgetDialog(true);
+                                }}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="flex items-center shrink-0">
+                                    {request.status === "approved" ? (
+                                      <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
+                                    ) : (
+                                      <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" />
+                                    )}
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-base truncate mb-1">{request.userName}</p>
+                                    <p className="text-sm text-muted-foreground mb-1">
+                                      {format(new Date(request.reviewedAt || request.createdAt), "dd.MM.yyyy HH:mm", { locale: pl })}
+                                    </p>
+                                    {request.companyName && (
+                                      <div className="flex items-center gap-1.5 mt-1">
+                                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {request.companyName}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="shrink-0 text-right">
+                                    <p className={`text-sm font-bold ${
+                                      request.status === "approved" 
+                                        ? "text-green-600 dark:text-green-500" 
+                                        : "text-red-600 dark:text-red-500"
+                                    }`}>
+                                      {request.status === "approved" ? "+" : ""}{request.requestedAmount.toFixed(2)} PLN
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {request.status === "approved" ? "Przyznano" : "Odrzucono"}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                            );
+                          }
 
-                      {/* Reviewed Invoices */}                      {filteredAndSortedInvoices.map((invoice, index) => {
-                        if (index === filteredAndSortedInvoices.length - 1) {
+                          // invoice entry
+                          const invoice = entry.payload as typeof filteredAndSortedInvoices[number];
+                          const attachRef = invoice && lastLoadedInvoiceId && invoice.id === lastLoadedInvoiceId;
+                          if (attachRef) {
+                            return (
+                              <div key={entry.id} ref={lastReviewedElementRef}>
+                                <InvoiceListItem
+                                  id={invoice.id}
+                                  invoiceNumber={invoice.invoiceNumber}
+                                  userName={invoice.userName}
+                                  companyName={invoice.companyName}
+                                  createdAt={invoice.createdAt}
+                                  status={invoice.status}
+                                  reviewerName={invoice.reviewerName}
+                                  reviewedAt={invoice.reviewedAt}
+                                  variant="accountant"
+                                />
+                              </div>
+                            );
+                          }
+
                           return (
-                            <div key={invoice.id} ref={lastReviewedElementRef}>
-                              <InvoiceListItem
-                                id={invoice.id}
-                                invoiceNumber={invoice.invoiceNumber}
-                                userName={invoice.userName}
-                                companyName={invoice.companyName}
-                                createdAt={invoice.createdAt}
-                                status={invoice.status}
-                                reviewerName={invoice.reviewerName}
-                                reviewedAt={invoice.reviewedAt}
-                                variant="accountant"
-                              />
-                            </div>
+                            <InvoiceListItem
+                              key={entry.id}
+                              id={invoice.id}
+                              invoiceNumber={invoice.invoiceNumber}
+                              userName={invoice.userName}
+                              companyName={invoice.companyName}
+                              createdAt={invoice.createdAt}
+                              status={invoice.status}
+                              reviewerName={invoice.reviewerName}
+                              reviewedAt={invoice.reviewedAt}
+                              variant="accountant"
+                            />
                           );
-                        }
-                        return (
-                          <InvoiceListItem
-                            key={invoice.id}
-                            id={invoice.id}
-                            invoiceNumber={invoice.invoiceNumber}
-                            userName={invoice.userName}
-                            companyName={invoice.companyName}
-                            createdAt={invoice.createdAt}
-                            status={invoice.status}
-                            reviewerName={invoice.reviewerName}
-                            reviewedAt={invoice.reviewedAt}
-                            variant="accountant"
-                          />
-                        );
-                      })}
+                        });
+                      })()}
                       {isFetchingNextReviewed && (
                         <div className="flex items-center justify-center py-4">
                           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -486,7 +520,7 @@ export default function AccountantPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-6">
                   <CheckCircle className="h-12 w-12 mb-4" />
-                  <p>Brak rozpatrzonych faktur</p>
+                  <p>Brak rozpatrzonych faktur i prośb</p>
                 </div>
               )}
             </CardContent>

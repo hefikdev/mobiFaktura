@@ -1,34 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-
-// Mock database
-vi.mock('@/server/db', () => ({
-  db: {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    transaction: vi.fn(),
-  },
-}));
-
-// Mock storage
-vi.mock('@/server/storage/minio', () => ({
-  minioClient: {
-    putObject: vi.fn(),
-    getObject: vi.fn(),
-    removeObject: vi.fn(),
-  },
-  BUCKET_NAME: 'test-bucket',
-}));
-
-// Mock server-only
-vi.mock('server-only', () => ({}));
+import { describe, it, expect } from 'vitest';
 
 describe('Invoice Business Logic', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('Invoice Status Transitions', () => {
     it('should allow transition from pending to in_review', () => {
       const currentStatus = 'pending';
@@ -128,8 +100,8 @@ describe('Invoice Business Logic', () => {
       const number2 = generateInvoiceNumber('INV', 2);
       
       expect(number1).not.toBe(number2);
-      expect(number1).toContain('INV/2025/');
-      expect(number2).toContain('INV/2025/');
+      expect(number1).toContain('INV/2026/');
+      expect(number2).toContain('INV/2026/');
     });
 
     it('should pad invoice numbers correctly', () => {

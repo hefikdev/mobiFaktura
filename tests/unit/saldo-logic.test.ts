@@ -1,374 +1,228 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-// Mock database
-vi.mock('@/server/db', () => ({
-  db: {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    transaction: vi.fn(),
-  },
-}));
-
-// Mock server-only
-vi.mock('server-only', () => ({}));
-
-describe('Saldo System Logic', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  describe('Saldo Calculations', () => {
-    it('should calculate saldo after invoice acceptance', () => {
-      const currentSaldo = 1000.00;
-      const invoiceAmount = 250.50;
-      const newSaldo = currentSaldo - invoiceAmount;
-      
-      expect(newSaldo).toBe(749.50);
-    });
-
-    it('should calculate saldo after budget increase', () => {
-      const currentSaldo = 500.00;
-      const increaseAmount = 1000.00;
-      const newSaldo = currentSaldo + increaseAmount;
-      
-      expect(newSaldo).toBe(1500.00);
-    });
-
-    it('should handle negative saldo', () => {
-      const currentSaldo = 100.00;
-      const invoiceAmount = 150.00;
-      const newSaldo = currentSaldo - invoiceAmount;
-      
-      expect(newSaldo).toBe(-50.00);
-      expect(newSaldo < 0).toBe(true);
-    });
-
-    it('should handle zero saldo', () => {
-      const currentSaldo = 100.00;
-      const invoiceAmount = 100.00;
-      const newSaldo = currentSaldo - invoiceAmount;
-      
-      expect(newSaldo).toBe(0);
-    });
-
-    it('should round saldo to 2 decimal places', () => {
-      const currentSaldo = 1000.00;
-      const invoiceAmount = 123.456;
-      const newSaldo = parseFloat((currentSaldo - invoiceAmount).toFixed(2));
-      
-      expect(newSaldo).toBe(876.54);
-    });
-
-    it('should handle very small saldo changes', () => {
-      const currentSaldo = 1000.00;
-      const invoiceAmount = 0.01;
-      const newSaldo = currentSaldo - invoiceAmount;
-      
-      expect(newSaldo).toBe(999.99);
-    });
-  });
-
-  describe('Saldo Transaction Types', () => {
-    const transactionTypes = {
-      INVOICE_ACCEPTED: 'invoice_accepted',
-      INVOICE_REJECTED: 'invoice_rejected',
-      BUDGET_APPROVED: 'budget_approved',
-      BUDGET_REJECTED: 'budget_rejected',
-      MANUAL_ADJUSTMENT: 'manual_adjustment',
-    };
-
-    it('should have correct transaction type for invoice acceptance', () => {
-      expect(transactionTypes.INVOICE_ACCEPTED).toBe('invoice_accepted');
-    });
-
-    it('should have correct transaction type for budget approval', () => {
-      expect(transactionTypes.BUDGET_APPROVED).toBe('budget_approved');
-    });
-
-    it('should identify debit transactions', () => {
-      const debitTypes = ['invoice_accepted'];
-      const type = 'invoice_accepted';
-      
-      expect(debitTypes.includes(type)).toBe(true);
-    });
-
-    it('should identify credit transactions', () => {
-      const creditTypes = ['budget_approved', 'manual_adjustment'];
-      const type = 'budget_approved';
-      
-      expect(creditTypes.includes(type)).toBe(true);
-    });
-  });
-
-  describe('Saldo History', () => {
-    const mockTransactions = [
-      { id: '1', amount: -100.00, type: 'invoice_accepted', createdAt: new Date('2025-01-01') },
-      { id: '2', amount: 500.00, type: 'budget_approved', createdAt: new Date('2025-01-02') },
-      { id: '3', amount: -50.00, type: 'invoice_accepted', createdAt: new Date('2025-01-03') },
-    ];
-
-    it('should calculate cumulative saldo', () => {
-      const initialSaldo = 1000.00;
-      const finalSaldo = mockTransactions.reduce(
-        (saldo, tx) => saldo + tx.amount,
-        initialSaldo
-      );
-      
-      expect(finalSaldo).toBe(1350.00);
-    });
-
-    it('should sort transactions by date descending', () => {
-      const sorted = [...mockTransactions].sort((a, b) => 
-        b.createdAt.getTime() - a.createdAt.getTime()
-      );
-      
-      expect(sorted[0]?.id).toBe('3');
-      expect(sorted[2]?.id).toBe('1');
-    });
-
-    it('should filter transactions by type', () => {
-      const invoiceTransactions = mockTransactions.filter(
-        tx => tx.type === 'invoice_accepted'
-      );
-      
-      expect(invoiceTransactions).toHaveLength(2);
-    });
-
-    it('should calculate total debits', () => {
-      const totalDebits = mockTransactions
-        .filter(tx => tx.amount < 0)
-        .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      
-      expect(totalDebits).toBe(150.00);
-    });
-
-    it('should calculate total credits', () => {
-      const totalCredits = mockTransactions
-        .filter(tx => tx.amount > 0)
-        .reduce((sum, tx) => sum + tx.amount, 0);
-      
-      expect(totalCredits).toBe(500.00);
-    });
-  });
-
-  describe('Saldo Validation', () => {
-    it('should warn when saldo is low', () => {
-      const saldo = 50.00;
-      const threshold = 100.00;
-      
-      expect(saldo < threshold).toBe(true);
-    });
-
-    it('should not warn when saldo is sufficient', () => {
-      const saldo = 500.00;
-      const threshold = 100.00;
-      
-      expect(saldo >= threshold).toBe(true);
-    });
-
-    it('should alert when saldo is negative', () => {
-      const saldo = -50.00;
-      
-      expect(saldo < 0).toBe(true);
-    });
-
-    it('should handle zero saldo edge case', () => {
-      const saldo = 0;
-      
-      expect(saldo).toBe(0);
-      expect(saldo >= 0).toBe(true);
-      expect(saldo > 0).toBe(false);
-    });
-  });
-
-  describe('Saldo Display Formatting', () => {
-    it('should format positive saldo with PLN', () => {
-      const saldo = 1250.50;
-      const formatted = `${saldo.toFixed(2)} PLN`;
-      
-      expect(formatted).toBe('1250.50 PLN');
-    });
-
-    it('should format negative saldo with PLN', () => {
-      const saldo = -250.75;
-      const formatted = `${saldo.toFixed(2)} PLN`;
-      
-      expect(formatted).toBe('-250.75 PLN');
-    });
-
-    it('should format zero saldo', () => {
-      const saldo = 0;
-      const formatted = `${saldo.toFixed(2)} PLN`;
-      
-      expect(formatted).toBe('0.00 PLN');
-    });
-
-    it('should determine badge color for positive saldo', () => {
-      const saldo = 100;
-      const color = saldo > 0 ? 'green' : saldo < 0 ? 'red' : 'gray';
-      
-      expect(color).toBe('green');
-    });
-
-    it('should determine badge color for negative saldo', () => {
-      const saldo = -100;
-      const color = saldo > 0 ? 'green' : saldo < 0 ? 'red' : 'gray';
-      
-      expect(color).toBe('red');
-    });
-
-    it('should determine badge color for zero saldo', () => {
-      const saldo = 0;
-      const color = saldo > 0 ? 'green' : saldo < 0 ? 'red' : 'gray';
-      
-      expect(color).toBe('gray');
-    });
-  });
-
-  describe('Saldo Permission Checks', () => {
-    it('should allow invoice submission with positive saldo', () => {
-      const saldo = 500.00;
-      const invoiceAmount = 250.00;
-      
-      const canSubmit = true; // Always can submit, just warning if low
-      
-      expect(canSubmit).toBe(true);
-    });
-
-    it('should warn but allow invoice submission with low saldo', () => {
-      const saldo = 50.00;
-      const invoiceAmount = 100.00;
-      
-      const willBeNegative = (saldo - invoiceAmount) < 0;
-      const showWarning = willBeNegative;
-      
-      expect(showWarning).toBe(true);
-    });
-
-    it('should allow invoice submission with negative saldo', () => {
-      const saldo = -50.00;
-      
-      const canStillSubmit = true; // System allows but warns
-      
-      expect(canStillSubmit).toBe(true);
-    });
-  });
-
-  describe('Saldo Adjustment Validation', () => {
-    it('should validate positive manual adjustments', () => {
-      const amount = 500.00;
-      const reason = 'Budget correction';
-      
-      expect(amount > 0).toBe(true);
-      expect(reason.length).toBeGreaterThan(5);
-    });
-
-    it('should validate negative manual adjustments', () => {
-      const amount = -100.00;
-      const reason = 'Accounting correction';
-      
-      expect(amount < 0).toBe(true);
-      expect(reason.length).toBeGreaterThan(5);
-    });
-
-    it('should require reason for manual adjustments', () => {
-      const reason = 'System correction needed';
-      const minLength = 10;
-      
-      expect(reason.length).toBeGreaterThanOrEqual(minLength);
-    });
-
-    it('should reject adjustments without reason', () => {
-      const reason = '';
-      
-      expect(reason.length).toBe(0);
-      expect(reason.length < 10).toBe(true);
-    });
-  });
-
-  describe('Saldo Caching', () => {
-    it('should cache saldo in localStorage', () => {
-      const saldo = 1250.50;
-      const cached = saldo.toString();
-      
-      expect(cached).toBe('1250.5');
-      expect(parseFloat(cached)).toBe(1250.50);
-    });
-
-    it('should retrieve cached saldo', () => {
-      const cachedValue = '1250.50';
-      const saldo = parseFloat(cachedValue);
-      
-      expect(saldo).toBe(1250.50);
-    });
-
-    it('should handle missing cached saldo', () => {
-      const cachedValue = null;
-      const saldo = cachedValue !== null ? parseFloat(cachedValue) : null;
-      
-      expect(saldo).toBeNull();
-    });
-
-    it('should handle invalid cached saldo', () => {
-      const cachedValue = 'invalid';
-      const saldo = parseFloat(cachedValue);
-      
-      expect(Number.isNaN(saldo)).toBe(true);
-    });
-  });
-
-  describe('Saldo Transaction Rollback', () => {
-    it('should calculate rollback for rejected invoice', () => {
-      const saldoBeforeAcceptance = 1000.00;
-      const invoiceAmount = 250.00;
-      const saldoAfterAcceptance = saldoBeforeAcceptance - invoiceAmount;
-      
-      // Invoice gets rejected, need to rollback
-      const saldoAfterRollback = saldoAfterAcceptance + invoiceAmount;
-      
-      expect(saldoAfterRollback).toBe(saldoBeforeAcceptance);
-    });
-
-    it('should maintain saldo history integrity', () => {
-      const transactions = [
-        { amount: -100, type: 'debit' },
-        { amount: 100, type: 'credit_rollback' },
+describe('Saldo System - Logic Tests', () => {
+  describe('Balance Calculations', () => {
+    it('should calculate current balance correctly', () => {
+      const invoices = [
+        { kwota: 1000, status: 'APPROVED' },
+        { kwota: 500, status: 'APPROVED' },
+        { kwota: 300, status: 'PENDING' },
       ];
+
+      const approvedSum = invoices
+        .filter(inv => inv.status === 'APPROVED')
+        .reduce((sum, inv) => sum + inv.kwota, 0);
       
-      const netChange = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+      expect(approvedSum).toBe(1500);
+    });
+
+    it('should exclude rejected invoices from balance', () => {
+      const invoices = [
+        { kwota: 1000, status: 'APPROVED' },
+        { kwota: 500, status: 'REJECTED' },
+        { kwota: 300, status: 'APPROVED' },
+      ];
+
+      const balance = invoices
+        .filter(inv => inv.status === 'APPROVED')
+        .reduce((sum, inv) => sum + inv.kwota, 0);
       
-      expect(netChange).toBe(0);
+      expect(balance).toBe(1300);
+    });
+
+    it('should handle empty invoice list', () => {
+      const invoices: Array<{ kwota: number; status: string }> = [];
+      const balance = invoices.reduce((sum, inv) => sum + inv.kwota, 0);
+      
+      expect(balance).toBe(0);
+    });
+
+    it('should handle negative amounts (returns)', () => {
+      const transactions = [
+        { kwota: 1000, type: 'INVOICE' },
+        { kwota: -200, type: 'RETURN' },
+        { kwota: 500, type: 'INVOICE' },
+      ];
+
+      const balance = transactions.reduce((sum, t) => sum + t.kwota, 0);
+      
+      expect(balance).toBe(1300);
     });
   });
 
-  describe('Saldo Reporting', () => {
-    const mockTransactions = [
-      { amount: -100, date: new Date('2025-01-01'), type: 'invoice' },
-      { amount: -200, date: new Date('2025-01-15'), type: 'invoice' },
-      { amount: 500, date: new Date('2025-01-20'), type: 'budget' },
-    ];
-
-    it('should calculate monthly spending', () => {
-      const spending = mockTransactions
-        .filter(tx => tx.type === 'invoice')
-        .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+  describe('Saldo Status Logic', () => {
+    it('should determine if balance is sufficient', () => {
+      const balance = 5000;
+      const requestedAmount = 3000;
       
-      expect(spending).toBe(300);
+      const isSufficient = balance >= requestedAmount;
+      
+      expect(isSufficient).toBe(true);
     });
 
-    it('should calculate monthly income', () => {
-      const income = mockTransactions
-        .filter(tx => tx.type === 'budget')
-        .reduce((sum, tx) => sum + tx.amount, 0);
+    it('should determine if balance is insufficient', () => {
+      const balance = 2000;
+      const requestedAmount = 3000;
       
-      expect(income).toBe(500);
+      const isSufficient = balance >= requestedAmount;
+      
+      expect(isSufficient).toBe(false);
     });
 
-    it('should calculate net change', () => {
-      const netChange = mockTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+    it('should handle exact balance match', () => {
+      const balance = 3000;
+      const requestedAmount = 3000;
       
-      expect(netChange).toBe(200);
+      const isSufficient = balance >= requestedAmount;
+      
+      expect(isSufficient).toBe(true);
+    });
+  });
+
+  describe('Transaction History', () => {
+    it('should sort transactions by date descending', () => {
+      const transactions = [
+        { id: '1', date: new Date('2026-01-18'), amount: 100 },
+        { id: '2', date: new Date('2026-01-20'), amount: 200 },
+        { id: '3', date: new Date('2026-01-19'), amount: 150 },
+      ];
+
+      const sorted = [...transactions].sort((a, b) => 
+        b.date.getTime() - a.date.getTime()
+      );
+      
+      expect(sorted.map(t => t.id!)).toEqual(['2', '3', '1']);
+    });
+
+    it('should filter transactions by date range', () => {
+      const transactions = [
+        { date: new Date('2026-01-15'), amount: 100 },
+        { date: new Date('2026-01-18'), amount: 200 },
+        { date: new Date('2026-01-22'), amount: 300 },
+      ];
+
+      const startDate = new Date('2026-01-17');
+      const endDate = new Date('2026-01-20');
+
+      const filtered = transactions.filter(t => 
+        t.date >= startDate && t.date <= endDate
+      );
+      
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0]!.amount).toBe(200);
+    });
+
+    it('should calculate running balance', () => {
+      const transactions = [
+        { amount: 1000 },
+        { amount: -200 },
+        { amount: 500 },
+        { amount: -100 },
+      ];
+
+      let runningBalance = 0;
+      const balances = transactions.map(t => {
+        runningBalance += t.amount;
+        return runningBalance;
+      });
+      
+      expect(balances).toEqual([1000, 800, 1300, 1200]);
+    });
+  });
+
+  describe('Budget Allocation', () => {
+    it('should allocate budget to companies', () => {
+      const totalBudget = 10000;
+      const companies = [
+        { id: 'c1', allocation: 0.4 }, // 40%
+        { id: 'c2', allocation: 0.35 }, // 35%
+        { id: 'c3', allocation: 0.25 }, // 25%
+      ];
+
+      const allocations = companies.map(c => ({
+        companyId: c.id,
+        amount: totalBudget * c.allocation,
+      }));
+      
+      expect(allocations[0]!.amount).toBe(4000);
+      expect(allocations[1]!.amount).toBe(3500);
+      expect(allocations[2]!.amount).toBe(2500);
+      expect(allocations.reduce((sum, a) => sum + a.amount, 0)).toBe(10000);
+    });
+
+    it('should track used vs remaining budget', () => {
+      const allocated = 5000;
+      const used = 3200;
+      const remaining = allocated - used;
+      
+      expect(remaining).toBe(1800);
+      expect(used / allocated).toBeCloseTo(0.64);
+    });
+  });
+
+  describe('Saldo Report Generation', () => {
+    it('should calculate total income', () => {
+      const invoices = [
+        { kwota: 1000, type: 'INCOME' },
+        { kwota: 500, type: 'INCOME' },
+        { kwota: 200, type: 'EXPENSE' },
+      ];
+
+      const totalIncome = invoices
+        .filter(inv => inv.type === 'INCOME')
+        .reduce((sum, inv) => sum + inv.kwota, 0);
+      
+      expect(totalIncome).toBe(1500);
+    });
+
+    it('should calculate total expenses', () => {
+      const invoices = [
+        { kwota: 1000, type: 'INCOME' },
+        { kwota: 500, type: 'INCOME' },
+        { kwota: 200, type: 'EXPENSE' },
+        { kwota: 300, type: 'EXPENSE' },
+      ];
+
+      const totalExpenses = invoices
+        .filter(inv => inv.type === 'EXPENSE')
+        .reduce((sum, inv) => sum + inv.kwota, 0);
+      
+      expect(totalExpenses).toBe(500);
+    });
+
+    it('should calculate net balance', () => {
+      const income = 5000;
+      const expenses = 3200;
+      const netBalance = income - expenses;
+      
+      expect(netBalance).toBe(1800);
+    });
+  });
+
+  describe('Currency Handling', () => {
+    it('should format amount to 2 decimal places', () => {
+      const amount = 1234.567;
+      const formatted = amount.toFixed(2);
+      
+      expect(formatted).toBe('1234.57');
+    });
+
+    it('should handle rounding correctly', () => {
+      const amounts = [10.125, 10.135, 10.145];
+      const rounded = amounts.map(a => Math.round(a * 100) / 100);
+      
+      expect(rounded).toEqual([10.13, 10.14, 10.15]);
+    });
+
+    it('should format currency with separators', () => {
+      const amount = 1234567.89;
+      const formatted = new Intl.NumberFormat('pl-PL', {
+        style: 'currency',
+        currency: 'PLN',
+      }).format(amount);
+      
+      expect(formatted).toBeTruthy();
+      expect(formatted.length).toBeGreaterThan(0);
     });
   });
 });

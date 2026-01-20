@@ -342,9 +342,11 @@ export default function InvoiceReviewPage() {
       utils.invoice.pendingInvoices.invalidate();
       utils.invoice.reviewedInvoices.invalidate();
       utils.invoice.myInvoices.invalidate();
+      const _title = invoice?.invoiceType === 'receipt' ? 'Paragon usunięty' : invoice?.invoiceType === 'correction' ? 'Korekta usunięta' : 'Faktura usunięta';
+      const _desc = invoice?.invoiceType === 'receipt' ? 'Paragon został trwale usunięty' : invoice?.invoiceType === 'correction' ? 'Korekta została trwale usunięta' : 'Faktura została trwale usunięta';
       toast({
-        title: "Faktura usunięta",
-        description: "Faktura została trwale usunięta",
+        title: _title,
+        description: _desc,
       });
       router.push(user?.role === "accountant" ? "/a/accountant" : "/a/dashboard");
       router.refresh();
@@ -599,6 +601,51 @@ export default function InvoiceReviewPage() {
     }
   };
 
+  const handleExportCSV = () => {
+    if (!invoice) return;
+
+    // Prepare CSV data
+    const csvData = [
+      ['Pole', 'Wartość'],
+      ['Numer faktury', invoice.invoiceNumber || ''],
+      ['Typ', invoice.invoiceType === 'receipt' ? 'Paragon' : invoice.invoiceType === 'correction' ? 'Korekta' : 'Faktura'],
+      ['Status', invoice.status],
+      ['Kwota', invoice.kwota || ''],
+      ['Dekretacja', invoice.description || ''],
+      ['Firma', invoice.company?.name || ''],
+      ['NIP', invoice.company?.nip || ''],
+      ['Użytkownik', invoice.submitter?.name || ''],
+      ['Email użytkownika', invoice.submitter?.email || ''],
+      ['Data utworzenia', format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })],
+      ['Data przeglądu', invoice.reviewedAt ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl }) : ''],
+      ['Recenzent', invoice.reviewer?.name || ''],
+      ['Data rozliczenia', invoice.settledAt ? format(new Date(invoice.settledAt), "dd.MM.yyyy HH:mm:ss", { locale: pl }) : ''],
+      ['Rozliczył', invoice.settledByUser?.name || ''],
+      ['Numer KSeF', invoice.ksefNumber || ''],
+    ];
+
+    // Convert to CSV string
+    const csvContent = csvData.map(row => 
+      row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+
+    // Create blob and download
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `faktura_${invoice.invoiceNumber || invoiceId}_export.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Wyeksportowano",
+      description: "Dane faktury zostały wyeksportowane do CSV",
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
@@ -737,6 +784,34 @@ export default function InvoiceReviewPage() {
                   {invoice.reviewedAt && (
                     <p className="text-xs text-muted-foreground mt-1">
                       {format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}
+                    </p>
+                  )}
+                </div>
+              )}
+              {invoice.status === "settled" && (
+                <div>
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                    Rozliczona
+                  </span>
+                  {invoice.settledByUser && invoice.settledAt && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      przez {invoice.settledByUser.name}
+                      <br />
+                      {format(new Date(invoice.settledAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}
+                    </p>
+                  )}
+                </div>
+              )}
+              {invoice.status === "transferred" && (
+                <div>
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    Przelana
+                  </span>
+                  {invoice.settledByUser && invoice.settledAt && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      przez {invoice.settledByUser.name}
+                      <br />
+                      {format(new Date(invoice.settledAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}
                     </p>
                   )}
                 </div>
@@ -1059,37 +1134,41 @@ export default function InvoiceReviewPage() {
           </div>
 
           {/* Right: BIG Action Buttons */}
-          {isReviewing && !isCompleted && canChangeStatus && (user?.role === "accountant" || user?.role === "admin") && (
-            <div className="w-full lg:w-48 flex flex-row lg:flex-col gap-3 lg:gap-4">
-              <Button
-                onClick={handleAccept}
-                size="lg"
-                disabled={finalizeMutation.isPending}
-                className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700 text-white dark:text-white"
-              >
-                {finalizeMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-8 w-8 md:h-10 md:w-10 animate-spin" />
-                    <span className="text-xs md:text-sm font-bold">Przetwarzanie...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
-                    <span className="font-bold text-sm md:text-base">Zaakceptuj</span>
-                  </>
-                )}
-              </Button>
+          {isReviewing && !isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
+            <div className="w-full lg:w-48 flex flex-col gap-3 lg:gap-4">
+              {canChangeStatus && (
+                <div className="flex flex-row lg:flex-col gap-3 lg:gap-4">
+                  <Button
+                    onClick={handleAccept}
+                    size="lg"
+                    disabled={finalizeMutation.isPending}
+                    className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700 text-white dark:text-white"
+                  >
+                    {finalizeMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-8 w-8 md:h-10 md:w-10 animate-spin" />
+                        <span className="text-xs md:text-sm font-bold">Przetwarzanie...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
+                        <span className="font-bold text-sm md:text-base">Zaakceptuj</span>
+                      </>
+                    )}
+                  </Button>
 
-              <Button
-                onClick={handleReject}
-                variant="destructive"
-                size="lg"
-                disabled={finalizeMutation.isPending}
-                className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2"
-              >
-                <X className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
-                <span className="font-bold text-sm md:text-base">Odrzuć</span>
-              </Button>
+                  <Button
+                    onClick={handleReject}
+                    variant="destructive"
+                    size="lg"
+                    disabled={finalizeMutation.isPending}
+                    className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2"
+                  >
+                    <X className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
+                    <span className="font-bold text-sm md:text-base">Odrzuć</span>
+                  </Button>
+                </div>
+              )}
               {canEdit && (
                 <Button
                   variant="outline"
@@ -1108,31 +1187,43 @@ export default function InvoiceReviewPage() {
                       }, 100);
                     }
                   }}
-                  className="hidden lg:flex w-full items-center gap-1 mt-3"
+                  className="hidden lg:flex w-full items-center gap-1"
                 >
                   <span>{(isEditingInvoiceNumber || isEditingKwota) ? 'Zapisz' : 'Edytuj'}</span>
                 </Button>
               )}
-              <div className="hidden lg:flex flex-row gap-2 mt-3">
+              <div className="hidden lg:flex flex-col gap-2">
+                <div className="flex flex-row gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handlePrint}
+                    title="Drukuj"
+                    className="flex-1 flex items-center justify-center gap-1"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>Drukuj</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleDownload}
+                    title="Pobierz"
+                    className="flex-1 flex items-center justify-center gap-1"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Pobierz</span>
+                  </Button>
+                </div>
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={handlePrint}
-                  title="Drukuj"
-                  className="flex items-center gap-1"
+                  onClick={handleExportCSV}
+                  title="Eksportuj do CSV"
+                  className="w-full flex items-center justify-center gap-1"
                 >
-                  <Printer className="h-4 w-4" />
-                  <span>Drukuj</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleDownload}
-                  title="Pobierz"
-                  className="flex items-center gap-1"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>Pobierz</span>
+                  <FileText className="h-4 w-4" />
+                  <span>Eksportuj</span>
                 </Button>
               </div>
             </div>
@@ -1179,7 +1270,7 @@ export default function InvoiceReviewPage() {
                 className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
               >
                 <Trash2 className="h-8 w-8" />
-                <span className="font-bold text-sm">Usuń fakturę</span>
+                <span className="font-bold text-sm">{`Usuń ${invoice?.invoiceType === 'receipt' ? 'paragon' : invoice?.invoiceType === 'correction' ? 'korektę' : 'fakturę'}`}</span>
               </Button>
               <Button
                 onClick={() => {
@@ -1192,13 +1283,47 @@ export default function InvoiceReviewPage() {
               >
                 Powrót do listy
               </Button>
+              <div className="hidden lg:flex flex-col gap-2 mt-3">
+                <div className="flex flex-row gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handlePrint}
+                    title="Drukuj"
+                    className="flex-1 flex items-center justify-center gap-1"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>Drukuj</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleDownload}
+                    title="Pobierz"
+                    className="flex-1 flex items-center justify-center gap-1"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Pobierz</span>
+                  </Button>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleExportCSV}
+                  title="Eksportuj do CSV"
+                  className="w-full flex items-center justify-center gap-1"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Eksportuj</span>
+                </Button>
+              </div>
             </div>
           )}
         </div>
         
         {/* Mobile action buttons row */}
-        {isReviewing && !isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
-          <div className="lg:hidden flex gap-2 mt-4">
+        {(isReviewing || isCompleted) && (user?.role === "accountant" || user?.role === "admin") && (
+          <div className="lg:hidden flex gap-2 mt-4 flex-wrap">
             <Button 
               variant="outline" 
               size="sm"
@@ -1218,6 +1343,16 @@ export default function InvoiceReviewPage() {
             >
               <Download className="h-4 w-4" />
               <span>Pobierz</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportCSV}
+              title="Eksportuj do CSV"
+              className="flex-1 flex items-center justify-center gap-1"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Eksportuj</span>
             </Button>
             {invoice.ksefNumber && (
               <Button
@@ -1551,9 +1686,9 @@ export default function InvoiceReviewPage() {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent className="max-w-md max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Usuń fakturę</DialogTitle>
+            <DialogTitle>{`Usuń ${invoice?.invoiceType === 'receipt' ? 'paragon' : invoice?.invoiceType === 'correction' ? 'korektę' : 'fakturę'}`}</DialogTitle>
             <DialogDescription>
-              Ta operacja jest NIEODWRACALNA. Faktura i plik zostaną trwale usunięte.
+              Ta operacja jest NIEODWRACALNA. {invoice?.invoiceType === 'receipt' ? 'Paragon' : invoice?.invoiceType === 'correction' ? 'Korekta' : 'Faktura'} i plik zostaną trwale usunięte.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
@@ -1593,7 +1728,7 @@ export default function InvoiceReviewPage() {
                 if (!isCorrection && !description.trim()) {
                   toast({
                     title: "Błąd",
-                    description: "Dekretacja jest wymagana przed usunięciem faktury",
+                    description: "Dekretacja jest wymagana przed usunięciem dokumentu",
                     variant: "destructive",
                   });
                   return;
@@ -1631,7 +1766,7 @@ export default function InvoiceReviewPage() {
                   Usuwanie...
                 </>
               ) : (
-                "Usuń definitywnie"
+                <>{`Usuń ${invoice?.invoiceType === 'receipt' ? 'paragon' : invoice?.invoiceType === 'correction' ? 'korektę' : 'fakturę'} definitywnie`}</>
               )}
             </Button>
           </DialogFooter>

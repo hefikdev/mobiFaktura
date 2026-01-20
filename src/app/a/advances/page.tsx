@@ -201,24 +201,28 @@ export default function AdvancesPage() {
 
         <Card>
                     <CardHeader>
-             <div className="flex flex-col md:flex-row gap-3 md:items-center">
-                                <SearchInput
-                                    value={search}
-                                    onChange={setSearch}
-                                    placeholder="Szukaj: użytkownik, email, firma, opis"
-                                    className="md:w-[320px]"
-                                />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Wszystkie</SelectItem>
-                        <SelectItem value="pending">Oczekujące</SelectItem>
-                        <SelectItem value="transferred">Przelane</SelectItem>
-                        <SelectItem value="settled">Rozliczone</SelectItem>
-                    </SelectContent>
-                </Select>
+             <div className="flex flex-col md:flex-row gap-3 md:items-center w-full">
+                <div className="w-full md:flex-1">
+                  <SearchInput
+                      value={search}
+                      onChange={setSearch}
+                      placeholder="Szukaj: użytkownik, email, firma, opis"
+                      className="w-full"
+                  />
+                </div>
+                <div className="shrink-0">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="all">Wszystkie</SelectItem>
+                          <SelectItem value="pending">Oczekujące</SelectItem>
+                          <SelectItem value="transferred">Przelane</SelectItem>
+                          <SelectItem value="settled">Rozliczone</SelectItem>
+                      </SelectContent>
+                  </Select>
+                </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">

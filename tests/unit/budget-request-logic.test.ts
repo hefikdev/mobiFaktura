@@ -1,22 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-
-// Mock database
-vi.mock('@/server/db', () => ({
-  db: {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-  },
-}));
-
-// Mock server-only
-vi.mock('server-only', () => ({}));
+import { describe, it, expect } from 'vitest';
 
 describe('Budget Request Logic', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('Budget Request Validation', () => {
     it('should validate positive requested amounts', () => {
       const amounts = [100, 500.50, 1000, 0.01];
