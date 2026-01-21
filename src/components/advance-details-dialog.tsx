@@ -11,10 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, DollarSign, User, CheckCircle, Building2, Wallet, ArrowRightLeft } from "lucide-react";
+import { Loader2, DollarSign, User, CheckCircle, Building2, Wallet, ArrowRightLeft, Trash2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import Link from "next/link";
@@ -37,6 +45,22 @@ export function AdvanceDetailsDialog({
   const { toast } = useToast();
   const utils = trpc.useUtils();
   const [transferNumber, setTransferNumber] = useState("");
+  
+  // Delete states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteStrategy, setShowDeleteStrategy] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteStrategy, setDeleteStrategy] = useState<"delete_with_invoices" | "reassign_invoices">("delete_with_invoices");
+  const [targetAdvanceId, setTargetAdvanceId] = useState<string>("");
+
+  // Get current user to check role
+  const { data: currentUser } = trpc.auth.me.useQuery();
+  
+  // Get all advances for reassignment dropdown
+  const { data: allAdvancesData } = trpc.advances.getAll.useQuery(
+    { status: "all", limit: 100 },
+    { enabled: showDeleteStrategy && deleteStrategy === "reassign_invoices" }
+  );
   
   const { data: advance, isLoading } = trpc.advances.getById.useQuery(
     { id: advanceId ?? "" },
@@ -106,6 +130,85 @@ export function AdvanceDetailsDialog({
     if (!advance) return;
     settleMutation.mutate({ id: advance.id });
   };
+
+  const deleteMutation = trpc.advances.delete.useMutation({
+    retry: shouldRetryMutation,
+    retryDelay: getRetryDelay,
+    onSuccess: (data) => {
+      toast({
+        title: "Sukces",
+        description: data.message,
+      });
+      setShowDeleteConfirm(false);
+      setShowDeleteStrategy(false);
+      setDeletePassword("");
+      setDeleteStrategy("delete_with_invoices");
+      setTargetAdvanceId("");
+      onOpenChange(false);
+      // Invalidate all related queries
+      utils.advances.getAll.invalidate();
+      utils.advances.getById.invalidate();
+      utils.invoice.getAllInvoices.invalidate();
+      utils.invoice.myInvoices.invalidate();
+      utils.saldo.getAllUsersSaldo.invalidate();
+      onSuccess();
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleInitiateDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmFirstStep = () => {
+    if (!deletePassword.trim()) {
+      toast({
+        title: "Błąd",
+        description: "Hasło jest wymagane",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowDeleteConfirm(false);
+    setShowDeleteStrategy(true);
+  };
+
+  const handleFinalDelete = () => {
+    if (!advance) return;
+    
+    if (deleteStrategy === "reassign_invoices" && advance.relatedInvoices && advance.relatedInvoices.length > 0 && !targetAdvanceId) {
+      toast({
+        title: "Błąd",
+        description: "Wybierz docelową zaliczkę",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    deleteMutation.mutate({
+      id: advance.id,
+      password: deletePassword,
+      strategy: deleteStrategy,
+      targetAdvanceId: targetAdvanceId || undefined,
+    });
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setShowDeleteStrategy(false);
+    setDeletePassword("");
+    setDeleteStrategy("delete_with_invoices");
+    setTargetAdvanceId("");
+  };
+
+  const isAccountantOrAdmin = currentUser?.role === "accountant" || currentUser?.role === "admin";
+  const availableAdvances = allAdvancesData?.items?.filter(adv => adv.id !== advanceId) || [];
 
   if (!advanceId) return null;
 
@@ -367,35 +470,234 @@ export function AdvanceDetailsDialog({
             </div>
 
             <DialogFooter className="gap-2 sm:gap-0">
-               <Button variant="outline" onClick={() => onOpenChange(false)}>
-                  Zamknij
-               </Button>
-               
-               {advance.status === "pending" && (
-                   <Button 
-                     onClick={handleTransfer}
-                     disabled={transferMutation.isPending}
-                     className="bg-blue-600 hover:bg-blue-700 text-white"
-                   >
-                       {transferMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRightLeft className="mr-2 h-4 w-4" />}
-                       Zatwierdź przelew
+               <div className="flex w-full justify-between items-center">
+                 <div>
+                   {isAccountantOrAdmin && (
+                     <Button 
+                       variant="destructive"
+                       onClick={handleInitiateDelete}
+                       disabled={deleteMutation.isPending}
+                       size="sm"
+                     >
+                       <Trash2 className="mr-2 h-4 w-4" />
+                       Usuń zaliczkę
+                     </Button>
+                   )}
+                 </div>
+                 <div className="flex gap-2">
+                   <Button variant="outline" onClick={() => onOpenChange(false)}>
+                      Zamknij
                    </Button>
-               )}
+                   
+                   {advance.status === "pending" && (
+                       <Button 
+                         onClick={handleTransfer}
+                         disabled={transferMutation.isPending}
+                         className="bg-blue-600 hover:bg-blue-700 text-white"
+                       >
+                           {transferMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRightLeft className="mr-2 h-4 w-4" />}
+                           Zatwierdź przelew
+                       </Button>
+                   )}
 
-               {advance.status === "transferred" && (
-                   <Button 
-                     onClick={handleSettle}
-                     disabled={settleMutation.isPending}
-                     className="bg-purple-600 hover:bg-purple-700 text-white"
-                   >
-                       {settleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                       Rozlicz zaliczkę
-                   </Button>
-               )}
+                   {advance.status === "transferred" && (
+                       <Button 
+                         onClick={handleSettle}
+                         disabled={settleMutation.isPending}
+                         className="bg-purple-600 hover:bg-purple-700 text-white"
+                       >
+                           {settleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                           Rozlicz zaliczkę
+                       </Button>
+                   )}
+                 </div>
+               </div>
             </DialogFooter>
           </>
         ) : null}
       </DialogContent>
+
+      {/* First Delete Confirmation Dialog - Password */}
+      <Dialog open={showDeleteConfirm} onOpenChange={(open) => !open && handleCancelDelete()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Potwierdzenie usunięcia zaliczki
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm">
+              Czy na pewno chcesz usunąć zaliczkę na kwotę <strong>{advance?.amount.toFixed(2)} PLN</strong> dla użytkownika <strong>{advance?.userName}</strong>?
+            </p>
+            <p className="text-sm font-semibold text-destructive">
+              ⚠️ Ta operacja jest NIEODWRACALNA.
+            </p>
+            {advance?.relatedInvoices && advance.relatedInvoices.length > 0 && (
+              <p className="text-sm text-amber-600 dark:text-amber-500 font-medium">
+                Ta zaliczka ma powiązane faktury ({advance.relatedInvoices.length}). W następnym kroku wybierzesz co z nimi zrobić.
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="deletePassword">Twoje hasło</Label>
+              <Input
+                id="deletePassword"
+                type="password"
+                placeholder="Wprowadź hasło aby potwierdzić"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && deletePassword.trim()) {
+                    handleConfirmFirstStep();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelDelete}>
+              Anuluj
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmFirstStep}
+              disabled={!deletePassword.trim()}
+            >
+              Kontynuuj
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Second Delete Dialog - Strategy Selection */}
+      <Dialog open={showDeleteStrategy} onOpenChange={(open) => !open && handleCancelDelete()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Wybierz strategię usuwania
+            </DialogTitle>
+            <DialogDescription>
+              {advance?.relatedInvoices && advance.relatedInvoices.length > 0
+                ? `Ta zaliczka ma ${advance.relatedInvoices.length} powiązanych faktur. Wybierz co zrobić z fakturami.`
+                : "Ta zaliczka nie ma powiązanych faktur. Zostanie usunięta bezpośrednio."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {advance?.relatedInvoices && advance.relatedInvoices.length > 0 && (
+              <>
+                <div className="space-y-3">
+                  <div 
+                    className={`p-4 border-2 rounded-md cursor-pointer transition-colors ${
+                      deleteStrategy === "delete_with_invoices" 
+                        ? "border-red-500 bg-red-50 dark:bg-red-950/20" 
+                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    }`}
+                    onClick={() => setDeleteStrategy("delete_with_invoices")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        checked={deleteStrategy === "delete_with_invoices"}
+                        onChange={() => setDeleteStrategy("delete_with_invoices")}
+                        className="mt-1"
+                      />
+                      <div>
+                        <p className="font-semibold text-sm">Usuń wraz z fakturami</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Wszystkie {advance.relatedInvoices.length} powiązane faktury zostaną trwale usunięte wraz z zaliczką.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`p-4 border-2 rounded-md cursor-pointer transition-colors ${
+                      deleteStrategy === "reassign_invoices" 
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20" 
+                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    }`}
+                    onClick={() => setDeleteStrategy("reassign_invoices")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        checked={deleteStrategy === "reassign_invoices"}
+                        onChange={() => setDeleteStrategy("reassign_invoices")}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">Pozostaw faktury, przenieś do innej zaliczki</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Faktury zostaną przypisane do wybranej zaliczki. Wybierz docelową zaliczkę poniżej.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {deleteStrategy === "reassign_invoices" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="targetAdvance">Docelowa zaliczka</Label>
+                    <Select value={targetAdvanceId} onValueChange={setTargetAdvanceId}>
+                      <SelectTrigger id="targetAdvance">
+                        <SelectValue placeholder="Wybierz zaliczkę..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableAdvances.length === 0 ? (
+                          <SelectItem value="none" disabled>
+                            Brak dostępnych zaliczek
+                          </SelectItem>
+                        ) : (
+                          availableAdvances.map((adv) => (
+                            <SelectItem key={adv.id} value={adv.id}>
+                              {adv.userName} - {adv.amount} PLN ({adv.status}) - {format(new Date(adv.createdAt), "dd.MM.yyyy", { locale: pl })}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
+            )}
+
+            {(!advance?.relatedInvoices || advance.relatedInvoices.length === 0) && (
+              <p className="text-sm text-muted-foreground">
+                Zaliczka zostanie usunięta natychmiast.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelDelete}>
+              Anuluj
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleFinalDelete}
+              disabled={
+                deleteMutation.isPending ||
+                (deleteStrategy === "reassign_invoices" && 
+                 advance?.relatedInvoices && 
+                 advance.relatedInvoices.length > 0 && 
+                 !targetAdvanceId)
+              }
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Usuwanie...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Usuń definitywnie
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

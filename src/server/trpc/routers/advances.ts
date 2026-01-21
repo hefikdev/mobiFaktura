@@ -342,5 +342,152 @@ export const advancesRouter = createTRPCRouter({
       });
       
       return { success: true, message: "Zaliczka rozliczona" };
+    }),
+
+  // Delete advance
+  delete: accountantProcedure
+    .input(z.object({ 
+      id: z.string().uuid(),
+      password: z.string().min(1),
+      strategy: z.enum(["delete_with_invoices", "reassign_invoices"]),
+      targetAdvanceId: z.string().uuid().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { verifyPassword } = await import("@/server/auth/password");
+      
+      // Verify password
+      const [currentUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      if (!currentUser) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Użytkownik nie znaleziony" });
+      }
+
+      const isPasswordValid = await verifyPassword(input.password, currentUser.passwordHash);
+      if (!isPasswordValid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Nieprawidłowe hasło" });
+      }
+
+      // Get the advance to delete
+      const [advance] = await db
+        .select()
+        .from(advances)
+        .where(eq(advances.id, input.id))
+        .limit(1);
+
+      if (!advance) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Zaliczka nie znaleziona" });
+      }
+
+      // Get linked invoices
+      const linkedInvoices = await db
+        .select({ id: invoices.id })
+        .from(invoices)
+        .where(eq(invoices.advanceId, input.id));
+
+      if (input.strategy === "reassign_invoices") {
+        // Validate target advance exists if reassignment is requested
+        if (linkedInvoices.length > 0) {
+          if (!input.targetAdvanceId) {
+            throw new TRPCError({ 
+              code: "BAD_REQUEST", 
+              message: "Docelowa zaliczka jest wymagana przy przeniesieniu faktur" 
+            });
+          }
+
+          const [targetAdvance] = await db
+            .select()
+            .from(advances)
+            .where(eq(advances.id, input.targetAdvanceId))
+            .limit(1);
+
+          if (!targetAdvance) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Docelowa zaliczka nie znaleziona" });
+          }
+
+          if (targetAdvance.id === input.id) {
+            throw new TRPCError({ 
+              code: "BAD_REQUEST", 
+              message: "Nie można przenieść faktur do tej samej zaliczki" 
+            });
+          }
+        }
+      }
+
+      await db.transaction(async (tx) => {
+        if (input.strategy === "delete_with_invoices") {
+          // Delete linked invoices first
+          if (linkedInvoices.length > 0) {
+            await tx
+              .delete(invoices)
+              .where(eq(invoices.advanceId, input.id));
+          }
+        } else {
+          // Reassign invoices to target advance
+          if (linkedInvoices.length > 0 && input.targetAdvanceId) {
+            await tx
+              .update(invoices)
+              .set({ 
+                advanceId: input.targetAdvanceId,
+                updatedAt: new Date(),
+              })
+              .where(eq(invoices.advanceId, input.id));
+          }
+        }
+
+        // If advance was transferred, reverse the saldo transaction
+        if (advance.status === "transferred" || advance.status === "settled") {
+          const [advanceUser] = await tx
+            .select({ saldo: users.saldo })
+            .from(users)
+            .where(eq(users.id, advance.userId))
+            .limit(1);
+
+          if (advanceUser) {
+            const currentSaldo = parseFloat(advanceUser.saldo || "0");
+            const amount = parseFloat(advance.amount);
+            const newSaldo = currentSaldo - amount;
+
+            // Update user saldo
+            await tx
+              .update(users)
+              .set({ 
+                saldo: newSaldo.toFixed(2),
+                updatedAt: new Date(),
+              })
+              .where(eq(users.id, advance.userId));
+
+            // Create reversal saldo transaction
+            await tx.insert(saldoTransactions).values({
+              userId: advance.userId,
+              amount: (-amount).toFixed(2),
+              balanceBefore: currentSaldo.toFixed(2),
+              balanceAfter: newSaldo.toFixed(2),
+              transactionType: "adjustment",
+              referenceId: advance.id,
+              notes: "Usunięcie zaliczki przez księgowego",
+              createdBy: ctx.user.id,
+            });
+          }
+        }
+
+        // Delete the advance
+        await tx
+          .delete(advances)
+          .where(eq(advances.id, input.id));
+      });
+
+      const deletedInvoicesCount = input.strategy === "delete_with_invoices" ? linkedInvoices.length : 0;
+      const reassignedInvoicesCount = input.strategy === "reassign_invoices" ? linkedInvoices.length : 0;
+
+      return { 
+        success: true, 
+        message: "Zaliczka została usunięta",
+        deletedInvoicesCount,
+        reassignedInvoicesCount,
+      };
     })
 });
