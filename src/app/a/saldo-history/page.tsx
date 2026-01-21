@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
 import { AccountantHeader } from "@/components/accountant-header";
@@ -25,10 +26,16 @@ import Link from "next/link";
 import { ExportButton } from "@/components/export-button";
 import { RequestBudgetDialog } from "@/components/request-budget-dialog";
 import { formatters } from "@/lib/export";
+import { SaldoTransactionDetailsDialog } from "@/components/saldo-transaction-details-dialog";
 
 export default function SaldoHistoryPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [showRequestBudget, setShowRequestBudget] = useState(false);
+  
+  // Dialog states for transaction details
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+  const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
 
   // Check user
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
@@ -125,6 +132,26 @@ export default function SaldoHistoryPage() {
         return "Zaliczka";
       default:
         return type;
+    }
+  };
+  
+  // Handle clicking on a transaction
+  const handleTransactionClick = (tx: any) => {
+    if (tx.transactionType === 'adjustment') {
+      // Open popup with transaction details
+      setSelectedTransaction(tx);
+      setIsTransactionDialogOpen(true);
+    } else if (tx.transactionType === 'invoice_deduction' && tx.referenceId) {
+      // Navigate to invoice page
+      router.push(`/a/user-invoice/${tx.referenceId}`);
+    } else if (tx.transactionType === 'invoice_refund' && tx.referenceId) {
+      // Navigate to correction invoice page (correction that credited the user)
+      router.push(`/a/user-invoice/${tx.referenceId}`);
+    } else if (tx.transactionType === 'advance_credit' && tx.referenceId) {
+      // Could navigate to advance details if we had such a page
+      // For now, show transaction details popup
+      setSelectedTransaction(tx);
+      setIsTransactionDialogOpen(true);
     }
   };
 
@@ -265,7 +292,8 @@ export default function SaldoHistoryPage() {
                     <div
                       key={tx.id}
                       ref={isLastElement ? lastTransactionElementRef : null}
-                      className="p-4 hover:bg-muted/50"
+                      className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => handleTransactionClick(tx)}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
@@ -304,7 +332,7 @@ export default function SaldoHistoryPage() {
                       </div>
 
                       {tx.referenceId && tx.transactionType === "invoice_deduction" && (
-                        <div className="mt-3">
+                        <div className="mt-3" onClick={(e) => e.stopPropagation()}>
                           <Link href={`/a/user-invoice/${tx.referenceId}`}>
                             <Button variant="outline" size="sm" className="w-full">
                               <Receipt className="h-4 w-4 mr-2" />
@@ -342,7 +370,12 @@ export default function SaldoHistoryPage() {
                     {filteredTransactions.map((tx, index) => {
                       const isLastElement = index === filteredTransactions.length - 1;
                       return (
-                        <TableRow key={tx.id} ref={isLastElement ? lastTransactionElementRef : null}>
+                        <TableRow 
+                          key={tx.id} 
+                          ref={isLastElement ? lastTransactionElementRef : null}
+                          className="cursor-pointer hover:bg-muted/70 transition-colors"
+                          onClick={() => handleTransactionClick(tx)}
+                        >
                           <TableCell className="whitespace-nowrap">
                             {format(new Date(tx.createdAt), "dd MMM yyyy HH:mm", {
                               locale: pl,
@@ -422,6 +455,13 @@ export default function SaldoHistoryPage() {
     <RequestBudgetDialog
       open={showRequestBudget}
       onOpenChange={setShowRequestBudget}
+    />
+    
+    {/* Saldo Transaction Details Dialog */}
+    <SaldoTransactionDetailsDialog
+      transaction={selectedTransaction}
+      open={isTransactionDialogOpen}
+      onOpenChange={setIsTransactionDialogOpen}
     />
   </div>
   );

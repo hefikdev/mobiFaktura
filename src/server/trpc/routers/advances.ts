@@ -52,7 +52,8 @@ export const advancesRouter = createTRPCRouter({
         const searchTerm = `%${search.toLowerCase()}%`;
         conditions.push(
           sql`(
-            LOWER(${users.name}) LIKE ${searchTerm}
+            ${advances.id}::text LIKE ${searchTerm}
+            OR LOWER(${users.name}) LIKE ${searchTerm}
             OR LOWER(${users.email}) LIKE ${searchTerm}
             OR LOWER(${companies.name}) LIKE ${searchTerm}
             OR LOWER(${advances.description}) LIKE ${searchTerm}

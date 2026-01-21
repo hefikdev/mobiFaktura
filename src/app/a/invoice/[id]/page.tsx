@@ -59,6 +59,7 @@ import { InvoiceTypeBadge } from "@/components/invoice-type-badge";
 import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import InvoiceDetailsDialog from "@/components/invoice-details-dialog";
 
 const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
 
@@ -732,7 +733,9 @@ export default function InvoiceReviewPage() {
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-xl md:text-2xl font-semibold">Przegląd faktury</h2>
+              <h2 className="text-xl md:text-2xl font-semibold">
+                Przegląd {invoice.invoiceType === 'receipt' ? 'paragonu' : invoice.invoiceType === 'correction' ? 'korekty' : 'faktury'}
+              </h2>
             </div>
             {/* Status badge */}
             <div className="text-right">
@@ -866,10 +869,7 @@ export default function InvoiceReviewPage() {
                       autoFocus
                     />
                   ) : (
-                    <div className="flex flex-col gap-2">
-                      <CardTitle className="text-xl md:text-2xl">{invoiceNumber || "Brak numeru"}</CardTitle>
-                      <InvoiceTypeBadge type={invoice.invoiceType || "einvoice"} />
-                    </div>
+                    <CardTitle className="text-xl md:text-2xl">{invoiceNumber || "Brak numeru"}</CardTitle>
                   )}
                   {invoice.ksefNumber && (
                     <Button
@@ -1126,23 +1126,26 @@ export default function InvoiceReviewPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <p className="text-muted-foreground text-sm">
-                  Faktura wysłana: {format(new Date(invoice.createdAt), "dd MMM yyyy, HH:mm", { locale: pl })}
-                </p>
+                <div className="w-full flex items-center justify-between gap-3">
+                  <p className="text-muted-foreground text-sm break-words">
+                    Faktura wysłana: {format(new Date(invoice.createdAt), "dd MMM yyyy, HH:mm", { locale: pl })}
+                  </p>
+                  <InvoiceDetailsDialog invoice={invoice} corrections={corrections} invoiceId={invoiceId} />
+                </div>
               </CardFooter>
             </Card>
           </div>
 
           {/* Right: BIG Action Buttons */}
           {isReviewing && !isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
-            <div className="w-full lg:w-48 flex flex-col gap-3 lg:gap-4">
+            <div className="w-full lg:w-48 flex flex-col gap-3 lg:gap-4 lg:h-full">
               {canChangeStatus && (
-                <div className="flex flex-row lg:flex-col gap-3 lg:gap-4">
+                <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 lg:flex-1">
                   <Button
                     onClick={handleAccept}
                     size="lg"
                     disabled={finalizeMutation.isPending}
-                    className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700 text-white dark:text-white"
+                    className="flex-1 h-24 lg:h-auto text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700 text-white dark:text-white"
                   >
                     {finalizeMutation.isPending ? (
                       <>
@@ -1162,7 +1165,7 @@ export default function InvoiceReviewPage() {
                     variant="destructive"
                     size="lg"
                     disabled={finalizeMutation.isPending}
-                    className="flex-1 lg:h-32 h-24 text-lg md:text-xl font-bold flex-col gap-2"
+                    className="flex-1 h-24 lg:h-auto text-lg md:text-xl font-bold flex-col gap-2"
                   >
                     <X className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
                     <span className="font-bold text-sm md:text-base">Odrzuć</span>
@@ -1230,7 +1233,7 @@ export default function InvoiceReviewPage() {
           )}
 
           {isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
-            <div className="w-full lg:w-48 flex flex-col gap-3">
+            <div className="w-full lg:w-48 flex flex-col gap-3 lg:h-full">
               {user?.role === "admin" && canChangeStatus && (
                 <Button
                   onClick={handleAdminStatusChange}
@@ -1724,7 +1727,6 @@ export default function InvoiceReviewPage() {
             <Button
               variant="destructive"
               onClick={() => {
-                // Validate dekretacja is filled
                 if (!isCorrection && !description.trim()) {
                   toast({
                     title: "Błąd",
@@ -1743,7 +1745,6 @@ export default function InvoiceReviewPage() {
                   return;
                 }
                 
-                // Auto-save description before deleting
                 if (!isCorrection && description !== invoice.description) {
                   updateMutation.mutate({
                     id: invoiceId,

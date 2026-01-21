@@ -190,6 +190,7 @@ export default function CorrectionsPage() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (corr) =>
+          corr.id.toLowerCase().includes(query) ||
           corr.invoiceNumber.toLowerCase().includes(query) ||
           corr.originalInvoiceNumber?.toLowerCase().includes(query) ||
           corr.companyName?.toLowerCase().includes(query) ||

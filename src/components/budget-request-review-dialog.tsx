@@ -158,6 +158,15 @@ export function BudgetRequestReviewDialog({
           </DialogHeader>
 
           <div className="space-y-3 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+            {/* UUID Section */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Identyfikator</h3>
+              <div className="p-3 bg-muted/50 rounded-md">
+                <p className="text-xs text-muted-foreground mb-1">UUID</p>
+                <p className="text-sm font-mono text-foreground break-all">{request.id}</p>
+              </div>
+            </div>
+
             {/* Basic Info Section */}
             <div className="space-y-2">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Informacje podstawowe</h3>

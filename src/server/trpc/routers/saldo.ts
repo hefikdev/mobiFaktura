@@ -247,7 +247,11 @@ export const saldoRouter = createTRPCRouter({
         const searchTerm = `%${search.toLowerCase()}%`;
         whereCondition = and(
           whereCondition,
-          or(ilike(saldoTransactions.notes, searchTerm), ilike(saldoTransactions.transactionType, searchTerm))
+          or(
+            sql`${saldoTransactions.id}::text ILIKE ${searchTerm}`,
+            ilike(saldoTransactions.notes, searchTerm),
+            ilike(saldoTransactions.transactionType, searchTerm)
+          )
         ) as SQL;
       }
 
@@ -418,7 +422,11 @@ export const saldoRouter = createTRPCRouter({
         const searchTerm = `%${input.search.toLowerCase()}%`;
         whereCondition = and(
           whereCondition,
-          or(ilike(saldoTransactions.notes, searchTerm), ilike(saldoTransactions.transactionType, searchTerm))
+          or(
+            sql`${saldoTransactions.id}::text ILIKE ${searchTerm}`,
+            ilike(saldoTransactions.notes, searchTerm),
+            ilike(saldoTransactions.transactionType, searchTerm)
+          )
         ) as SQL;
       }
 

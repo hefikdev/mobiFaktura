@@ -1456,7 +1456,10 @@ export const invoiceRouter = createTRPCRouter({
 
       if (input.searchQuery) {
         conditions.push(
-          sql`${invoices.invoiceNumber} ILIKE ${`%${input.searchQuery}%`}`
+          or(
+            sql`${invoices.id}::text ILIKE ${`%${input.searchQuery}%`}`,
+            sql`${invoices.invoiceNumber} ILIKE ${`%${input.searchQuery}%`}`
+          )!
         );
       }
 
@@ -1647,7 +1650,10 @@ export const invoiceRouter = createTRPCRouter({
 
       if (input.searchQuery) {
         conditions.push(
-          sql`${invoices.invoiceNumber} ILIKE ${`%${input.searchQuery}%`}`
+          or(
+            sql`${invoices.id}::text ILIKE ${`%${input.searchQuery}%`}`,
+            sql`${invoices.invoiceNumber} ILIKE ${`%${input.searchQuery}%`}`
+          )!
         );
       }
 

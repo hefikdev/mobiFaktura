@@ -48,6 +48,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import Link from "next/link";
+import { SaldoTransactionDetailsDialog } from "@/components/saldo-transaction-details-dialog";
+import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 
 export default function SaldoManagementPage() {
   const { toast } = useToast();
@@ -63,6 +65,12 @@ export default function SaldoManagementPage() {
   const [showAllUsers, setShowAllUsers] = useState(false);
   const [historyCursor, setHistoryCursor] = useState<number | undefined>(undefined);
   const [allHistoryItems, setAllHistoryItems] = useState<any[]>([]);
+  
+  // Dialog states for transaction details
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+  const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
+  const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<any | null>(null);
+  const [isBudgetRequestDialogOpen, setIsBudgetRequestDialogOpen] = useState(false);
 
   // Check user role
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
@@ -341,6 +349,32 @@ export default function SaldoManagementPage() {
     setAmount("");
     setNotes("");
     setIsDialogOpen(true);
+  };
+  
+  // Handle clicking on a history item
+  const handleHistoryItemClick = (item: any) => {
+    if (item.type === 'saldo') {
+      // For saldo transactions (korekta, adjustments)
+      if (item.transactionType === 'adjustment') {
+        // Open popup with transaction details
+        setSelectedTransaction(item);
+        setIsTransactionDialogOpen(true);
+      } else if (item.transactionType === 'invoice_deduction' && item.referenceId) {
+        // Navigate to invoice page
+        router.push(`/a/user-invoice/${item.referenceId}`);
+      } else if (item.transactionType === 'invoice_refund' && item.referenceId) {
+        // Navigate to correction invoice page
+        router.push(`/a/user-invoice/${item.referenceId}`);
+      } else if (item.transactionType === 'advance_credit' && item.referenceId) {
+        // Show transaction details popup for advance credit
+        setSelectedTransaction(item);
+        setIsTransactionDialogOpen(true);
+      }
+    } else if (item.type === 'budget') {
+      // For budget requests, open the budget request dialog
+      setSelectedBudgetRequest(item);
+      setIsBudgetRequestDialogOpen(true);
+    }
   };
 
   if (userLoading) {
@@ -784,7 +818,11 @@ export default function SaldoManagementPage() {
                     <TableBody>
                       {combinedHistory.length > 0 ? (
                         combinedHistory.map((item, idx) => (
-                          <TableRow key={`${item.type}-${item.id}-${idx}`}>
+                          <TableRow 
+                            key={`${item.type}-${item.id}-${idx}`}
+                            className="cursor-pointer hover:bg-muted/70 transition-colors"
+                            onClick={() => handleHistoryItemClick(item)}
+                          >
                             <TableCell className="whitespace-nowrap">
                               {format(item.date, "dd.MM.yyyy HH:mm", { locale: pl })}
                             </TableCell>
@@ -833,7 +871,7 @@ export default function SaldoManagementPage() {
                             <TableCell className="max-w-[300px] truncate text-sm text-muted-foreground dark:text-muted-foreground/70" title={(item.type === 'saldo' ? item.notes : item.justification) ?? ""}>
                               {item.type === 'saldo' ? item.notes : item.justification}
                             </TableCell>
-                            <TableCell className="text-right w-20">
+                            <TableCell className="text-right w-20" onClick={(e) => e.stopPropagation()}>
                               {item.type === 'saldo' && item.transactionType === 'invoice_deduction' && item.referenceId && (
                                 <Link href={`/a/user-invoice/${item.referenceId}`}>
                                   <Button variant="ghost" size="sm" className="p-1">
@@ -974,6 +1012,29 @@ export default function SaldoManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Saldo Transaction Details Dialog */}
+      <SaldoTransactionDetailsDialog
+        transaction={selectedTransaction}
+        open={isTransactionDialogOpen}
+        onOpenChange={setIsTransactionDialogOpen}
+      />
+
+      {/* Budget Request Details Dialog */}
+      <BudgetRequestReviewDialog
+        request={selectedBudgetRequest}
+        open={isBudgetRequestDialogOpen}
+        onOpenChange={setIsBudgetRequestDialogOpen}
+        onSuccess={() => {
+          setIsBudgetRequestDialogOpen(false);
+          setSelectedBudgetRequest(null);
+          // Refresh data
+          if (historyUserId) {
+            refetch();
+          }
+        }}
+        mode="details"
+      />
 
       {/* Quick Add Funds Dialog */}
       <div className="hidden md:block">

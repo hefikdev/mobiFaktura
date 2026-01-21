@@ -205,6 +205,7 @@ export default function InvoicesPage() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (inv) =>
+          inv.id.toLowerCase().includes(query) ||
           inv.invoiceNumber.toLowerCase().includes(query) ||
           inv.companyName?.toLowerCase().includes(query) ||
           inv.userName?.toLowerCase().includes(query) ||

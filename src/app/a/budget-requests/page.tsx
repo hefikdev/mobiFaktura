@@ -107,6 +107,7 @@ export default function BudgetRequestsPage() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (req) =>
+          req.id.toLowerCase().includes(query) ||
           req.userName.toLowerCase().includes(query) ||
           req.userEmail.toLowerCase().includes(query) ||
           req.justification.toLowerCase().includes(query) ||
