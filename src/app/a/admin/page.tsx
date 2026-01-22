@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc/client";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Select,
   SelectContent,
@@ -52,7 +53,7 @@ import {
   Download,
   HardDrive,
   KeyRound,
-  Bell,
+  Bell
 } from "lucide-react";
 import { SectionLoader } from "@/components/section-loader";
 import { useRouter } from "next/navigation";
@@ -150,6 +151,18 @@ export default function AdminPage() {
   );
 
   const users = usersData?.pages.flatMap((page) => page.items) || [];
+
+  // User options for SearchableSelect
+  const userOptions = useMemo(() => {
+    return [
+      { value: "all", label: "Wszyscy użytkownicy", searchableText: "wszyscy użytkownicy" },
+      ...users.map(u => ({
+        value: u.id,
+        label: `${u.name} (${u.email})`,
+        searchableText: `${u.name} ${u.email} ${u.id}`.toLowerCase()
+      }))
+    ];
+  }, [users]);
 
   const { data: companies, refetch: refetchCompanies, error: companiesError } = trpc.company.listAll.useQuery(undefined, {
     refetchInterval: 10000,
@@ -444,6 +457,32 @@ export default function AdminPage() {
       <AdminHeader />
 
       <main className="container mx-auto px-4 py-6">
+        {/* Page Header with Actions */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Panel Administratora</h1>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => router.push("/a/exports")}
+              variant="outline"
+              className="gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Eksport raportów
+            </Button>
+
+            <Button
+              onClick={() => router.push("/a/analytics")}
+              variant="outline"
+              className="gap-2"
+            >
+              <TrendingUp className="h-4 w-4" />
+              Analityka
+            </Button>
+          </div>
+        </div>
+
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <Card>
@@ -944,22 +983,13 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <Label>Użytkownik</Label>
-                      <Select 
-                        value={loginLogsUserId || "all"} 
+                      <SearchableSelect
+                        value={loginLogsUserId || "all"}
                         onValueChange={(value) => setLoginLogsUserId(value === "all" ? undefined : value)}
-                      >
-                        <SelectTrigger className="w-[250px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Wszyscy użytkownicy</SelectItem>
-                          {users?.map((u) => (
-                            <SelectItem key={u.id} value={u.id}>
-                              {u.name} ({u.email})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        options={userOptions}
+                        placeholder="Wybierz użytkownika"
+                        className="w-[250px]"
+                      />
                     </div>
                   </div>
                   <div className="flex gap-2">

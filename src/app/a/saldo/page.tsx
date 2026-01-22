@@ -645,6 +645,7 @@ export default function SaldoManagementPage() {
                   value={historySearchQuery}
                   onChange={setHistorySearchQuery}
                   placeholder="np. Jan Kowalski"
+                  className="w-full"
                 />
               </div>
             </div>

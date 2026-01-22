@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc/client";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Select,
   SelectContent,
@@ -90,6 +91,15 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
     enabled: open,
   });
   const users = usersData?.items || [];
+
+  // User options for SearchableSelect
+  const userOptions = useMemo(() => {
+    return users.map(u => ({
+      value: u.id,
+      label: `${u.name} (${u.email})`,
+      searchableText: `${u.name} ${u.email} ${u.id}`.toLowerCase()
+    }));
+  }, [users]);
 
   // Mutations
   const bulkDeleteMutation = trpc.budgetRequest.bulkDelete.useMutation({
@@ -404,18 +414,12 @@ export function BulkDeleteBudgetRequests({ open, onOpenChange }: BulkDeleteBudge
                 {filterType === "user" && (
                   <div className="space-y-2">
                     <Label>Użytkownik</Label>
-                    <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Wybierz użytkownika" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users.map((user: { id: string; name: string; email: string }) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.name} ({user.email})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={selectedUserId}
+                      onValueChange={setSelectedUserId}
+                      options={userOptions}
+                      placeholder="Wybierz użytkownika"
+                    />
                   </div>
                 )}
 

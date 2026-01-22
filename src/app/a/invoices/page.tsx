@@ -35,9 +35,11 @@ import { Unauthorized } from "@/components/unauthorized";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
-const InvoiceExportDialog = dynamic(() => import("@/components/invoice-export-dialog").then(m => m.InvoiceExportDialog));
+import { AdvancedExportDialog } from "@/components/advanced-export-dialog";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import { InvoiceTypeBadge } from "@/components/invoice-type-badge";
+import { SearchableSelect, SearchableSelectOption } from "@/components/ui/searchable-select";
+import { AdvancedFilters, FilterConfig } from "@/components/advanced-filters";
 import {
   Loader2,
   FileText,
@@ -90,6 +92,7 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCompany, setFilterCompany] = useState<string>("__all__");
   const [filterStatus, setFilterStatus] = useState<string>("__all__");
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
 
   // Delete invoice dialog states
   const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
@@ -128,6 +131,85 @@ export default function InvoicesPage() {
     undefined,
     { enabled: !!user && (user.role === "admin" || user.role === "accountant") }
   );
+  const utils = trpc.useUtils();
+
+  // Export mutation
+  const exportMutation = trpc.exports.generateInvoicesExcel.useMutation();
+
+  // Export columns configuration
+  const exportColumns = [
+    { id: "invoiceNumber", label: "Numer faktury", enabled: true },
+    { id: "companyName", label: "Firma", enabled: true },
+    { id: "userName", label: "Użytkownik", enabled: true },
+    { id: "kwota", label: "Kwota", enabled: true },
+    { id: "status", label: "Status", enabled: true },
+    { id: "ksefNumber", label: "Numer KSeF", enabled: true },
+    { id: "invoiceType", label: "Typ faktury", enabled: true },
+    { id: "createdAt", label: "Data utworzenia", enabled: true },
+    { id: "reviewedAt", label: "Data weryfikacji", enabled: false },
+    { id: "description", label: "Opis", enabled: false },
+    { id: "id", label: "UUID", enabled: false },
+    { id: "companyId", label: "UUID firmy", enabled: false },
+    { id: "userId", label: "UUID użytkownika", enabled: false },
+  ];
+
+  // Export handler
+  const handleAdvancedExport = async (config: {
+    columns: Array<{ id: string; label: string; enabled: boolean }>;
+    sortBy: string;
+    sortOrder: "asc" | "desc";
+    currencyFormat: "PLN" | "EUR" | "USD";
+    showCurrencySymbol: boolean;
+    fileName: string;
+    sheetName: string;
+    includeTimestamp: boolean;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => {
+    // Call TRPC mutation with parameters
+    const result = await exportMutation.mutateAsync({
+      columns: config.columns,
+      sortBy: config.sortBy,
+      sortOrder: config.sortOrder,
+      currencyFormat: config.currencyFormat,
+      showCurrencySymbol: config.showCurrencySymbol,
+      fileName: config.fileName,
+      sheetName: config.sheetName,
+      includeTimestamp: config.includeTimestamp,
+      status: config.status,
+      dateFrom: config.dateFrom,
+      dateTo: config.dateTo,
+      includeUUIDs: config.columns.some(c => c.id.toLowerCase().includes('id') && c.enabled),
+      includeKSeF: config.columns.some(c => c.id === 'ksefNumber' && c.enabled),
+    });
+
+    if (result.success && result.data) {
+      // Convert base64 to blob and download
+      const byteCharacters = atob(result.data as string);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.fileName || 'faktury.xlsx';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } else {
+      throw new Error("Nie udało się wygenerować raportu");
+    }
+  };
 
 
 
@@ -175,6 +257,48 @@ export default function InvoicesPage() {
   // Get all users for the filter
   const allUsers = usersData?.items || [];
 
+  // Prepare company options for SearchableSelect
+  const companyOptions: SearchableSelectOption[] = useMemo(() => {
+    if (!companies) return [{ value: "__all__", label: "Wszystkie firmy", searchableText: "wszystkie" }];
+    return [
+      { value: "__all__", label: "Wszystkie firmy", searchableText: "wszystkie" },
+      ...companies.map((company) => ({
+        value: company.id,
+        label: company.name,
+        searchableText: `${company.name} ${company.nip} ${company.id}`.toLowerCase(),
+      }))
+    ];
+  }, [companies]);
+
+  // Define advanced filter configuration
+  const advancedFilterConfig: FilterConfig[] = [
+    {
+      label: "Zakres dat",
+      type: "dateRange",
+      field: "date",
+    },
+    {
+      label: "Kwota",
+      type: "amount",
+      field: "amount",
+    },
+    {
+      label: "Numer KSeF",
+      type: "text",
+      field: "ksefNumber",
+    },
+    {
+      label: "Typ faktury",
+      type: "select",
+      field: "invoiceType",
+      options: [
+        { value: "__all__", label: "Wszystkie" },
+        { value: "einvoice", label: "E-faktura" },
+        { value: "paragon", label: "Paragon" },
+      ],
+    },
+  ];
+
   // Ref for infinite scroll
   const observer = useRef<IntersectionObserver>();
   const lastInvoiceElementRef = useCallback(
@@ -200,17 +324,25 @@ export default function InvoicesPage() {
     // Exclude correction invoices (they have their own page /korekty)
     filtered = filtered.filter((inv) => inv.invoiceType !== "correction");
 
-    // Search filter
+    // Enhanced search filter - searches through all fields including UUIDs
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (inv) =>
-          inv.id.toLowerCase().includes(query) ||
+          inv.id.toLowerCase().includes(query) || // Invoice UUID
           inv.invoiceNumber.toLowerCase().includes(query) ||
+          inv.companyId.toLowerCase().includes(query) || // Company UUID
           inv.companyName?.toLowerCase().includes(query) ||
+          inv.userId.toLowerCase().includes(query) || // User UUID
           inv.userName?.toLowerCase().includes(query) ||
+          inv.userEmail?.toLowerCase().includes(query) || // User email
           inv.ksefNumber?.toLowerCase().includes(query) ||
-          inv.description?.toLowerCase().includes(query)
+          inv.description?.toLowerCase().includes(query) ||
+          inv.kwota?.toLowerCase().includes(query) || // Amount
+          inv.reviewerName?.toLowerCase().includes(query) ||
+          inv.reviewedBy?.toLowerCase().includes(query) || // Reviewer UUID
+          inv.originalInvoiceId?.toLowerCase().includes(query) || // Original invoice UUID (for corrections)
+          inv.budgetRequest?.id?.toLowerCase().includes(query) // Budget request UUID
       );
     }
 
@@ -224,8 +356,38 @@ export default function InvoicesPage() {
       filtered = filtered.filter((inv) => inv.companyId === filterCompany);
     }
 
+    // Advanced filters
+    if (advancedFilters.dateFrom) {
+      const fromDate = new Date(advancedFilters.dateFrom);
+      filtered = filtered.filter((inv) => new Date(inv.createdAt) >= fromDate);
+    }
+    if (advancedFilters.dateTo) {
+      const toDate = new Date(advancedFilters.dateTo);
+      filtered = filtered.filter((inv) => new Date(inv.createdAt) <= toDate);
+    }
+    if (advancedFilters.amountMin) {
+      filtered = filtered.filter((inv) => {
+        const amount = parseFloat(inv.kwota || "0");
+        return amount >= parseFloat(advancedFilters.amountMin);
+      });
+    }
+    if (advancedFilters.amountMax) {
+      filtered = filtered.filter((inv) => {
+        const amount = parseFloat(inv.kwota || "0");
+        return amount <= parseFloat(advancedFilters.amountMax);
+      });
+    }
+    if (advancedFilters.ksefNumber) {
+      filtered = filtered.filter((inv) => 
+        inv.ksefNumber?.toLowerCase().includes(advancedFilters.ksefNumber.toLowerCase())
+      );
+    }
+    if (advancedFilters.invoiceType && advancedFilters.invoiceType !== "__all__") {
+      filtered = filtered.filter((inv) => inv.invoiceType === advancedFilters.invoiceType);
+    }
+
     return filtered;
-  }, [allInvoices, searchQuery, filterStatus, filterCompany]);
+  }, [allInvoices, searchQuery, filterStatus, filterCompany, advancedFilters]);
 
 
   // Loading state for user (auth) only blocks content, not whole page
@@ -272,7 +434,20 @@ export default function InvoicesPage() {
           </div>
 
           <div className="hidden md:block">
-            <InvoiceExportDialog invoices={allInvoices} companies={companies} users={allUsers} />
+            <AdvancedExportDialog
+              reportType="invoices"
+              defaultColumns={exportColumns}
+              defaultFileName="faktury"
+              defaultSheetName="Faktury"
+              statusOptions={[
+                { value: "pending", label: "Oczekująca" },
+                { value: "approved", label: "Zaakceptowana" },
+                { value: "rejected", label: "Odrzucona" },
+                { value: "re_review", label: "Do ponownej weryfikacji" },
+                { value: "settled", label: "Rozliczona" },
+              ]}
+              onExport={handleAdvancedExport}
+            />
           </div>
         </div>
 
@@ -280,41 +455,44 @@ export default function InvoicesPage() {
           <CardHeader>
             {/* Search and Filter Controls */}
             <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
-              <div className="flex-1 min-w-[200px]">
+              <div className="flex gap-2 items-center flex-1 min-w-[200px]">
+                <AdvancedFilters
+                  filters={advancedFilterConfig}
+                  values={advancedFilters}
+                  onChange={setAdvancedFilters}
+                  onReset={() => setAdvancedFilters({})}
+                />
                 <SearchInput
                   value={searchQuery}
                   onChange={setSearchQuery}
-                  className="w-full"
+                  className="w-full flex-1"
+                  placeholder="Szukaj"
+                  showIcon
                 />
               </div>
-              <Select value={filterCompany} onValueChange={setFilterCompany}>
-                        <SelectTrigger className="w-full sm:w-[200px]">
-                          <SelectValue placeholder="Wszystkie firmy" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">Wszystkie firmy</SelectItem>
-                          {companies?.map((company) => (
-                            <SelectItem key={company.id} value={company.id}>
-                              {company.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger className="w-full sm:w-[180px]">
-                          <SelectValue placeholder="Wszystkie statusy" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">Wszystkie</SelectItem>
-                          <SelectItem value="pending">Oczekuje</SelectItem>
-                          <SelectItem value="in_review">W trakcie</SelectItem>
-                          <SelectItem value="accepted">Zaakceptowane</SelectItem>
-                          <SelectItem value="rejected">Odrzucone</SelectItem>
-                          <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardHeader>
+              <SearchableSelect
+                options={companyOptions}
+                value={filterCompany}
+                onValueChange={setFilterCompany}
+                placeholder="Wszystkie firmy"
+                emptyText="Nie znaleziono firm"
+                className="w-full sm:w-[200px]"
+              />
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Wszystkie statusy" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Wszystkie</SelectItem>
+                  <SelectItem value="pending">Oczekuje</SelectItem>
+                  <SelectItem value="in_review">W trakcie</SelectItem>
+                  <SelectItem value="accepted">Zaakceptowane</SelectItem>
+                  <SelectItem value="rejected">Odrzucone</SelectItem>
+                  <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
                   <CardContent className="p-0">
                     <Suspense fallback={<SectionLoader className="p-8" />}>
                       {loadingInvoices ? (

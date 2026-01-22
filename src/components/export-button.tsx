@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
-import { exportToCSV, ExportOptions, sanitizeExportCell } from "@/lib/export";
+import { exportToCSV, exportToExcel, ExportOptions, sanitizeExportCell } from "@/lib/export";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Dialog,
@@ -32,7 +32,7 @@ if (pdfFonts && (pdfFonts as unknown as { pdfMake?: { vfs: unknown } }).pdfMake)
   (pdfMake as { vfs?: unknown }).vfs = pdfFonts;
 }
 
-type ExportFormat = "csv" | "pdf";
+type ExportFormat = "csv" | "xlsx" | "pdf";
 
 interface FilterOption {
   key: string;
@@ -77,7 +77,7 @@ export function ExportButton<T extends Record<string, unknown>>({
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
-  const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({});
   // For "Specific month" filter: store temporary year/month selections per filter key
   const [monthSelections, setMonthSelections] = useState<Record<string, { year?: string; month?: string }>>({});
@@ -207,7 +207,31 @@ export function ExportButton<T extends Record<string, unknown>>({
       // human readable filters for metadata
       const filtersMeta = filtersDescription;
 
-      if (exportFormat === "csv") {
+      if (exportFormat === "xlsx") {
+        setProgress(50);
+
+        // Show incremental progress for large datasets
+        if (exportData.length > 100) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          setProgress(60);
+        }
+
+        await exportToExcel({
+          data: exportData,
+          columns,
+          filename: `${outFilename}.xlsx`,
+          meta: {
+            title: pdfTitle || filename,
+            generatedAt: new Date().toLocaleString('pl-PL'),
+            user: userName,
+            filters: filtersMeta,
+          }
+        });
+
+        setProgress(90);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        setProgress(100);
+      } else if (exportFormat === "csv") {
         setProgress(50);
 
         // Show incremental progress for large datasets
@@ -572,7 +596,8 @@ export function ExportButton<T extends Record<string, unknown>>({
                     <SelectValue placeholder="Wybierz format" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="csv">CSV (Excel)</SelectItem>
+                    <SelectItem value="xlsx">Excel (XLSX)</SelectItem>
+                    <SelectItem value="csv">CSV</SelectItem>
                     <SelectItem value="pdf">PDF (do druku)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -642,7 +667,7 @@ export function ExportButton<T extends Record<string, unknown>>({
 
             {isExporting && (
               <div className="space-y-2">
-                <Label>{exportFormat === "csv" ? "Generowanie CSV..." : "Generowanie PDF..."}</Label>
+                <Label>{exportFormat === "xlsx" ? "Generowanie Excel..." : exportFormat === "csv" ? "Generowanie CSV..." : "Generowanie PDF..."}</Label>
                 <Progress value={progress} className="w-full" />
               </div>
             )}
@@ -701,9 +726,9 @@ export function ExportButton<T extends Record<string, unknown>>({
             setProgress(70);
 
             const dateStamp = new Date().toISOString().split('T')[0];
-            const outFilename = filename.endsWith('.csv') ? `${filename}_${dateStamp}` : `${filename}_${dateStamp}.csv`;
+            const outFilename = filename.endsWith('.xlsx') ? `${filename}_${dateStamp}` : `${filename}_${dateStamp}.xlsx`;
 
-            exportToCSV({
+            await exportToExcel({
               data: exportData,
               columns,
               filename: outFilename,
@@ -718,7 +743,7 @@ export function ExportButton<T extends Record<string, unknown>>({
 
             toast({
               title: "Sukces",
-              description: "Dane zostały wyeksportowane do pliku CSV",
+              description: "Dane zostały wyeksportowane do pliku Excel",
             });
           } catch (error) {
             console.error("Export error:", error);

@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchInput } from "@/components/search-input";
+import { AdvancedFilters, type FilterConfig } from "@/components/advanced-filters";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -82,6 +85,7 @@ export default function KorektyPage() {
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCompany, setFilterCompany] = useState<string>("__all__");
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
 
   // Correction form dialog states
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -110,6 +114,47 @@ export default function KorektyPage() {
   const { data: companies, isLoading: loadingCompanies } = trpc.company.list.useQuery(undefined, {
     enabled: !!user && (user.role === "accountant" || user.role === "admin"),
   });
+
+  // Company options for SearchableSelect
+  const companyOptions = useMemo(() => {
+    if (!companies) return [{ value: "__all__", label: "Wszystkie firmy", searchableText: "wszystkie firmy" }];
+    return [
+      { value: "__all__", label: "Wszystkie firmy", searchableText: "wszystkie firmy" },
+      ...companies.map(c => ({
+        value: c.id,
+        label: c.name,
+        searchableText: `${c.name} ${c.nip || ""} ${c.id}`.toLowerCase()
+      }))
+    ];
+  }, [companies]);
+
+  // Advanced filter configuration
+  const advancedFilterConfig: FilterConfig[] = [
+    {
+      field: "dateFrom",
+      type: "date",
+      label: "Data od",
+      placeholder: "Wybierz datę początkową"
+    },
+    {
+      field: "dateTo",
+      type: "date",
+      label: "Data do",
+      placeholder: "Wybierz datę końcową"
+    },
+    {
+      field: "amountMin",
+      type: "number",
+      label: "Kwota min",
+      placeholder: "0.00"
+    },
+    {
+      field: "amountMax",
+      type: "number",
+      label: "Kwota max",
+      placeholder: "0.00"
+    },
+  ];
 
   // Fetch correctable invoices when searching
   const { data: correctableInvoicesData, isLoading: loadingCorrectableInvoices } =
@@ -145,6 +190,62 @@ export default function KorektyPage() {
   });
 
   const allCorrections = (correctionsData?.pages.flatMap((page) => page.items) || []) as CorrectionInvoice[];
+
+  // Filter corrections with enhanced search
+  const filteredCorrections = useMemo(() => {
+    let filtered = [...allCorrections];
+
+    // Search filter - enhanced to include UUIDs, amounts, dates
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (corr) =>
+          // Basic fields
+          corr.id.toLowerCase().includes(query) ||
+          corr.invoiceNumber.toLowerCase().includes(query) ||
+          corr.originalInvoiceNumber?.toLowerCase().includes(query) ||
+          corr.companyName?.toLowerCase().includes(query) ||
+          corr.userName?.toLowerCase().includes(query) ||
+          corr.userEmail?.toLowerCase().includes(query) ||
+          // UUIDs
+          corr.userId?.toLowerCase().includes(query) ||
+          corr.companyId?.toLowerCase().includes(query) ||
+          corr.originalInvoiceId?.toLowerCase().includes(query) ||
+          // Amount
+          corr.correctionAmount?.toString().includes(query) ||
+          // Justification
+          corr.justification?.toLowerCase().includes(query) ||
+          // Date
+          (corr.createdAt && format(new Date(corr.createdAt), "dd/MM/yyyy", { locale: pl }).includes(query))
+      );
+    }
+
+    // Company filter
+    if (filterCompany !== "__all__") {
+      filtered = filtered.filter((corr) => corr.companyId === filterCompany);
+    }
+
+    // Apply advanced filters
+    if (advancedFilters.dateFrom) {
+      const dateFrom = new Date(advancedFilters.dateFrom);
+      filtered = filtered.filter(corr => new Date(corr.createdAt) >= dateFrom);
+    }
+    if (advancedFilters.dateTo) {
+      const dateTo = new Date(advancedFilters.dateTo);
+      dateTo.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(corr => new Date(corr.createdAt) <= dateTo);
+    }
+    if (advancedFilters.amountMin) {
+      const amountMin = parseFloat(advancedFilters.amountMin);
+      filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) >= amountMin);
+    }
+    if (advancedFilters.amountMax) {
+      const amountMax = parseFloat(advancedFilters.amountMax);
+      filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) <= amountMax);
+    }
+
+    return filtered;
+  }, [allCorrections, searchQuery, filterCompany, advancedFilters]);
 
   // Authorization check
   if (loadingUser) {
@@ -271,37 +372,41 @@ export default function KorektyPage() {
         <Card className="mb-6">
           <CardContent className="p-4">
             <div className="flex flex-col md:flex-row gap-4">
-              {/* Search */}
-              <div className="flex-1">
-                <Label htmlFor="search">Szukaj po numerze faktury</Label>
-                <div className="relative mt-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Wpisz numer faktury..."
-                    className="pl-10"
+              {/* Search with Advanced Filters (filter button moved to the left) */}
+              <div className="flex-1 flex gap-2 items-end min-w-0">
+                <div className="self-center shrink-0">
+                  <AdvancedFilters
+                    filters={advancedFilterConfig}
+                    values={advancedFilters}
+                    onChange={setAdvancedFilters}
+                    onReset={() => setAdvancedFilters({})}
                   />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <Label htmlFor="search">Szukaj po numerze faktury</Label>
+                  <div className="relative mt-2">
+                    <SearchInput
+                      value={searchQuery}
+                      onChange={setSearchQuery}
+                      placeholder="Szukaj"
+                      className="w-full"
+                      showIcon
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Company Filter */}
               <div className="w-full md:w-64">
                 <Label htmlFor="company-filter">Firma</Label>
-                <Select value={filterCompany} onValueChange={setFilterCompany}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Wszystkie firmy" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Wszystkie firmy</SelectItem>
-                    {companies?.map((company) => (
-                      <SelectItem key={company.id} value={company.id}>
-                        {company.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={filterCompany}
+                  onValueChange={setFilterCompany}
+                  options={companyOptions}
+                  placeholder="Wybierz firmę"
+                  className="mt-2"
+                />
               </div>
             </div>
           </CardContent>
@@ -312,7 +417,7 @@ export default function KorektyPage() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : allCorrections.length === 0 ? (
+        ) : filteredCorrections.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mb-4" />
@@ -342,7 +447,7 @@ export default function KorektyPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allCorrections.map((correction) => (
+                    {filteredCorrections.map((correction) => (
                       <TableRow
                         key={correction.id}
                         className="cursor-pointer hover:bg-muted/50"
@@ -400,25 +505,31 @@ export default function KorektyPage() {
             {/* Invoice Search */}
             <div className="space-y-2">
               <Label>Wyszukaj oryginalną fakturę</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Numer faktury..."
-                  value={invoiceSearchQuery}
-                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
-                />
-                <Select value={invoiceSearchCompanyId} onValueChange={setInvoiceSearchCompanyId}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Wszystkie firmy" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Wszystkie firmy</SelectItem>
-                    {companies?.map((company) => (
+              <div className="flex flex-col sm:flex-row gap-2 items-end min-w-0">
+                <div className="flex-1 min-w-0">
+                  <SearchInput
+                    placeholder="Szukaj"
+                    value={invoiceSearchQuery}
+                    onChange={setInvoiceSearchQuery}
+                    className="w-full"
+                    showIcon
+                  />
+                </div>
+                <div className="shrink-0 w-full sm:w-48">
+                  <Select value={invoiceSearchCompanyId} onValueChange={setInvoiceSearchCompanyId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Wszystkie firmy" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Wszystkie firmy</SelectItem>
+                      {companies?.map((company) => (
                       <SelectItem key={company.id} value={company.id}>
                         {company.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
               </div>
             </div>
 

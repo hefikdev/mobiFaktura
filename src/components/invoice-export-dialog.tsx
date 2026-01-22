@@ -4,7 +4,8 @@ import React, { useState, useMemo } from "react";
 import type { TDocumentDefinitions, Content, DynamicContent } from "pdfmake/interfaces";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/search-input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Select,
   SelectContent,
@@ -40,11 +41,12 @@ if (pdfFonts && (pdfFonts as unknown as { pdfMake?: { vfs: unknown } }).pdfMake)
 }
 
 type ExportPeriod = "last30" | "specificMonth" | "last3Months" | "last6Months" | "thisYear" | "all";
-type ExportFormat = "csv" | "pdf";
+type ExportFormat = "csv" | "xlsx" | "pdf";
 
 interface Company {
   id: string;
   name: string;
+  nip?: string | null;
 }
 
 interface User {
@@ -78,7 +80,7 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
   const { toast } = useToast();
   
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
-  const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [exportPeriod, setExportPeriod] = useState<ExportPeriod>("last30");
   const [exportMonth, setExportMonth] = useState(new Date().getMonth().toString());
   const [exportYear, setExportYear] = useState(new Date().getFullYear().toString());
@@ -101,6 +103,19 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
       user.email.toLowerCase().includes(query)
     );
   }, [users, userSearchQuery]);
+
+  // Company options for SearchableSelect
+  const companyOptions = useMemo(() => {
+    if (!companies) return [{ value: "all", label: "Wszystkie firmy", searchableText: "wszystkie firmy" }];
+    return [
+      { value: "all", label: "Wszystkie firmy", searchableText: "wszystkie firmy" },
+      ...companies.map(c => ({
+        value: c.id,
+        label: c.name,
+        searchableText: `${c.name} ${c.nip || ""} ${c.id}`.toLowerCase()
+      }))
+    ];
+  }, [companies]);
 
   // Get selected user name for display
   const selectedUserName = useMemo(() => {
@@ -219,7 +234,58 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
         filterLine += `Status: ${statusText}`;
       }
     }
-    if (exportFormat === "csv") {
+    if (exportFormat === "xlsx") {
+      setIsGenerating(true);
+      setProgress(20);
+      
+      // Allow UI to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Use shared exportToExcel helper
+      const formattedRows = exportInvoices.map(inv => ({
+        submittedAt: inv.createdAt ? formatDate(inv.createdAt) : "",
+        reviewedAt: inv.reviewedAt ? formatDate(inv.reviewedAt) : "-",
+        invoiceNumber: inv.invoiceNumber || "",
+        ksefNumber: inv.ksefNumber || "-",
+        user: inv.userName || "",
+        company: inv.companyName || "",
+        status: inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : inv.status === "re_review" ? "Ponowna weryfikacja" : "Oczekuje",
+        reviewer: inv.reviewerName || "-",
+        description: inv.description || "-",
+      }));
+
+      // trigger Excel download
+      import("@/lib/export").then(async ({ exportToExcel }) => {
+        await exportToExcel({
+          filename: `faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}`,
+          columns: [
+            { key: 'submittedAt', header: String(headers[0] ?? '') },
+            { key: 'reviewedAt', header: String(headers[1] ?? '') },
+            { key: 'invoiceNumber', header: String(headers[2] ?? '') },
+            { key: 'ksefNumber', header: String(headers[3] ?? '') },
+            { key: 'user', header: String(headers[4] ?? '') },
+            { key: 'company', header: String(headers[5] ?? '') },
+            { key: 'status', header: String(headers[6] ?? '') },
+            { key: 'reviewer', header: String(headers[7] ?? '') },
+            { key: 'description', header: String(headers[8] ?? '') },
+          ],
+          data: formattedRows,
+          meta: {
+            title: 'Raport Faktur - mobiFaktura',
+            generatedAt: new Date().toLocaleString('pl-PL'),
+            user: selectedUserName,
+            filters: periodText + (filterLine ? ' | ' + filterLine : '')
+          }
+        });
+      }).catch(e => {
+        console.error('Excel export helper load failed', e);
+      });
+
+      setProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setIsGenerating(false);
+      setProgress(0);
+    } else if (exportFormat === "csv") {
       setIsGenerating(true);
       setProgress(20);
       
@@ -517,7 +583,8 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
                 <SelectValue placeholder="Wybierz format" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="csv">CSV (Excel)</SelectItem>
+                <SelectItem value="xlsx">Excel (XLSX)</SelectItem>
+                <SelectItem value="csv">CSV</SelectItem>
                 <SelectItem value="pdf">PDF (do druku)</SelectItem>
               </SelectContent>
             </Select>
@@ -579,19 +646,12 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
           )}
           <div className="space-y-2">
             <Label htmlFor="exportCompany">Firma (opcjonalne)</Label>
-            <Select value={exportCompany} onValueChange={setExportCompany}>
-              <SelectTrigger id="exportCompany">
-                <SelectValue placeholder="Wszystkie firmy" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Wszystkie firmy</SelectItem>
-                {companies?.map((company) => (
-                  <SelectItem key={company.id} value={company.id}>
-                    {company.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={exportCompany}
+              onValueChange={setExportCompany}
+              options={companyOptions}
+              placeholder="Wszystkie firmy"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="exportStatus">Status (opcjonalny)</Label>
@@ -625,11 +685,11 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
               </PopoverTrigger>
               <PopoverContent className="w-full p-0" align="start">
                 <div className="p-2">
-                  <Input
+                  <SearchInput
                     placeholder="Szukaj użytkownika..."
                     value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    className="mb-2"
+                    onChange={setUserSearchQuery}
+                    className="w-full mb-2"
                   />
                   <div className="max-h-48 overflow-y-auto">
                     <Button
@@ -664,7 +724,7 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
           </div>
           {isGenerating && (
             <div className="space-y-2">
-              <Label>{exportFormat === "csv" ? "Generowanie CSV..." : "Generowanie PDF..."}</Label>
+              <Label>{exportFormat === "xlsx" ? "Generowanie Excel..." : exportFormat === "csv" ? "Generowanie CSV..." : "Generowanie PDF..."}</Label>
               <Progress value={progress} className="w-full" />
             </div>
           )}

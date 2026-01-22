@@ -150,6 +150,13 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
                   </Link>
                 </Button>
                 
+                <Button asChild variant="outline" className="justify-start">
+                  <Link href="/a/exports">
+                    <FileText className="mr-2 h-4 w-4" />
+                    Raporty
+                  </Link>
+                </Button>
+                
                 <div className="border-t pt-3">
                   <RequestBudgetDialog />
                 </div>
@@ -243,6 +250,13 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
             <Link href="/a/dashboard">
               <User className="mr-2 h-4 w-4" />
               Moje faktury
+            </Link>
+          </Button>
+
+          <Button asChild variant="ghost">
+            <Link href="/a/exports">
+              <FileText className="mr-2 h-4 w-4" />
+              Raporty
             </Link>
           </Button>
 

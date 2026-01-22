@@ -9,6 +9,8 @@ import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
 import { SearchInput } from "@/components/search-input";
 import { ExportButton } from "@/components/export-button";
+import { SearchableSelect, SearchableSelectOption } from "@/components/ui/searchable-select";
+import { AdvancedFilters, FilterConfig } from "@/components/advanced-filters";
 import dynamic from "next/dynamic";
 const BudgetRequestReviewDialog = dynamic(() => import("@/components/budget-request-review-dialog").then(m => m.BudgetRequestReviewDialog));
 import { AdvanceDetailsDialog } from "@/components/advance-details-dialog";
@@ -52,6 +54,7 @@ export default function BudgetRequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAdvanceId, setSelectedAdvanceId] = useState<string | null>(null);
   const [isAdvanceDialogOpen, setIsAdvanceDialogOpen] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
 
   // Check user role
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
@@ -91,6 +94,33 @@ export default function BudgetRequestsPage() {
 
   const allRequests = requestsData?.pages.flatMap((page) => page.items) || [];
 
+  // Prepare company options for SearchableSelect
+  const companyOptions: SearchableSelectOption[] = useMemo(() => {
+    if (!companies) return [{ value: "all", label: "Wszystkie firmy", searchableText: "wszystkie" }];
+    return [
+      { value: "all", label: "Wszystkie firmy", searchableText: "wszystkie" },
+      ...companies.map((company) => ({
+        value: company.id,
+        label: company.name,
+        searchableText: `${company.name} ${company.nip || ''} ${company.id}`.toLowerCase(),
+      }))
+    ];
+  }, [companies]);
+
+  // Define advanced filter configuration
+  const advancedFilterConfig: FilterConfig[] = [
+    {
+      label: "Zakres dat",
+      type: "dateRange",
+      field: "date",
+    },
+    {
+      label: "Kwota",
+      type: "amount",
+      field: "amount",
+    },
+  ];
+
   // Filter requests based on search and company
   const filteredRequests = useMemo(() => {
     if (!allRequests) return [];
@@ -102,17 +132,37 @@ export default function BudgetRequestsPage() {
       filtered = filtered.filter((req) => req.companyId === companyFilter);
     }
 
-    // Search filter
+    // Enhanced search filter - includes UUIDs, emails, amounts
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (req) =>
-          req.id.toLowerCase().includes(query) ||
+          req.id.toLowerCase().includes(query) || // Request UUID
+          req.userId.toLowerCase().includes(query) || // User UUID
+          req.companyId?.toLowerCase().includes(query) || // Company UUID
           req.userName.toLowerCase().includes(query) ||
           req.userEmail.toLowerCase().includes(query) ||
           req.justification.toLowerCase().includes(query) ||
+          req.requestedAmount?.toString().includes(query) || // Amount
+          req.currentBalanceAtRequest?.toString().includes(query) || // Balance
           (req.companyName && req.companyName.toLowerCase().includes(query))
       );
+    }
+
+    // Advanced filters
+    if (advancedFilters.dateFrom) {
+      const fromDate = new Date(advancedFilters.dateFrom);
+      filtered = filtered.filter((req) => new Date(req.createdAt) >= fromDate);
+    }
+    if (advancedFilters.dateTo) {
+      const toDate = new Date(advancedFilters.dateTo);
+      filtered = filtered.filter((req) => new Date(req.createdAt) <= toDate);
+    }
+    if (advancedFilters.amountMin) {
+      filtered = filtered.filter((req) => (req.requestedAmount || 0) >= parseFloat(advancedFilters.amountMin));
+    }
+    if (advancedFilters.amountMax) {
+      filtered = filtered.filter((req) => (req.requestedAmount || 0) <= parseFloat(advancedFilters.amountMax));
     }
 
     // Sort by date descending (newest first) - same as invoices page
@@ -121,7 +171,7 @@ export default function BudgetRequestsPage() {
     });
 
     return filtered;
-  }, [allRequests, searchQuery, companyFilter]);
+  }, [allRequests, searchQuery, companyFilter, advancedFilters]);
 
   const { data: pendingCount } = trpc.budgetRequest.getPendingCount.useQuery();
 
@@ -325,11 +375,19 @@ export default function BudgetRequestsPage() {
       <Card>
         <CardHeader>
           <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex gap-2 items-center flex-1 min-w-[200px]">
+              <AdvancedFilters
+                filters={advancedFilterConfig}
+                values={advancedFilters}
+                onChange={setAdvancedFilters}
+                onReset={() => setAdvancedFilters({})}
+              />
               <SearchInput
                 value={searchQuery}
                 onChange={setSearchQuery}
-                className="w-full"
+                className="w-full flex-1"
+                placeholder="Szukaj"
+                showIcon
               />
             </div>
             <div className="flex flex-row items-center gap-4">
@@ -344,19 +402,14 @@ export default function BudgetRequestsPage() {
                   <SelectItem value="rejected">Odrzucone</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={companyFilter} onValueChange={setCompanyFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Firma" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Wszystkie firmy</SelectItem>
-                  {companies && companies.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={companyOptions}
+                value={companyFilter}
+                onValueChange={setCompanyFilter}
+                placeholder="Wszystkie firmy"
+                emptyText="Nie znaleziono firm"
+                className="w-[200px]"
+              />
             </div>
           </div>
         </CardHeader>

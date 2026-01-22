@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { exportToExcel } from "@/lib/export";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -602,48 +603,73 @@ export default function InvoiceReviewPage() {
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (!invoice) return;
 
-    // Prepare CSV data
-    const csvData = [
-      ['Pole', 'Wartość'],
-      ['Numer faktury', invoice.invoiceNumber || ''],
-      ['Typ', invoice.invoiceType === 'receipt' ? 'Paragon' : invoice.invoiceType === 'correction' ? 'Korekta' : 'Faktura'],
-      ['Status', invoice.status],
-      ['Kwota', invoice.kwota || ''],
-      ['Dekretacja', invoice.description || ''],
-      ['Firma', invoice.company?.name || ''],
-      ['NIP', invoice.company?.nip || ''],
-      ['Użytkownik', invoice.submitter?.name || ''],
-      ['Email użytkownika', invoice.submitter?.email || ''],
-      ['Data utworzenia', format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })],
-      ['Data przeglądu', invoice.reviewedAt ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl }) : ''],
-      ['Recenzent', invoice.reviewer?.name || ''],
-      ['Data rozliczenia', invoice.settledAt ? format(new Date(invoice.settledAt), "dd.MM.yyyy HH:mm:ss", { locale: pl }) : ''],
-      ['Rozliczył', invoice.settledByUser?.name || ''],
-      ['Numer KSeF', invoice.ksefNumber || ''],
-    ];
+    // Prepare data for Excel export
+    const exportData = [{
+      field: 'Numer faktury',
+      value: invoice.invoiceNumber || '',
+    }, {
+      field: 'Typ',
+      value: invoice.invoiceType === 'receipt' ? 'Paragon' : invoice.invoiceType === 'correction' ? 'Korekta' : 'Faktura',
+    }, {
+      field: 'Status',
+      value: invoice.status,
+    }, {
+      field: 'Kwota',
+      value: invoice.kwota || '',
+    }, {
+      field: 'Dekretacja',
+      value: invoice.description || '',
+    }, {
+      field: 'Firma',
+      value: invoice.company?.name || '',
+    }, {
+      field: 'NIP',
+      value: invoice.company?.nip || '',
+    }, {
+      field: 'Użytkownik',
+      value: invoice.submitter?.name || '',
+    }, {
+      field: 'Email użytkownika',
+      value: invoice.submitter?.email || '',
+    }, {
+      field: 'Data utworzenia',
+      value: format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm:ss", { locale: pl }),
+    }, {
+      field: 'Data przeglądu',
+      value: invoice.reviewedAt ? format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl }) : '',
+    }, {
+      field: 'Recenzent',
+      value: invoice.reviewer?.name || '',
+    }, {
+      field: 'Data rozliczenia',
+      value: invoice.settledAt ? format(new Date(invoice.settledAt), "dd.MM.yyyy HH:mm:ss", { locale: pl }) : '',
+    }, {
+      field: 'Rozliczył',
+      value: invoice.settledByUser?.name || '',
+    }, {
+      field: 'Numer KSeF',
+      value: invoice.ksefNumber || '',
+    }];
 
-    // Convert to CSV string
-    const csvContent = csvData.map(row => 
-      row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(',')
-    ).join('\n');
-
-    // Create blob and download
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `faktura_${invoice.invoiceNumber || invoiceId}_export.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    await exportToExcel({
+      data: exportData,
+      columns: [
+        { key: 'field', header: 'Pole' },
+        { key: 'value', header: 'Wartość' },
+      ],
+      filename: `faktura_${invoice.invoiceNumber || invoiceId}_export.xlsx`,
+      meta: {
+        title: `Faktura ${invoice.invoiceNumber || invoiceId}`,
+        generatedAt: new Date().toLocaleString('pl-PL'),
+      }
+    });
 
     toast({
       title: "Wyeksportowano",
-      description: "Dane faktury zostały wyeksportowane do CSV",
+      description: "Dane faktury zostały wyeksportowane do Excel",
     });
   };
 
@@ -1222,7 +1248,7 @@ export default function InvoiceReviewPage() {
                   variant="outline" 
                   size="sm"
                   onClick={handleExportCSV}
-                  title="Eksportuj do CSV"
+                  title="Eksportuj do Excel"
                   className="w-full flex items-center justify-center gap-1"
                 >
                   <FileText className="h-4 w-4" />
@@ -1276,16 +1302,13 @@ export default function InvoiceReviewPage() {
                 <span className="font-bold text-sm">{`Usuń ${invoice?.invoiceType === 'receipt' ? 'paragon' : invoice?.invoiceType === 'correction' ? 'korektę' : 'fakturę'}`}</span>
               </Button>
               <Button
-                onClick={() => {
-                  router.push("/a/invoices");
-                  router.refresh();
-                }}
+                onClick={() => router.back()}
                 variant="outline"
                 size="lg"
                 className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2"
               >
                 Powrót do listy
-              </Button>
+              </Button> 
               <div className="hidden lg:flex flex-col gap-2 mt-3">
                 <div className="flex flex-row gap-2">
                   <Button 
@@ -1313,7 +1336,7 @@ export default function InvoiceReviewPage() {
                   variant="outline" 
                   size="sm"
                   onClick={handleExportCSV}
-                  title="Eksportuj do CSV"
+                  title="Eksportuj do Excel"
                   className="w-full flex items-center justify-center gap-1"
                 >
                   <FileText className="h-4 w-4" />
@@ -1351,7 +1374,7 @@ export default function InvoiceReviewPage() {
               variant="outline" 
               size="sm"
               onClick={handleExportCSV}
-              title="Eksportuj do CSV"
+              title="Eksportuj do Excel"
               className="flex-1 flex items-center justify-center gap-1"
             >
               <FileText className="h-4 w-4" />

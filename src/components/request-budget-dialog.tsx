@@ -25,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 
 export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const { toast } = useToast();
@@ -52,6 +54,15 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
     undefined,
     { enabled: !!currentUser }
   );
+
+  // Prepare company options for SearchableSelect
+  const companyOptions: SearchableSelectOption[] = useMemo(() => {
+    return (companiesQuery.data || []).map((company: { id: string; name: string; nip?: string | null }) => ({
+      value: company.id,
+      label: company.name,
+      searchableText: `${company.name} ${company.nip || ""} ${company.id}`,
+    }));
+  }, [companiesQuery.data]);
 
   const createRequestMutation = trpc.budgetRequest.create.useMutation({
     retry: shouldRetryMutation,
@@ -141,31 +152,15 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
         <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
           <div className="grid gap-2">
             <Label htmlFor="company">Firma</Label>
-            <Select
+            <SearchableSelect
+              options={companyOptions}
               value={selectedCompanyId}
               onValueChange={setSelectedCompanyId}
+              placeholder="Wybierz firmę..."
+              searchPlaceholder="Szukaj"
+              emptyText="Brak dostępnych firm"
               disabled={createRequestMutation.isPending || companiesQuery.isLoading}
-            >
-              <SelectTrigger id="company">
-                <SelectValue placeholder="Wybierz firmę..." />
-              </SelectTrigger>
-              <SelectContent>
-                {companiesQuery.data && companiesQuery.data.length > 0 ? (
-                  companiesQuery.data.map((company: { id: string; name: string }) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span>{company.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-companies" disabled>
-                    Brak dostępnych firm
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+            />
             {companiesQuery.data && companiesQuery.data.length === 0 && (
               <p className="text-sm text-red-500">
                 Nie masz dostępu do żadnej firmy. Skontaktuj się z administratorem.

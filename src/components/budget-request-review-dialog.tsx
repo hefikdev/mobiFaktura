@@ -11,14 +11,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Wallet, XCircle, CheckCircle, Clock, Building2 } from "lucide-react";
+import { Loader2, Wallet, XCircle, CheckCircle, Clock, Building2, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import { Badge } from "@/components/ui/badge";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
+import { generateSingleBudgetRequestExcel } from "@/lib/excel-utils";
 
 interface BudgetRequestReviewDialogProps {
   request: {
@@ -66,6 +76,43 @@ export function BudgetRequestReviewDialog({
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">(initialAction);
   const [rejectionReason, setRejectionReason] = useState("");
   const utils = trpc.useUtils();
+
+  // Export states
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+
+  const handleExportBudgetRequest = async () => {
+    if (!request) return;
+
+    try {
+      setIsExporting(true);
+      setExportProgress(10);
+      
+      setExportProgress(30);
+      await generateSingleBudgetRequestExcel(request, {
+        dateFormat: "dd/MM/yyyy",
+        currencyFormat: "PLN",
+        showCurrencySymbol: true,
+      });
+
+      setExportProgress(100);
+      toast({
+        title: "Sukces",
+        description: "Eksport wniosku budżetowego zakończony pomyślnie",
+      });
+      setExportDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Błąd",
+        description: "Nie udało się wyeksportować wniosku budżetowego",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+      setTimeout(() => setExportProgress(0), 500);
+    }
+  };
 
   // Sync internal state with initialAction prop
   useEffect(() => {
@@ -300,16 +347,27 @@ export function BudgetRequestReviewDialog({
 
           {mode === "review" && request.status === "pending" && (
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setReviewAction(initialAction);
-                  onOpenChange(false);
-                }}
-                disabled={reviewMutation.isPending}
-              >
-                Anuluj
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setExportDialogOpen(true)}
+                  size="sm"
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Eksportuj
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setReviewAction(initialAction);
+                    onOpenChange(false);
+                  }}
+                  disabled={reviewMutation.isPending}
+                >
+                  Anuluj
+                </Button>
 
               {/* Approve button (always visible) */}
               <Button
@@ -344,16 +402,62 @@ export function BudgetRequestReviewDialog({
                 )}
                 Odrzuć
               </Button>
+              </div>
             </DialogFooter>
           )}
 
           {mode === "details" && (
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => setExportDialogOpen(true)}
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Eksportuj
+              </Button>
               <Button onClick={() => onOpenChange(false)}>
                 Zamknij
               </Button>
             </DialogFooter>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eksportuj wniosek budżetowy do Excel</DialogTitle>
+            <DialogDescription>
+              Wybierz format daty dla eksportu
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {isExporting && (
+              <div className="space-y-2">
+                <Label>Generowanie Excel...</Label>
+                <Progress value={exportProgress} className="w-full" />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
+              Anuluj
+            </Button>
+            <Button onClick={handleExportBudgetRequest} disabled={isExporting}>
+              {isExporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eksportowanie...
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Eksportuj
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

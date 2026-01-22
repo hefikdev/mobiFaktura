@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import ExcelJS from "exceljs";
 
 export interface ExportColumn<T = unknown> {
   key: string;
@@ -152,4 +153,82 @@ export function exportToCSV<T extends Record<string, unknown>>(options: ExportOp
   const csvContent = convertToCSV(options);
   const filename = options.filename.endsWith('.csv') ? options.filename : `${options.filename}.csv`;
   downloadCSV(csvContent, filename);
+}
+
+/**
+ * Export data to Excel (XLSX) and trigger download
+ */
+export async function exportToExcel<T extends Record<string, unknown>>(options: ExportOptions<T>): Promise<void> {
+  const { columns, data, meta, filename } = options;
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Data');
+
+  // Add metadata rows at the top if provided
+  let currentRow = 1;
+  if (meta) {
+    if (meta.title) {
+      worksheet.getCell(currentRow, 1).value = `Title: ${meta.title}`;
+      currentRow++;
+    }
+    if (meta.generatedAt) {
+      worksheet.getCell(currentRow, 1).value = `Generated at: ${meta.generatedAt}`;
+      currentRow++;
+    }
+    if (meta.user) {
+      worksheet.getCell(currentRow, 1).value = `User: ${meta.user}`;
+      currentRow++;
+    }
+    if (meta.filters) {
+      worksheet.getCell(currentRow, 1).value = `Filters: ${meta.filters}`;
+      currentRow++;
+    }
+    if (currentRow > 1) {
+      currentRow++; // Add empty row after metadata
+    }
+  }
+
+  // Add header row
+  const headerRow = worksheet.getRow(currentRow);
+  columns.forEach((col, index) => {
+    headerRow.getCell(index + 1).value = col.header;
+  });
+  headerRow.font = { bold: true };
+  currentRow++;
+
+  // Add data rows
+  data.forEach(row => {
+    const dataRow = worksheet.getRow(currentRow);
+    columns.forEach((col, index) => {
+      const value = row[col.key];
+      const formattedValue = col.formatter ? col.formatter(value) : value;
+      dataRow.getCell(index + 1).value = sanitizeExportCell(formattedValue);
+    });
+    currentRow++;
+  });
+
+  // Auto-fit columns
+  worksheet.columns.forEach(column => {
+    if (!column || typeof column.eachCell !== 'function') return;
+    let maxLength = 0;
+    column.eachCell(cell => {
+      const cellValue = cell.value ? cell.value.toString() : '';
+      maxLength = Math.max(maxLength, cellValue.length);
+    });
+    column.width = Math.min(Math.max(maxLength + 2, 10), 50);
+  });
+
+  // Generate buffer and download
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const finalFilename = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+  link.href = url;
+  link.download = finalFilename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

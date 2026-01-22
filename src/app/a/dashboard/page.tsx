@@ -55,9 +55,11 @@ export default function DashboardPage() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (inv) =>
+          inv.id.toLowerCase().includes(query) ||
           inv.invoiceNumber.toLowerCase().includes(query) ||
           inv.companyName?.toLowerCase().includes(query) ||
-          inv.description?.toLowerCase().includes(query)
+          inv.description?.toLowerCase().includes(query) ||
+          inv.status.toLowerCase().includes(query)
       );
     }
 
@@ -116,7 +118,7 @@ export default function DashboardPage() {
 
         {/* Search and Filter Controls - only show when there are invoices */}
         {invoices && invoices.length > 0 && (
-          <div className="mb-4 max-w-4xl mx-auto">
+          <div className="mb-4 w-full px-4">
             <div className="flex gap-2 flex-col sm:flex-row">
               <div className="flex-1">
                 <SearchInput

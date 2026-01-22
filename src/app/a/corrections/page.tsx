@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, Suspense } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SearchInput } from "@/components/search-input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { AdvancedFilters, type FilterConfig } from "@/components/advanced-filters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -88,6 +90,7 @@ export default function CorrectionsPage() {
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCompany, setFilterCompany] = useState<string>("__all__");
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
 
   // Correction form dialog states
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -123,6 +126,47 @@ export default function CorrectionsPage() {
   const allCorrections = (correctionsData?.pages.flatMap((page: any) => page.items) || []) as CorrectionInvoice[];
 
   const { data: companies } = trpc.company.list.useQuery();
+
+  // Company options for SearchableSelect
+  const companyOptions = useMemo(() => {
+    if (!companies) return [{ value: "__all__", label: "Wszystkie firmy", searchableText: "wszystkie firmy" }];
+    return [
+      { value: "__all__", label: "Wszystkie firmy", searchableText: "wszystkie firmy" },
+      ...companies.map(c => ({
+        value: c.id,
+        label: c.name,
+        searchableText: `${c.name} ${c.nip || ""} ${c.id}`.toLowerCase()
+      }))
+    ];
+  }, [companies]);
+
+  // Advanced filter configuration
+  const advancedFilterConfig: FilterConfig[] = [
+    {
+      field: "dateFrom",
+      type: "date",
+      label: "Data od",
+      placeholder: "Wybierz datę początkową"
+    },
+    {
+      field: "dateTo",
+      type: "date",
+      label: "Data do",
+      placeholder: "Wybierz datę końcową"
+    },
+    {
+      field: "amountMin",
+      type: "number",
+      label: "Kwota min",
+      placeholder: "0.00"
+    },
+    {
+      field: "amountMax",
+      type: "number",
+      label: "Kwota max",
+      placeholder: "0.00"
+    },
+  ];
 
   // Fetch correctable invoices when searching
   const { data: correctableInvoicesData, isLoading: loadingCorrectableInvoices } =
@@ -185,16 +229,28 @@ export default function CorrectionsPage() {
   const filteredCorrections = useMemo(() => {
     let filtered = [...allCorrections];
 
-    // Search filter
+    // Search filter - enhanced to include UUIDs, amounts, dates
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (corr) =>
+          // Basic fields
           corr.id.toLowerCase().includes(query) ||
           corr.invoiceNumber.toLowerCase().includes(query) ||
           corr.originalInvoiceNumber?.toLowerCase().includes(query) ||
           corr.companyName?.toLowerCase().includes(query) ||
-          corr.userName?.toLowerCase().includes(query)
+          corr.userName?.toLowerCase().includes(query) ||
+          corr.userEmail?.toLowerCase().includes(query) ||
+          // UUIDs
+          corr.userId?.toLowerCase().includes(query) ||
+          corr.companyId?.toLowerCase().includes(query) ||
+          corr.originalInvoiceId?.toLowerCase().includes(query) ||
+          // Amount
+          corr.correctionAmount?.toString().includes(query) ||
+          // Justification
+          corr.justification?.toLowerCase().includes(query) ||
+          // Date
+          (corr.createdAt && format(new Date(corr.createdAt), "dd/MM/yyyy", { locale: pl }).includes(query))
       );
     }
 
@@ -203,8 +259,27 @@ export default function CorrectionsPage() {
       filtered = filtered.filter((corr) => corr.companyId === filterCompany);
     }
 
+    // Apply advanced filters
+    if (advancedFilters.dateFrom) {
+      const dateFrom = new Date(advancedFilters.dateFrom);
+      filtered = filtered.filter(corr => new Date(corr.createdAt) >= dateFrom);
+    }
+    if (advancedFilters.dateTo) {
+      const dateTo = new Date(advancedFilters.dateTo);
+      dateTo.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(corr => new Date(corr.createdAt) <= dateTo);
+    }
+    if (advancedFilters.amountMin) {
+      const amountMin = parseFloat(advancedFilters.amountMin);
+      filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) >= amountMin);
+    }
+    if (advancedFilters.amountMax) {
+      const amountMax = parseFloat(advancedFilters.amountMax);
+      filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) <= amountMax);
+    }
+
     return filtered;
-  }, [allCorrections, searchQuery, filterCompany]);
+  }, [allCorrections, searchQuery, filterCompany, advancedFilters]);
 
   const resetForm = () => {
     setSelectedInvoiceId("");
@@ -290,26 +365,32 @@ export default function CorrectionsPage() {
         <Card>
           <CardHeader>
             <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
-              <div className="flex-1 min-w-[200px]">
-                <SearchInput
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  className="w-full"
-                />
+              <div className="flex-1 flex gap-2 items-end min-w-0">
+                <div className="self-center shrink-0">
+                  <AdvancedFilters
+                    filters={advancedFilterConfig}
+                    values={advancedFilters}
+                    onChange={setAdvancedFilters}
+                    onReset={() => setAdvancedFilters({})}
+                  />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    className="w-full"
+                    showIcon
+                  />
+                </div>
               </div>
-              <Select value={filterCompany} onValueChange={setFilterCompany}>
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Wszystkie firmy" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Wszystkie firmy</SelectItem>
-                  {companies?.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={filterCompany}
+                onValueChange={setFilterCompany}
+                options={companyOptions}
+                placeholder="Wybierz firmę"
+                className="w-full sm:w-[200px]"
+              />
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -463,25 +544,30 @@ export default function CorrectionsPage() {
             {/* Invoice Search */}
             <div className="space-y-2">
               <Label>Wyszukaj fakturę do skorygowania</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Numer faktury..."
-                  value={invoiceSearchQuery}
-                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
-                />
-                <Select value={invoiceSearchCompanyId} onValueChange={setInvoiceSearchCompanyId}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Firma" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Wszystkie</SelectItem>
-                    {companies?.map((company) => (
-                      <SelectItem key={company.id} value={company.id}>
-                        {company.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex gap-2 items-end min-w-0">
+                <div className="flex-1 min-w-0">
+                  <SearchInput
+                    placeholder="Numer faktury..."
+                    value={invoiceSearchQuery}
+                    onChange={setInvoiceSearchQuery}
+                    className="w-full"
+                  />
+                </div>
+                <div className="shrink-0">
+                  <Select value={invoiceSearchCompanyId} onValueChange={setInvoiceSearchCompanyId}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Firma" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Wszystkie</SelectItem>
+                      {companies?.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 

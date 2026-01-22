@@ -6,7 +6,7 @@ export function Footer() {
   
   return (
       <p className="text-[10px] md:text-xs text-muted-foreground/20 leading-relaxed text-center md:text-right py-2">
-        &copy;{currentYear} mobiFaktura v{version} for IM Technologies, internal company use only.
+        &copy;{currentYear} mobiFaktura v{version} for IM Technology, internal company use only.
       </p>
   );
 }

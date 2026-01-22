@@ -18,16 +18,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, DollarSign, User, CheckCircle, Building2, Wallet, ArrowRightLeft, Trash2, AlertTriangle } from "lucide-react";
+import { Loader2, DollarSign, User, CheckCircle, Building2, Wallet, ArrowRightLeft, Trash2, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import Link from "next/link";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import { Badge } from "@/components/ui/badge";
+import { generateSingleAdvanceExcel } from "@/lib/excel-utils";
 
 interface AdvanceDetailsDialogProps {
   advanceId: string | null;
@@ -52,6 +56,47 @@ export function AdvanceDetailsDialog({
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteStrategy, setDeleteStrategy] = useState<"delete_with_invoices" | "reassign_invoices">("delete_with_invoices");
   const [targetAdvanceId, setTargetAdvanceId] = useState<string>("");
+
+  // Export states
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+
+  const handleExportAdvance = async () => {
+    if (!advance) return;
+
+    try {
+      setIsExporting(true);
+      setExportProgress(10);
+      
+      setExportProgress(30);
+      await generateSingleAdvanceExcel(
+        advance,
+        advance.budgetRequest || null,
+        {
+          dateFormat: "dd/MM/yyyy",
+          currencyFormat: "PLN",
+          showCurrencySymbol: true,
+        }
+      );
+
+      setExportProgress(100);
+      toast({
+        title: "Sukces",
+        description: "Eksport zaliczki zakończony pomyślnie",
+      });
+      setExportDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Błąd",
+        description: "Nie udało się wyeksportować zaliczki",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+      setTimeout(() => setExportProgress(0), 500);
+    }
+  };
 
   // Get current user to check role
   const { data: currentUser } = trpc.auth.me.useQuery();
@@ -213,6 +258,7 @@ export function AdvanceDetailsDialog({
   if (!advanceId) return null;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         {isLoading ? (
@@ -471,7 +517,15 @@ export function AdvanceDetailsDialog({
 
             <DialogFooter className="gap-2 sm:gap-0">
                <div className="flex w-full justify-between items-center">
-                 <div>
+                 <div className="flex gap-2">
+                   <Button
+                     variant="outline"
+                     onClick={() => setExportDialogOpen(true)}
+                     size="sm"
+                   >
+                     <FileSpreadsheet className="mr-2 h-4 w-4" />
+                     Eksportuj do Excel
+                   </Button>
                    {isAccountantOrAdmin && (
                      <Button 
                        variant="destructive"
@@ -516,6 +570,7 @@ export function AdvanceDetailsDialog({
           </>
         ) : null}
       </DialogContent>
+    </Dialog>
 
       {/* First Delete Confirmation Dialog - Password */}
       <Dialog open={showDeleteConfirm} onOpenChange={(open) => !open && handleCancelDelete()}>
@@ -639,24 +694,18 @@ export function AdvanceDetailsDialog({
                 {deleteStrategy === "reassign_invoices" && (
                   <div className="space-y-2">
                     <Label htmlFor="targetAdvance">Docelowa zaliczka</Label>
-                    <Select value={targetAdvanceId} onValueChange={setTargetAdvanceId}>
-                      <SelectTrigger id="targetAdvance">
-                        <SelectValue placeholder="Wybierz zaliczkę..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableAdvances.length === 0 ? (
-                          <SelectItem value="none" disabled>
-                            Brak dostępnych zaliczek
-                          </SelectItem>
-                        ) : (
-                          availableAdvances.map((adv) => (
-                            <SelectItem key={adv.id} value={adv.id}>
-                              {adv.userName} - {adv.amount} PLN ({adv.status}) - {format(new Date(adv.createdAt), "dd.MM.yyyy", { locale: pl })}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={availableAdvances.map((adv) => ({
+                        value: adv.id,
+                        label: `${adv.userName} - ${adv.amount} PLN (${adv.status}) - ${format(new Date(adv.createdAt), "dd.MM.yyyy", { locale: pl })}`,
+                        searchableText: `${adv.id}`,
+                      }))}
+                      value={targetAdvanceId}
+                      onValueChange={setTargetAdvanceId}
+                      placeholder="Wybierz zaliczkę..."
+                      searchPlaceholder="Szukaj"
+                      emptyText="Brak dostępnych zaliczek"
+                    />
                   </div>
                 )}
               </>
@@ -698,6 +747,44 @@ export function AdvanceDetailsDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Dialog>
+
+      {/* Export Dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eksportuj zaliczkę do Excel</DialogTitle>
+            <DialogDescription>
+              Wybierz format daty dla eksportu
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {isExporting && (
+              <div className="space-y-2">
+                <Label>Generowanie Excel...</Label>
+                <Progress value={exportProgress} className="w-full" />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
+              Anuluj
+            </Button>
+            <Button onClick={handleExportAdvance} disabled={isExporting}>
+              {isExporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eksportowanie...
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Eksportuj
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

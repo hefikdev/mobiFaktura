@@ -11,8 +11,15 @@ import { ErrorDisplay } from "@/components/error-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X, ExternalLink, Printer, Download, Trash2, FilePen, ImageOff } from "lucide-react";
+import { Loader2, ArrowLeft, ZoomIn, RefreshCw, X, ExternalLink, Printer, Download, Trash2, FilePen, ImageOff, FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
 import { useState, use } from "react";
 import { format } from "date-fns";
@@ -22,6 +29,8 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { generateSingleInvoiceExcel } from "@/lib/excel-utils";
 
 const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
 
@@ -42,6 +51,9 @@ function UserInvoiceContent({ id }: { id: string }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [correctionsDialogOpen, setCorrectionsDialogOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const { toast } = useToast();
 
   // KSeF Popup states
@@ -70,6 +82,38 @@ function UserInvoiceContent({ id }: { id: string }) {
       });
     },
   });
+
+  const handleExportInvoice = async () => {
+    if (!invoice) return;
+    
+    setIsExporting(true);
+    setExportProgress(10);
+    
+    try {
+      setExportProgress(30);
+      await generateSingleInvoiceExcel(invoice, {
+        dateFormat: "dd/MM/yyyy",
+        currencyFormat: "PLN",
+        showCurrencySymbol: true,
+      });
+
+      setExportProgress(100);
+      toast({
+        title: "Sukces",
+        description: "Faktura została wyeksportowana",
+      });
+      setExportDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Błąd",
+        description: error.message || "Nie udało się wyeksportować faktury",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+      setTimeout(() => setExportProgress(0), 500);
+    }
+  };
 
   const handlePrint = () => {
     if (!invoice || !invoice.imageUrl) {
@@ -187,12 +231,10 @@ function UserInvoiceContent({ id }: { id: string }) {
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-xl font-semibold mb-2">Faktura nie została znaleziona</p>
-            <Link href="/a/dashboard">
-              <Button variant="outline">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Powrót do listy
-              </Button>
-            </Link>
+            <Button variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Powrót do listy
+            </Button>
           </div>
         </main>
       </div>
@@ -287,6 +329,16 @@ function UserInvoiceContent({ id }: { id: string }) {
           >
             <Download className="h-4 w-4" />
             <span>Pobierz</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setExportDialogOpen(true)}
+            title="Eksportuj do Excel"
+            className="flex items-center gap-1"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Excel</span>
           </Button>
           {user?.role === "user" && invoice.userId === user.id && invoice.status !== "transferred" && invoice.status !== "settled" && (
             <Button
@@ -721,6 +773,44 @@ function UserInvoiceContent({ id }: { id: string }) {
         open={correctionsDialogOpen}
         onOpenChange={setCorrectionsDialogOpen}
       />
+
+      {/* Export Dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eksportuj fakturę do Excel</DialogTitle>
+            <DialogDescription>
+              Wybierz format daty dla eksportu
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {isExporting && (
+              <div className="space-y-2">
+                <Label>Generowanie Excel...</Label>
+                <Progress value={exportProgress} className="w-full" />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportDialogOpen(false)} disabled={isExporting}>
+              Anuluj
+            </Button>
+            <Button onClick={handleExportInvoice} disabled={isExporting}>
+              {isExporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Eksportowanie...
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Eksportuj
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

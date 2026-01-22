@@ -137,3 +137,9 @@ export async function invalidateSession(): Promise<void> {
   // Clear cookie
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
+
+// Invalidate all sessions for a specific user (e.g., on password change)
+export async function invalidateAllUserSessions(userId: string): Promise<void> {
+  // Delete all sessions for this user from database
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+}

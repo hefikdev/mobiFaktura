@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Loader2, Plus, ArrowRightLeft, Wallet, Calendar, User, Building2, CheckCircle, Info } from "lucide-react";
@@ -19,18 +21,19 @@ import { pl } from "date-fns/locale";
 import { AdvanceDetailsDialog } from "@/components/advance-details-dialog";
 import { useSearchParams } from "next/navigation";
 import { SearchInput } from "@/components/search-input";
-import { ExportButton } from "@/components/export-button";
-import { formatters } from "@/lib/export";
+import { AdvancedExportDialog } from "@/components/advanced-export-dialog";
+import { Footer } from "@/components/footer";
+import { AdvancedFilters } from "@/components/advanced-filters";
+import type { FilterConfig } from "@/components/advanced-filters";
 
 export default function AdvancesPage() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("all");
-    const [search, setSearch] = useState("");
+  const [search, setSearch] = useState("");
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState<any>(null);
-    const [userSearch, setUserSearch] = useState("");
-
   const [createForm, setCreateForm] = useState({ userId: "", companyId: "", amount: "", description: "" });
   
   const { data: currentUser } = trpc.auth.me.useQuery();
@@ -63,6 +66,9 @@ export default function AdvancesPage() {
     onError: (err) => toast({ variant: "destructive", title: "Błąd", description: err.message }),
   });
 
+  // Export mutation
+  const exportMutation = trpc.exports.generateAdvancesExcel.useMutation();
+
     useEffect(() => {
         const advanceId = searchParams?.get("advanceId");
         if (advanceId) {
@@ -71,33 +77,97 @@ export default function AdvancesPage() {
         }
     }, [searchParams]);
 
-  const handleCreate = () => {
-            const description = createForm.description.trim();
-            if (!createForm.userId || !createForm.companyId || !createForm.amount) return;
-            if (description.length < 5) {
-                toast({
-                    title: "Błąd",
-                    description: "Opis musi mieć co najmniej 5 znaków",
-                    variant: "destructive",
-                });
-                return;
-            }
-      createMutation.mutate({
-          userId: createForm.userId,
-          companyId: createForm.companyId,
-          amount: parseFloat(createForm.amount),
-                    description,
-      });
-  };
 
-    const filteredUsers = useMemo(() => {
-        const query = userSearch.trim().toLowerCase();
-        if (!query) return usersData?.items || [];
-        return (usersData?.items || []).filter((user: { name?: string; email?: string }) =>
-            user.name?.toLowerCase().includes(query) ||
-            user.email?.toLowerCase().includes(query)
-        );
-    }, [userSearch, usersData?.items]);
+  // Prepare user options for SearchableSelect
+  const userOptions: SearchableSelectOption[] = useMemo(() => {
+    return (usersData?.items || []).map((user: { id: string; name: string; email: string }) => ({
+      value: user.id,
+      label: `${user.name} (${user.email})`,
+      searchableText: `${user.name} ${user.email} ${user.id}`, // Include UUID for searching
+    }));
+  }, [usersData?.items]);
+
+  // Prepare company options for SearchableSelect
+  const companyOptions: SearchableSelectOption[] = useMemo(() => {
+    return (companiesData || []).map((company: { id: string; name: string; nip?: string | null }) => ({
+      value: company.id,
+      label: company.name,
+      searchableText: `${company.name} ${company.nip || ""} ${company.id}`, // Include NIP and UUID for searching
+    }));
+  }, [companiesData]);
+
+  // Export columns configuration
+  const exportColumns = [
+    { id: "userName", label: "Użytkownik", enabled: true },
+    { id: "companyName", label: "Firma", enabled: true },
+    { id: "amount", label: "Kwota", enabled: true },
+    { id: "status", label: "Status", enabled: true },
+    { id: "sourceType", label: "Źródło", enabled: true },
+    { id: "createdAt", label: "Data utworzenia", enabled: true },
+    { id: "transferDate", label: "Data przelewu", enabled: false },
+    { id: "settledAt", label: "Data rozliczenia", enabled: false },
+    { id: "description", label: "Opis", enabled: false },
+    { id: "id", label: "UUID", enabled: false },
+    { id: "userId", label: "UUID użytkownika", enabled: false },
+    { id: "companyId", label: "UUID firmy", enabled: false },
+  ];
+
+  // Export handler
+  const handleAdvancedExport = async (config: {
+    columns: Array<{ id: string; label: string; enabled: boolean }>;
+    sortBy: string;
+    sortOrder: "asc" | "desc";
+    currencyFormat: "PLN" | "EUR" | "USD";
+    showCurrencySymbol: boolean;
+    fileName: string;
+    sheetName: string;
+    includeTimestamp: boolean;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => {
+    // Call TRPC mutation with parameters
+    const result = await exportMutation.mutateAsync({
+      columns: config.columns,
+      sortBy: config.sortBy,
+      sortOrder: config.sortOrder,
+      currencyFormat: config.currencyFormat,
+      showCurrencySymbol: config.showCurrencySymbol,
+      fileName: config.fileName,
+      sheetName: config.sheetName,
+      includeTimestamp: config.includeTimestamp,
+      status: config.status,
+      dateFrom: config.dateFrom,
+      dateTo: config.dateTo,
+      includeUUIDs: config.columns.some(c => c.id.toLowerCase().includes('id') && c.enabled),
+    });
+
+    if (result.success && result.data) {
+      // Convert base64 to blob and download
+      const byteCharacters = atob(result.data as string);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.fileName || 'zaliczki.xlsx';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } else {
+      throw new Error("Nie udało się wygenerować raportu");
+    }
+  };
 
   const statusLabels: Record<string, string> = {
       pending: "Oczekująca",
@@ -109,6 +179,99 @@ export default function AdvancesPage() {
       pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-600/20 dark:text-yellow-400",
       transferred: "bg-blue-100 text-blue-800 dark:bg-blue-600/20 dark:text-blue-400",
       settled: "bg-green-100 text-green-800 dark:bg-green-600/20 dark:text-green-400",
+  };
+
+  // Define advanced filter configuration
+  const advancedFilterConfig: FilterConfig[] = [
+    {
+      label: "Zakres dat",
+      type: "dateRange",
+      field: "date",
+    },
+    {
+      label: "Kwota",
+      type: "amount",
+      field: "amount",
+    },
+    {
+      label: "Źródło",
+      type: "select",
+      field: "sourceType",
+      options: [
+        { value: "__all__", label: "Wszystkie" },
+        { value: "budget_request", label: "Wniosek budżetowy" },
+        { value: "manual", label: "Przyznana przez księgowego" },
+      ],
+    },
+  ];
+
+  // Enhanced search that includes all fields
+  const filteredAdvances = useMemo(() => {
+    let filtered = advances || [];
+
+    // Global search across all fields
+    if (search) {
+      const query = search.toLowerCase();
+      filtered = filtered.filter((advance: any) => {
+        return (
+          advance.userName?.toLowerCase().includes(query) ||
+          advance.userEmail?.toLowerCase().includes(query) ||
+          advance.companyName?.toLowerCase().includes(query) ||
+          advance.companyNip?.toLowerCase().includes(query) ||
+          advance.description?.toLowerCase().includes(query) ||
+          advance.amount?.toString().includes(query) ||
+          advance.id?.toLowerCase().includes(query) ||
+          advance.userId?.toLowerCase().includes(query) ||
+          advance.companyId?.toLowerCase().includes(query) ||
+          statusLabels[advance.status]?.toLowerCase().includes(query)
+        );
+      });
+    }
+
+    // Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((advance: any) => advance.status === statusFilter);
+    }
+
+    // Advanced filters
+    if (advancedFilters.dateFrom) {
+      const fromDate = new Date(advancedFilters.dateFrom);
+      filtered = filtered.filter((advance: any) => new Date(advance.createdAt) >= fromDate);
+    }
+    if (advancedFilters.dateTo) {
+      const toDate = new Date(advancedFilters.dateTo);
+      filtered = filtered.filter((advance: any) => new Date(advance.createdAt) <= toDate);
+    }
+    if (advancedFilters.amountMin) {
+      filtered = filtered.filter((advance: any) => advance.amount >= parseFloat(advancedFilters.amountMin));
+    }
+    if (advancedFilters.amountMax) {
+      filtered = filtered.filter((advance: any) => advance.amount <= parseFloat(advancedFilters.amountMax));
+    }
+    if (advancedFilters.sourceType && advancedFilters.sourceType !== "__all__") {
+      filtered = filtered.filter((advance: any) => advance.sourceType === advancedFilters.sourceType);
+    }
+
+    return filtered;
+  }, [advances, search, statusFilter, advancedFilters, statusLabels]);
+
+  const handleCreate = () => {
+    const description = createForm.description.trim();
+    if (!createForm.userId || !createForm.companyId || !createForm.amount) return;
+    if (description.length < 5) {
+      toast({
+        title: "Błąd",
+        description: "Opis musi mieć co najmniej 5 znaków",
+        variant: "destructive",
+      });
+      return;
+    }
+    createMutation.mutate({
+      userId: createForm.userId,
+      companyId: createForm.companyId,
+      amount: parseFloat(createForm.amount),
+      description: description,
+    });
   };
 
   const openDetails = (advance: { id: string; userId: string; companyId: string; amount: number; status: string; createdAt: Date; transferDate: Date | null; settledAt: Date | null }) => {
@@ -127,71 +290,17 @@ export default function AdvancesPage() {
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Zaliczki</h1>
             </div>
                         <div className="flex items-center gap-2">
-                                <ExportButton
-                                    data={advances}
-                                    filename="zaliczki"
-                                    columns={[
-                                        { key: "createdAt", header: "Data", formatter: (value: unknown) => formatters.date(value as Date | string) },
-                                        { key: "userName", header: "Użytkownik" },
-                                        { key: "companyName", header: "Firma" },
-                                        { key: "amount", header: "Kwota", formatter: (value) => formatters.currency(Number(value)) },
-                                        { key: "status", header: "Status", formatter: (value) => statusLabels[value as string] || String(value) },
-                                        { key: "sourceType", header: "Źródło", formatter: (value) => value === "budget_request" ? "Wniosek budżetowy" : "Przyznana przez księgowego" },
+                                <AdvancedExportDialog
+                                    reportType="advances"
+                                    defaultColumns={exportColumns}
+                                    defaultFileName="zaliczki"
+                                    defaultSheetName="Zaliczki"
+                                    statusOptions={[
+                                        { value: "pending", label: "Oczekująca" },
+                                        { value: "transferred", label: "Przelana" },
+                                        { value: "settled", label: "Rozliczona" },
                                     ]}
-                                    filters={[
-                                        {
-                                            key: "createdAt",
-                                            label: "Okres",
-                                            options: [
-                                                { value: "all", label: "Wszystko" },
-                                                { value: "7", label: "Ostatnie 7 dni" },
-                                                { value: "30", label: "Ostatnie 30 dni" },
-                                                { value: "90", label: "Ostatnie 90 dni" },
-                                                { value: "__specific_month__", label: "Wybierz miesiąc" },
-                                            ],
-                                        },
-                                        {
-                                            key: "status",
-                                            label: "Status",
-                                            options: [
-                                                { value: "all", label: "Wszystkie" },
-                                                { value: "pending", label: "Oczekujące" },
-                                                { value: "transferred", label: "Przelane" },
-                                                { value: "settled", label: "Rozliczone" },
-                                            ],
-                                        },
-                                        {
-                                            key: "sourceType",
-                                            label: "Źródło",
-                                            options: [
-                                                { value: "all", label: "Wszystkie" },
-                                                { value: "budget_request", label: "Wniosek budżetowy" },
-                                                { value: "manual", label: "Przyznana przez księgowego" },
-                                            ],
-                                        },
-                                        {
-                                            key: "companyId",
-                                            label: "Firma",
-                                            options: [
-                                                { value: "all", label: "Wszystkie" },
-                                                ...(companiesData || []).map((company: { id: string; name: string }) => ({
-                                                    value: company.id,
-                                                    label: company.name,
-                                                })),
-                                            ],
-                                        },
-                                        {
-                                            key: "userId",
-                                            label: "Użytkownik",
-                                            options: [
-                                                { value: "all", label: "Wszyscy" },
-                                                ...((usersData?.items || []).map((user: { id: string; name: string; email?: string }) => ({
-                                                    value: user.id,
-                                                    label: user.email ? `${user.name} (${user.email})` : user.name,
-                                                }))),
-                                            ],
-                                        },
-                                    ]}
+                                    onExport={handleAdvancedExport}
                                 />
                                 <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2">
                                         <Plus className="h-4 w-4" /> Dodaj zaliczkę
@@ -202,15 +311,22 @@ export default function AdvancesPage() {
         <Card>
                     <CardHeader>
              <div className="flex flex-col md:flex-row gap-3 md:items-center w-full">
-                <div className="w-full md:flex-1">
+                <div className="flex gap-2 items-center w-full md:flex-1">
+                  <AdvancedFilters
+                    filters={advancedFilterConfig}
+                    values={advancedFilters}
+                    onChange={setAdvancedFilters}
+                    onReset={() => setAdvancedFilters({})}
+                  />
                   <SearchInput
                       value={search}
                       onChange={setSearch}
-                      placeholder="Szukaj: użytkownik, email, firma, opis"
-                      className="w-full"
+                      placeholder="Szukaj"
+                      className="w-full flex-1"
+                      showIcon
                   />
                 </div>
-                <div className="shrink-0">
+                <div className="shrink-0 flex gap-2">
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                       <SelectTrigger className="w-[180px]">
                           <SelectValue placeholder="Status" />
@@ -243,8 +359,8 @@ export default function AdvancesPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {advances.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Brak zaliczek</TableCell></TableRow>}
-                            {advances.map((advance) => (
+                            {filteredAdvances.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Brak zaliczek</TableCell></TableRow>}
+                            {filteredAdvances.map((advance) => (
                                 <TableRow key={advance.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openDetails(advance)}>
                                     <TableCell className="whitespace-nowrap">
                                         <div className="flex items-center gap-2">
@@ -319,38 +435,27 @@ export default function AdvancesPage() {
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label className="text-right">Użytkownik</Label>
                         <div className="col-span-3">
-                            <Select onValueChange={(value) => setCreateForm({ ...createForm, userId: value })}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Wybierz użytkownika" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[240px]">
-                                    <div className="p-2">
-                                      <Input
-                                        value={userSearch}
-                                        onChange={(event) => setUserSearch(event.target.value)}
-                                        placeholder="Szukaj użytkownika..."
-                                      />
-                                    </div>
-                                    {filteredUsers.map((user: { id: string; name: string; email: string }) => (
-                                        <SelectItem key={user.id} value={user.id}>{user.name} ({user.email})</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                                options={userOptions}
+                                value={createForm.userId}
+                                onValueChange={(value) => setCreateForm({ ...createForm, userId: value })}
+                                placeholder="Wybierz użytkownika"
+                                searchPlaceholder="Szukaj"
+                                emptyText="Nie znaleziono użytkowników"
+                            />
                         </div>
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label className="text-right">Firma</Label>
                         <div className="col-span-3">
-                            <Select onValueChange={(value) => setCreateForm({ ...createForm, companyId: value })}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Wybierz firmę" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {companiesData?.map((company: { id: string; name: string }) => (
-                                        <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                                options={companyOptions}
+                                value={createForm.companyId}
+                                onValueChange={(value) => setCreateForm({ ...createForm, companyId: value })}
+                                placeholder="Wybierz firmę"
+                                searchPlaceholder="Szukaj"
+                                emptyText="Nie znaleziono firm"
+                            />
                         </div>
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
@@ -390,6 +495,7 @@ export default function AdvancesPage() {
                }}
         />
 
+        <Footer />
     </main>
   </div>
   );

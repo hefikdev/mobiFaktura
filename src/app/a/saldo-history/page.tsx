@@ -8,6 +8,7 @@ import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { SearchInput } from "@/components/search-input";
+import { AdvancedFilters, type FilterConfig } from "@/components/advanced-filters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,7 @@ export default function SaldoHistoryPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [showRequestBudget, setShowRequestBudget] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   
   // Dialog states for transaction details
   const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
@@ -76,19 +78,102 @@ export default function SaldoHistoryPage() {
 
   const allTransactions = transactionsData?.pages.flatMap((page) => page.items) || [];
 
-  // Filter transactions based on search
+  // Advanced filter configuration
+  const advancedFilterConfig: FilterConfig[] = [
+    {
+      field: "dateFrom",
+      type: "date",
+      label: "Data od",
+      placeholder: "Wybierz datę początkową"
+    },
+    {
+      field: "dateTo",
+      type: "date",
+      label: "Data do",
+      placeholder: "Wybierz datę końcową"
+    },
+    {
+      field: "amountMin",
+      type: "number",
+      label: "Kwota min",
+      placeholder: "0.00"
+    },
+    {
+      field: "amountMax",
+      type: "number",
+      label: "Kwota max",
+      placeholder: "0.00"
+    },
+    {
+      field: "balanceMin",
+      type: "number",
+      label: "Saldo min",
+      placeholder: "0.00"
+    },
+    {
+      field: "balanceMax",
+      type: "number",
+      label: "Saldo max",
+      placeholder: "0.00"
+    },
+  ];
+
+  // Filter transactions based on search and advanced filters
   const filteredTransactions = useMemo(() => {
     if (!allTransactions) return [];
-    if (!searchQuery) return allTransactions;
+    
+    let filtered = allTransactions;
 
-    const query = searchQuery.toLowerCase();
-    return allTransactions.filter(
-      (tx) =>
-        tx.transactionType.toLowerCase().includes(query) ||
-        tx.notes?.toLowerCase().includes(query) ||
-        tx.createdByName?.toLowerCase().includes(query)
-    );
-  }, [allTransactions, searchQuery]);
+    // Apply search filter - enhanced to search UUIDs, amounts, balances, dates
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (tx) =>
+          // Search in text fields
+          tx.transactionType.toLowerCase().includes(query) ||
+          tx.notes?.toLowerCase().includes(query) ||
+          tx.createdByName?.toLowerCase().includes(query) ||
+          // Search in UUIDs
+          tx.id?.toLowerCase().includes(query) ||
+          tx.referenceId?.toLowerCase().includes(query) ||
+          // Search in amounts and balances (convert to string)
+          tx.amount?.toString().includes(query) ||
+          tx.balanceBefore?.toString().includes(query) ||
+          tx.balanceAfter?.toString().includes(query) ||
+          // Search in formatted date
+          (tx.createdAt && format(new Date(tx.createdAt), "dd/MM/yyyy", { locale: pl }).includes(query))
+      );
+    }
+
+    // Apply advanced filters
+    if (advancedFilters.dateFrom) {
+      const dateFrom = new Date(advancedFilters.dateFrom);
+      filtered = filtered.filter(tx => new Date(tx.createdAt) >= dateFrom);
+    }
+    if (advancedFilters.dateTo) {
+      const dateTo = new Date(advancedFilters.dateTo);
+      dateTo.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(tx => new Date(tx.createdAt) <= dateTo);
+    }
+    if (advancedFilters.amountMin) {
+      const amountMin = parseFloat(advancedFilters.amountMin);
+      filtered = filtered.filter(tx => tx.amount >= amountMin);
+    }
+    if (advancedFilters.amountMax) {
+      const amountMax = parseFloat(advancedFilters.amountMax);
+      filtered = filtered.filter(tx => tx.amount <= amountMax);
+    }
+    if (advancedFilters.balanceMin) {
+      const balanceMin = parseFloat(advancedFilters.balanceMin);
+      filtered = filtered.filter(tx => tx.balanceAfter >= balanceMin);
+    }
+    if (advancedFilters.balanceMax) {
+      const balanceMax = parseFloat(advancedFilters.balanceMax);
+      filtered = filtered.filter(tx => tx.balanceAfter <= balanceMax);
+    }
+
+    return filtered;
+  }, [allTransactions, searchQuery, advancedFilters]);
 
   // Ref for infinite scroll
   const observer = useRef<IntersectionObserver>();
@@ -231,11 +316,18 @@ export default function SaldoHistoryPage() {
       <Card>
         <CardHeader>
           <div className="flex gap-2 flex-col sm:flex-row sm:flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[200px] flex gap-2">
               <SearchInput
                 value={searchQuery}
                 onChange={setSearchQuery}
-                className="w-full"
+                className="flex-1"
+                showIcon
+              />
+              <AdvancedFilters
+                filters={advancedFilterConfig}
+                values={advancedFilters}
+                onChange={setAdvancedFilters}
+                onReset={() => setAdvancedFilters({})}
               />
             </div>
             <div className="hidden md:block">

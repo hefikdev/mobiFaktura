@@ -9,6 +9,7 @@ import { budgetRequestRouter } from "./routers/budgetRequest";
 import { ksefRouter } from "./routers/ksef";
 import { permissionsRouter } from "./routers/permissions";
 import { advancesRouter } from "./routers/advances";
+import { exportsRouter } from "./routers/exports";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -21,6 +22,7 @@ export const appRouter = createTRPCRouter({
   ksef: ksefRouter,
   permissions: permissionsRouter,
   advances: advancesRouter,
+  exports: exportsRouter,
 });
 
 export type AppRouter = typeof appRouter;

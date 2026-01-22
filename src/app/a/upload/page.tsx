@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { UserHeader } from "@/components/user-header";
@@ -19,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
 import { Camera, Loader2, X, QrCode, SwitchCamera } from "lucide-react";
@@ -50,6 +52,15 @@ export default function UploadPage() {
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
   const { data: companies, isLoading: loadingCompanies } = trpc.company.list.useQuery();
+
+  // Prepare company options for SearchableSelect
+  const companyOptions: SearchableSelectOption[] = useMemo(() => {
+    return (companies || []).map((company) => ({
+      value: company.id,
+      label: company.name,
+      searchableText: `${company.name} ${company.nip || ""} ${company.id}`,
+    }));
+  }, [companies]);
   const createMutation = trpc.invoice.create.useMutation({
     onSuccess: () => {
       toast({
@@ -551,18 +562,15 @@ export default function UploadPage() {
                 Ładowanie firm...
               </div>
             ) : (
-              <Select value={companyId} onValueChange={setCompanyId} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Wybierz firmę" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies?.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={companyOptions}
+                value={companyId}
+                onValueChange={setCompanyId}
+                placeholder="Wybierz firmę"
+                searchPlaceholder="Szukaj po nazwie, NIP lub UUID..."
+                emptyText="Nie znaleziono firm"
+                required
+              />
             )}
           </div>
 

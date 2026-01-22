@@ -14,7 +14,7 @@ import {
   verifyPassword,
   validatePassword,
 } from "@/server/auth/password";
-import { createSession, invalidateSession } from "@/server/auth/session";
+import { createSession, invalidateSession, invalidateAllUserSessions } from "@/server/auth/session";
 
 // Validation schemas
 const emailSchema = z.string().email("Nieprawidłowy adres email");
@@ -615,6 +615,9 @@ export const authRouter = createTRPCRouter({
           message: "Hasło zostało zmienione w innej sesji. Odśwież stronę i spróbuj ponownie.",
         });
       }
+
+      // Invalidate all sessions for this user (log out everywhere)
+      await invalidateAllUserSessions(ctx.user.id);
 
       return { success: true };
     }),
