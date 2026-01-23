@@ -11,6 +11,7 @@ import {
 import { FilePen, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -31,6 +32,7 @@ export function CorrectionsDialog({
   open,
   onOpenChange,
 }: CorrectionsDialogProps) {
+  const router = useRouter();
   const { data: corrections, isLoading } = trpc.invoice.getCorrectionsForInvoice.useQuery(
     { invoiceId },
     { enabled: open }
@@ -68,7 +70,19 @@ export function CorrectionsDialog({
                 </TableHeader>
                 <TableBody>
                   {corrections.map((correction) => (
-                    <TableRow key={correction.id}>
+                    <TableRow
+                      key={correction.id}
+                      className="cursor-pointer hover:bg-muted/10"
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => router.push(`/a/invoice/${correction.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          router.push(`/a/invoice/${correction.id}`);
+                        }
+                      }}
+                    >
                       <TableCell className="font-medium">
                         {correction.invoiceNumber || "Brak numeru"}
                       </TableCell>

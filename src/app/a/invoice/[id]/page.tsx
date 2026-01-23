@@ -61,6 +61,7 @@ import { BudgetRequestReviewDialog } from "@/components/budget-request-review-di
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import InvoiceDetailsDialog from "@/components/invoice-details-dialog";
+import { CorrectionsDialog } from "@/components/corrections-dialog";
 
 const KsefInvoicePopup = dynamic(() => import("@/components/ksef-invoice-popup").then(m => m.KsefInvoicePopup));
 
@@ -80,8 +81,9 @@ export default function InvoiceReviewPage() {
   const [showConflictWarning, setShowConflictWarning] = useState(false);
   const [conflictReviewerName, setConflictReviewerName] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
-  const [showReReviewDialog, setShowReReviewDialog] = useState(false);
-  const [reReviewReason, setReReviewReason] = useState("");
+  // Corrections dialog (show when invoice has corrections)
+  const [correctionsDialogOpen, setCorrectionsDialogOpen] = useState(false);
+  const correctionsAutoOpenedRef = useRef(false);
   const [showAdminStatusDialog, setShowAdminStatusDialog] = useState(false);
   const [newAdminStatus, setNewAdminStatus] = useState<"pending" | "accepted" | "rejected">("pending");
   const [adminStatusReason, setAdminStatusReason] = useState("");
@@ -293,28 +295,6 @@ export default function InvoiceReviewPage() {
     },
   });
 
-  const reReviewMutation = trpc.invoice.requestReReview.useMutation({
-    onSuccess: async () => {
-      utils.invoice.getAllInvoices.invalidate();
-      utils.invoice.pendingInvoices.invalidate();
-      utils.invoice.reviewedInvoices.invalidate();
-      await refetch();
-      toast({
-        title: "Wysłano prośbę",
-        description: "Faktura została przekazana do ponownej weryfikacji przez administratora",
-      });
-      setShowReReviewDialog(false);
-      setReReviewReason("");
-    },
-    onError: (error) => {
-      toast({
-        title: "Błąd",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const adminChangeStatusMutation = trpc.admin.changeInvoiceStatus.useMutation({
     onSuccess: async () => {
       utils.invoice.getAllInvoices.invalidate();
@@ -477,26 +457,6 @@ export default function InvoiceReviewPage() {
     setRejectionReason("");
   };
 
-  const handleRequestReReview = () => {
-    setShowReReviewDialog(true);
-  };
-
-  const confirmReReview = () => {
-    if (!reReviewReason.trim()) {
-      toast({
-        title: "Błąd",
-        description: "Powód prośby o edycję jest wymagany",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    reReviewMutation.mutate({
-      id: invoiceId,
-      reason: reReviewReason,
-    });
-  };
-
   const handleAdminStatusChange = () => {
     setShowAdminStatusDialog(true);
     if (invoice) {
@@ -603,7 +563,7 @@ export default function InvoiceReviewPage() {
     }
   };
 
-  const handleExportCSV = async () => {
+  const handleExportExcel = async () => {
     if (!invoice) return;
 
     // Prepare data for Excel export
@@ -671,7 +631,7 @@ export default function InvoiceReviewPage() {
       title: "Wyeksportowano",
       description: "Dane faktury zostały wyeksportowane do Excel",
     });
-  };
+  }; 
 
   if (isLoading) {
     return (
@@ -805,18 +765,6 @@ export default function InvoiceReviewPage() {
                   )}
                 </div>
               )}
-              {invoice.status === "re_review" && (
-                <div>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                    Ponowna weryfikacja
-                  </span>
-                  {invoice.reviewedAt && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {format(new Date(invoice.reviewedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })}
-                    </p>
-                  )}
-                </div>
-              )}
               {invoice.status === "settled" && (
                 <div>
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
@@ -919,7 +867,7 @@ export default function InvoiceReviewPage() {
                   )}
                   <div className="mt-1" ref={kwotaInputRef}>
                     {isEditingKwota ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center gap-2">
                         <span className="text-sm font-semibold">Kwota:</span>
                         <Input
                           type="text"
@@ -931,16 +879,18 @@ export default function InvoiceReviewPage() {
                               setKwota(value);
                             }
                           }}
-                          className="w-32 h-7 text-sm font-semibold"
+                          className="w-36 h-10 text-lg font-extrabold text-center"
                           placeholder="0.00"
                           autoFocus
                         />
                         <span className="text-sm font-semibold">PLN</span>
                       </div>
                     ) : (
-                      <p className="text-sm font-semibold">
-                        Kwota: {kwota ? parseFloat(kwota).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', ',') : '0,00'} PLN
-                      </p>
+                      <div className="mt-4 flex flex-col items-center">
+                        <div className="mt-2 text-2xl md:text-3xl font-extrabold leading-none">
+                          {kwota ? parseFloat(kwota).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', ',') : '0,00'} <span className="text-sm font-semibold ml-2">PLN</span>
+                        </div>
+                      </div>
                     )}
                   </div>
                   {isCorrection && (
@@ -959,20 +909,23 @@ export default function InvoiceReviewPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Ta faktura posiada korekty</p>
+                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">{(() => {
+                            const n = corrections.length;
+                            const subject = invoice?.invoiceType === 'receipt' ? 'Ten paragon' : invoice?.invoiceType === 'correction' ? 'Ta korekta' : 'Ta faktura';
+                            if (n === 1) return `${subject} posiada 1 korektę`;
+                            if (n >= 2 && n <= 4) return `${subject} posiada ${n} korekty`;
+                            return `${subject} posiada ${n} korekt`;
+                          })()}</p>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          asChild
-                        >
-                          <Link href={`/a/corrections?original=${invoiceId}`}>
-                            Zobacz korekty
-                          </Link>
-                        </Button>
-                      </div>
-                      <div className="text-xs text-amber-800 dark:text-amber-200">
-                        Liczba korekt: {corrections.length}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCorrectionsDialogOpen(true)}
+                          >
+                            Zobacz
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1162,238 +1115,202 @@ export default function InvoiceReviewPage() {
             </Card>
           </div>
 
-          {/* Right: BIG Action Buttons */}
-          {isReviewing && !isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
-            <div className="w-full lg:w-48 flex flex-col gap-3 lg:gap-4 lg:h-full">
-              {canChangeStatus && (
-                <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 lg:flex-1">
-                  <Button
-                    onClick={handleAccept}
-                    size="lg"
-                    disabled={finalizeMutation.isPending}
-                    className="flex-1 h-24 lg:h-auto text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700 text-white dark:text-white"
-                  >
-                    {finalizeMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-8 w-8 md:h-10 md:w-10 animate-spin" />
-                        <span className="text-xs md:text-sm font-bold">Przetwarzanie...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
-                        <span className="font-bold text-sm md:text-base">Zaakceptuj</span>
-                      </>
-                    )}
-                  </Button>
+          {/* Corrections dialog (same as on /user-invoice) */}
+          <CorrectionsDialog
+            invoiceId={invoiceId}
+            open={correctionsDialogOpen}
+            onOpenChange={setCorrectionsDialogOpen}
+          />
 
-                  <Button
-                    onClick={handleReject}
-                    variant="destructive"
-                    size="lg"
-                    disabled={finalizeMutation.isPending}
-                    className="flex-1 h-24 lg:h-auto text-lg md:text-xl font-bold flex-col gap-2"
-                  >
-                    <X className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
-                    <span className="font-bold text-sm md:text-base">Odrzuć</span>
-                  </Button>
-                </div>
-              )}
-              {canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (isEditingInvoiceNumber || isEditingKwota) {
-                      setIsEditingInvoiceNumber(false);
-                      setIsEditingKwota(false);
-                      handleSave();
-                    } else {
-                      setIsEditingInvoiceNumber(true);
-                      setIsEditingKwota(true);
-                      // Scroll to invoice number input
-                      setTimeout(() => {
-                        invoiceNumberInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
-                    }
-                  }}
-                  className="hidden lg:flex w-full items-center gap-1"
-                >
-                  <span>{(isEditingInvoiceNumber || isEditingKwota) ? 'Zapisz' : 'Edytuj'}</span>
-                </Button>
-              )}
-              <div className="hidden lg:flex flex-col gap-2">
-                <div className="flex flex-row gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handlePrint}
-                    title="Drukuj"
-                    className="flex-1 flex items-center justify-center gap-1"
-                  >
-                    <Printer className="h-4 w-4" />
-                    <span>Drukuj</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleDownload}
-                    title="Pobierz"
-                    className="flex-1 flex items-center justify-center gap-1"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Pobierz</span>
-                  </Button>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleExportCSV}
-                  title="Eksportuj do Excel"
-                  className="w-full flex items-center justify-center gap-1"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Eksportuj</span>
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Right: BIG Action Buttons (unified, equal-height Card) */}
+          {(user?.role === "accountant" || user?.role === "admin") && (
+            <div className="w-full lg:w-48">
+              <Card className="h-full flex flex-col border-0 shadow-none ring-0">
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {/* Top: stateful big actions (only when applicable) */}
+                  {isReviewing && !isCompleted && canChangeStatus && (
+                    <div className="flex-1 flex flex-col gap-3 mb-3 min-h-0">
+                      <div className="flex-1 flex flex-col gap-3 min-h-0">
+                        <Button
+                          onClick={handleAccept}
+                          size="lg"
+                          disabled={finalizeMutation.isPending}
+                          className="flex-1 min-h-0 flex items-center justify-center text-lg md:text-xl font-bold flex-col gap-2 bg-green-600 hover:bg-green-700 text-white dark:text-white"
+                        >
+                          {finalizeMutation.isPending ? (
+                            <>
+                              <Loader2 className="h-8 w-8 md:h-10 md:w-10 animate-spin" />
+                              <span className="text-xs md:text-sm font-bold">Przetwarzanie...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
+                              <span className="font-bold text-sm md:text-base">Zaakceptuj</span>
+                            </>
+                          )}
+                        </Button>
 
-          {isCompleted && (user?.role === "accountant" || user?.role === "admin") && (
-            <div className="w-full lg:w-48 flex flex-col gap-3 lg:h-full">
-              {user?.role === "admin" && canChangeStatus && (
-                <Button
-                  onClick={handleAdminStatusChange}
-                  variant="outline"
-                  size="lg"
-                  className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
-                >
-                  <RefreshCw className="h-8 w-8" />
-                  <span className="font-bold text-sm">Zmień status</span>
-                </Button>
-              )}
-              {user?.role === "accountant" && invoice.status !== "re_review" && canChangeStatus && (
-                <Button
-                  onClick={handleRequestReReview}
-                  variant="outline"
-                  size="lg"
-                  disabled={reReviewMutation.isPending}
-                  className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
-                >
-                  {reReviewMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-8 w-8 animate-spin" />
-                      <span className="text-xs font-bold">Przetwarzanie...</span>
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-8 w-8" />
-                      <span className="font-bold text-sm">Poproś o edycję</span>
-                    </>
+                        <Button
+                          onClick={handleReject}
+                          variant="destructive"
+                          size="lg"
+                          disabled={finalizeMutation.isPending}
+                          className="flex-1 min-h-0 flex items-center justify-center text-lg md:text-xl font-bold flex-col gap-2"
+                        >
+                          <X className="h-8 w-8 md:h-12 md:w-12 stroke-[3]" />
+                          <span className="font-bold text-sm md:text-base">Odrzuć</span>
+                        </Button>
+                      </div>
+
+                      {/* when in wide (lg) view keep buttons stacked; when narrow they will size naturally */}
+                    </div>
                   )}
-                </Button>
-              )}
-              <Button
-                onClick={() => setShowDeleteDialog(true)}
-                variant="outline"
-                size="lg"
-                className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-              >
-                <Trash2 className="h-8 w-8" />
-                <span className="font-bold text-sm">{`Usuń ${invoice?.invoiceType === 'receipt' ? 'paragon' : invoice?.invoiceType === 'correction' ? 'korektę' : 'fakturę'}`}</span>
-              </Button>
-              <Button
-                onClick={() => router.back()}
-                variant="outline"
-                size="lg"
-                className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2"
-              >
-                Powrót do listy
-              </Button> 
-              <div className="hidden lg:flex flex-col gap-2 mt-3">
-                <div className="flex flex-row gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handlePrint}
-                    title="Drukuj"
-                    className="flex-1 flex items-center justify-center gap-1"
-                  >
-                    <Printer className="h-4 w-4" />
-                    <span>Drukuj</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleDownload}
-                    title="Pobierz"
-                    className="flex-1 flex items-center justify-center gap-1"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Pobierz</span>
-                  </Button>
+
+                  {/* Completed/admin-specific actions */}
+                  {isCompleted && (
+                    <div className="space-y-3 mb-3">
+                      {user?.role === "admin" && canChangeStatus && (
+                        <Button
+                          onClick={handleAdminStatusChange}
+                          variant="outline"
+                          size="lg"
+                          className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                        >
+                          <RefreshCw className="h-8 w-8" />
+                          <span className="font-bold text-sm">Zmień status</span>
+                        </Button>
+                      )}
+
+                      <Button
+                        onClick={() => setShowDeleteDialog(true)}
+                        variant="outline"
+                        size="lg"
+                        className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                      >
+                        <Trash2 className="h-8 w-8" />
+                        <span className="font-bold text-sm">{`Usuń ${invoice?.invoiceType === 'receipt' ? 'paragon' : invoice?.invoiceType === 'correction' ? 'korektę' : 'fakturę'}`}</span>
+                      </Button>
+
+                      <Button
+                        onClick={() => router.back()}
+                        variant="outline"
+                        size="lg"
+                        className="w-full h-24 lg:h-32 text-base md:text-lg flex-col gap-2"
+                      >
+                        Powrót do listy
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleExportCSV}
-                  title="Eksportuj do Excel"
-                  className="w-full flex items-center justify-center gap-1"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Eksportuj</span>
-                </Button>
-              </div>
+
+                {/* Bottom: always-visible smaller actions (LG + mobile) */}
+                <CardFooter className="p-0 bg-transparent">
+                  <div className="w-full px-3 py-2">
+                    <div className="hidden lg:flex flex-col gap-2">
+                      <div className="flex flex-row gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handlePrint}
+                          title="Drukuj"
+                          className="flex-1 flex items-center justify-center gap-1"
+                        >
+                          <Printer className="h-4 w-4" />
+                          <span>Drukuj</span>
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (isEditingInvoiceNumber || isEditingKwota) {
+                              setIsEditingInvoiceNumber(false);
+                              setIsEditingKwota(false);
+                              handleSave();
+                            } else {
+                              setIsEditingInvoiceNumber(true);
+                              setIsEditingKwota(true);
+                              setTimeout(() => {
+                                invoiceNumberInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }, 100);
+                            }
+                          }}
+                          className={`w-full items-center gap-1 ${canEdit ? '' : 'opacity-70'}`}
+                          disabled={!canEdit}
+                          title={canEdit ? 'Edytuj' : 'Edycja niedostępna'}
+                        >
+                          <span>{(isEditingInvoiceNumber || isEditingKwota) ? 'Zapisz' : 'Edytuj'}</span>
+                        </Button>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportExcel}
+                        title="Eksportuj do Excel"
+                        className="w-full flex items-center justify-center gap-1"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>Eksportuj</span>
+                      </Button>
+                    </div>
+
+                    {/* Mobile: always show the same actions */}
+                    <div className="lg:hidden flex gap-2 mt-2 flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePrint}
+                        title="Drukuj"
+                        className="flex-1 flex items-center justify-center gap-1"
+                      >
+                        <Printer className="h-4 w-4" />
+                        <span>Drukuj</span>
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownload}
+                        title="Pobierz"
+                        className="flex-1 flex items-center justify-center gap-1"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>Pobierz</span>
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportExcel}
+                        title="Eksportuj do Excel"
+                        className="flex-1 flex items-center justify-center gap-1"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>Eksportuj</span>
+                      </Button>
+
+                      {invoice.ksefNumber && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`https://www.ksef.gov.pl/${invoice.ksefNumber}`, '_blank')}
+                          title="Zobacz KSEF"
+                          className="flex-1 flex items-center justify-center gap-1"
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>KSeF</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardFooter>
+              </Card>
             </div>
           )}
         </div>
         
-        {/* Mobile action buttons row */}
-        {(isReviewing || isCompleted) && (user?.role === "accountant" || user?.role === "admin") && (
-          <div className="lg:hidden flex gap-2 mt-4 flex-wrap">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handlePrint}
-              title="Drukuj"
-              className="flex-1 flex items-center justify-center gap-1"
-            >
-              <Printer className="h-4 w-4" />
-              <span>Drukuj</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleDownload}
-              title="Pobierz"
-              className="flex-1 flex items-center justify-center gap-1"
-            >
-              <Download className="h-4 w-4" />
-              <span>Pobierz</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleExportCSV}
-              title="Eksportuj do Excel"
-              className="flex-1 flex items-center justify-center gap-1"
-            >
-              <FileText className="h-4 w-4" />
-              <span>Eksportuj</span>
-            </Button>
-            {invoice.ksefNumber && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(`https://www.ksef.gov.pl/${invoice.ksefNumber}`, '_blank')}
-                title="Zobacz KSEF"
-                className="flex-1 flex items-center justify-center gap-1"
-              >
-                <FileText className="h-4 w-4" />
-                <span>KSeF</span>
-              </Button>
-            )}
-          </div>
-        )}
+        {/* Mobile actions moved into the right-side Card (always visible for accountants/admins) */}
         
         <div className="hidden md:block">
           <Footer />
@@ -1463,72 +1380,6 @@ export default function InvoiceReviewPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Re-Review Request Dialog */}
-      <Dialog open={showReReviewDialog} onOpenChange={setShowReReviewDialog}>
-        <DialogContent className="max-w-md max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>Poproś o edycję</DialogTitle>
-            <DialogDescription>
-              Poproś administratora o ponowną weryfikację tej faktury. Opisz powód prośby.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
-            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
-              <p className="text-sm text-muted-foreground">
-                <strong>Numer faktury:</strong> {invoice.invoiceNumber || "Brak numeru"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <strong>Użytkownik:</strong> {invoice.submitter?.name}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <strong>Firma:</strong> {invoice.company?.name}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <strong>Obecny status:</strong> {invoice.status === "accepted" ? "Zaakceptowana" : "Odrzucona"}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reReviewReason">Powód prośby o edycję *</Label>
-              <Textarea
-                id="reReviewReason"
-                value={reReviewReason}
-                onChange={(e) => setReReviewReason(e.target.value)}
-                placeholder="Np. Pomyłka w numerze faktury, należy zweryfikować ponownie..."
-                className="min-h-[100px]"
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowReReviewDialog(false);
-                setReReviewReason("");
-              }}
-            >
-              Anuluj
-            </Button>
-            <Button
-              onClick={confirmReReview}
-              disabled={reReviewMutation.isPending || !reReviewReason.trim()}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              {reReviewMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Wysyłam...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Poproś o edycję
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Admin Status Change Dialog */}
       <Dialog open={showAdminStatusDialog} onOpenChange={setShowAdminStatusDialog}>
         <DialogContent className="max-w-md max-h-[90vh]">
@@ -1551,7 +1402,6 @@ export default function InvoiceReviewPage() {
                   invoice.status === "accepted" ? "Zaakceptowana" :
                   invoice.status === "rejected" ? "Odrzucona" :
                   invoice.status === "in_review" ? "W trakcie" :
-                  invoice.status === "re_review" ? "Ponowna weryfikacja" :
                   "Oczekuje"
                 }
               </p>

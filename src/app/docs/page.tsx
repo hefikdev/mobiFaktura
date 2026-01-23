@@ -66,7 +66,7 @@ export default function DocsPage() {
             <li>Przesyłanie i weryfikację faktur</li>
             <li>Zarządzanie wieloma firmami</li>
             <li>Workflow wieloksiągowego</li>
-            <li>Eksport danych do CSV i PDF</li>
+            <li>Eksport danych do Excel (XLSX) i PDF</li>
             <li>Zaawansowaną analitykę i raporty</li>
             <li>System powiadomień w czasie rzeczywistym</li>
           </ul>

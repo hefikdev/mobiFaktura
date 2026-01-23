@@ -162,7 +162,6 @@ export const notificationRouter = createTRPCRouter({
           "invoice_rejected",
           "invoice_submitted",
           "invoice_assigned",
-          "invoice_re_review",
           "system_message",
           "company_updated",
           "password_changed",

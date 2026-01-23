@@ -398,7 +398,6 @@ export const authRouter = createTRPCRouter({
       notificationInvoiceRejected: ctx.user.notificationInvoiceRejected,
       notificationInvoiceSubmitted: ctx.user.notificationInvoiceSubmitted,
       notificationInvoiceAssigned: ctx.user.notificationInvoiceAssigned,
-      notificationInvoiceReReview: ctx.user.notificationInvoiceReReview,
       notificationBudgetRequestSubmitted: ctx.user.notificationBudgetRequestSubmitted,
       notificationBudgetRequestApproved: ctx.user.notificationBudgetRequestApproved,
       notificationBudgetRequestRejected: ctx.user.notificationBudgetRequestRejected,
@@ -478,7 +477,6 @@ export const authRouter = createTRPCRouter({
         notificationInvoiceRejected: z.boolean().optional(),
         notificationInvoiceSubmitted: z.boolean().optional(),
         notificationInvoiceAssigned: z.boolean().optional(),
-        notificationInvoiceReReview: z.boolean().optional(),
         notificationBudgetRequestSubmitted: z.boolean().optional(),
         notificationBudgetRequestApproved: z.boolean().optional(),
         notificationBudgetRequestRejected: z.boolean().optional(),
@@ -515,9 +513,6 @@ export const authRouter = createTRPCRouter({
       }
       if (input.notificationInvoiceAssigned !== undefined) {
         updateData.notificationInvoiceAssigned = input.notificationInvoiceAssigned;
-      }
-      if (input.notificationInvoiceReReview !== undefined) {
-        updateData.notificationInvoiceReReview = input.notificationInvoiceReReview;
       }
       if (input.notificationBudgetRequestSubmitted !== undefined) {
         updateData.notificationBudgetRequestSubmitted = input.notificationBudgetRequestSubmitted;

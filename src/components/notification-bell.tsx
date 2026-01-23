@@ -26,8 +26,7 @@ const getNotificationIcon = (type: string) => {
     case "invoice_submitted":
     case "invoice_assigned":
       return "📄";
-    case "invoice_re_review":
-      return "🔄";
+
     case "system_message":
       return "ℹ️";
     case "company_updated":

@@ -8,7 +8,6 @@ describe('Component Helper Functions', () => {
       in_review: { label: 'W trakcie' },
       accepted: { label: 'Zaakceptowana' },
       rejected: { label: 'Odrzucona' },
-      re_review: { label: 'Ponowna weryfikacja' },
     };
 
     it('should have valid status labels', () => {
@@ -16,11 +15,10 @@ describe('Component Helper Functions', () => {
       expect(statusConfig.in_review.label).toBe('W trakcie');
       expect(statusConfig.accepted.label).toBe('Zaakceptowana');
       expect(statusConfig.rejected.label).toBe('Odrzucona');
-      expect(statusConfig.re_review.label).toBe('Ponowna weryfikacja');
     });
 
     it('should have all required status types', () => {
-      const requiredStatuses = ['pending', 'in_review', 'accepted', 'rejected', 're_review'];
+      const requiredStatuses = ['pending', 'in_review', 'accepted', 'rejected'];
       
       requiredStatuses.forEach(status => {
         expect(statusConfig[status as keyof typeof statusConfig]).toBeDefined();

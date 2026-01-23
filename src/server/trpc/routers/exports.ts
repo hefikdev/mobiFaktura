@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
-import { eq, desc, asc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, asc, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { invoices, users, companies, advances, budgetRequests, saldoTransactions } from "@/server/db/schema";
 import ExcelJS from "exceljs";
 
@@ -469,7 +469,6 @@ export const exportsRouter = createTRPCRouter({
           pending: "Oczekująca",
           approved: "Zaakceptowana",
           rejected: "Odrzucona",
-          re_review: "Do ponownej weryfikacji",
           settled: "Rozliczona",
         };
 
@@ -602,7 +601,6 @@ export const exportsRouter = createTRPCRouter({
         pending: "Oczekująca",
         approved: "Zaakceptowana",
         rejected: "Odrzucona",
-        re_review: "Do ponownej weryfikacji",
         settled: "Rozliczona",
       };
 
@@ -1001,6 +999,8 @@ async function generateBudgetRequestsData(ctx: any, params: any): Promise<any[]>
       justification: budgetRequests.justification,
       createdAt: budgetRequests.createdAt,
       reviewedAt: budgetRequests.reviewedAt,
+      // alias expected by export UI
+      approvedAt: budgetRequests.reviewedAt,
       rejectionReason: budgetRequests.rejectionReason,
     })
     .from(budgetRequests)
@@ -1079,7 +1079,88 @@ async function generateSaldoData(ctx: any, params: any): Promise<any[]> {
     }
   });
 
-  return results;
+  // Enrich saldo rows so mixed export includes company and UI-friendly fields
+  const refIds = results.filter((r: any) => r.referenceId).map((r: any) => r.referenceId as string);
+  const uniqueRefIds = Array.from(new Set(refIds));
+
+  const invoicesById: Record<string, any> = {};
+  const advancesById: Record<string, any> = {};
+  const requestsById: Record<string, any> = {};
+
+  if (uniqueRefIds.length > 0) {
+    const invs = await ctx.db
+      .select({ id: invoices.id, companyId: invoices.companyId })
+      .from(invoices)
+      .where(inArray(invoices.id, uniqueRefIds as string[]));
+    invs.forEach((i: any) => { invoicesById[i.id] = i; });
+
+    const advs = await ctx.db
+      .select({ id: advances.id, companyId: advances.companyId })
+      .from(advances)
+      .where(inArray(advances.id, uniqueRefIds as string[]));
+    advs.forEach((a: any) => { advancesById[a.id] = a; });
+
+    const reqs = await ctx.db
+      .select({ id: budgetRequests.id, companyId: budgetRequests.companyId })
+      .from(budgetRequests)
+      .where(inArray(budgetRequests.id, uniqueRefIds as string[]));
+    reqs.forEach((r: any) => { requestsById[r.id] = r; });
+  }
+
+  const companyIds = Array.from(new Set([
+    ...Object.values(invoicesById).map((v: any) => v.companyId).filter(Boolean),
+    ...Object.values(advancesById).map((v: any) => v.companyId).filter(Boolean),
+    ...Object.values(requestsById).map((v: any) => v.companyId).filter(Boolean),
+  ]));
+
+  const companiesById: Record<string, any> = {};
+  if (companyIds.length > 0) {
+    const comps = await ctx.db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, companyIds as string[]));
+    comps.forEach((c: any) => { companiesById[c.id] = c; });
+  }
+
+  const typeLabels: Record<string, string> = {
+    adjustment: 'Korekta',
+    invoice_deduction: 'Potrącenie faktury',
+    invoice_refund: 'Zwrot za fakturę',
+    advance_credit: 'Nadwyżka zaliczki',
+    invoice_delete_refund: 'Zwrot (usunięcie faktury)'
+  } as const;
+
+  return results.map((tx: any) => {
+    let resolvedCompanyId: string | null = null;
+    let resolvedCompanyName: string | null = null;
+
+    if (tx.referenceId) {
+      const inv = invoicesById[tx.referenceId];
+      const adv = advancesById[tx.referenceId];
+      const req = requestsById[tx.referenceId];
+      const cid = inv?.companyId || adv?.companyId || req?.companyId || null;
+      if (cid) {
+        resolvedCompanyId = cid;
+        resolvedCompanyName = companiesById[cid]?.name || null;
+      }
+    }
+
+    return {
+      id: tx.id,
+      userId: tx.userId,
+      userName: tx.userName,
+      userEmail: tx.userEmail,
+      amount: tx.amount ? parseFloat(tx.amount) : 0,
+      balanceBefore: tx.balanceBefore ? parseFloat(tx.balanceBefore) : 0,
+      balanceAfter: tx.balanceAfter ? parseFloat(tx.balanceAfter) : 0,
+      transactionType: tx.transactionType,
+      type: typeLabels[tx.transactionType] || tx.transactionType,
+      referenceId: tx.referenceId,
+      notes: tx.notes,
+      createdAt: tx.createdAt,
+      // aliases used by frontend/export UI
+      balance: tx.balanceAfter ?? tx.balanceAfter,
+      companyName: resolvedCompanyName || tx.companyName || '-',
+      companyId: resolvedCompanyId || tx.companyId || null,
+    };
+  });
 }
 
 async function generateCorrectionsData(ctx: any, params: any): Promise<any[]> {
@@ -1127,7 +1208,22 @@ async function generateCorrectionsData(ctx: any, params: any): Promise<any[]> {
     }
   });
 
-  return results;
+  // Resolve original invoice numbers in batch and expose `originalInvoiceNumber` for exports
+  const originalIds = results.filter((r: any) => r.originalInvoiceId).map((r: any) => r.originalInvoiceId);
+  const uniqueOriginalIds = Array.from(new Set(originalIds));
+  let originalsById: Record<string, any> = {};
+  if (uniqueOriginalIds.length > 0) {
+    const originals = await ctx.db
+      .select({ id: invoices.id, invoiceNumber: invoices.invoiceNumber })
+      .from(invoices)
+      .where(inArray(invoices.id, uniqueOriginalIds as string[]));
+    originals.forEach((o: any) => { originalsById[o.id] = o; });
+  }
+
+  return results.map((r: any) => ({
+    ...r,
+    originalInvoiceNumber: r.originalInvoiceId ? (originalsById[r.originalInvoiceId]?.invoiceNumber || '-') : '-',
+  }));
 }
 
 // Generate filename based on reports

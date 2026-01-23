@@ -26,7 +26,6 @@ Choose which invoice statuses to delete:
 - In Review
 - Accepted
 - Rejected
-- Re-review
 
 #### Step 3: Enter Admin Password
 For security, you must enter your admin password to proceed.

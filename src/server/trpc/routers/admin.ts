@@ -48,11 +48,6 @@ export const adminRouter = createTRPCRouter({
       .from(invoices)
       .where(eq(invoices.status, "rejected"));
 
-    const [reReviewCount] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(invoices)
-      .where(eq(invoices.status, "re_review"));
-
     // Get storage usage in GB (always show decimal, even if less than 1GB)
     const storageBytes = await getStorageUsage();
     const storageGB = storageBytes / (1024 * 1024 * 1024);
@@ -71,7 +66,6 @@ export const adminRouter = createTRPCRouter({
       pending: pendingCount?.count || 0,
       accepted: acceptedCount?.count || 0,
       rejected: rejectedCount?.count || 0,
-      reReview: reReviewCount?.count || 0,
       storageGB: parseFloat(storageGB.toFixed(3)),
       databaseGB: parseFloat(dbSizeGB.toFixed(4)),
     };
@@ -527,11 +521,6 @@ export const adminRouter = createTRPCRouter({
       .from(invoices)
       .where(eq(invoices.status, "pending"));
 
-    const [reReviewInvoices] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(invoices)
-      .where(eq(invoices.status, "re_review"));
-
     // Invoices by company
     const invoicesByCompany = await db
       .select({
@@ -643,7 +632,6 @@ export const adminRouter = createTRPCRouter({
       acceptedInvoices: acceptedInvoices?.count || 0,
       rejectedInvoices: rejectedInvoices?.count || 0,
       pendingInvoices: pendingInvoices?.count || 0,
-      reReviewInvoices: reReviewInvoices?.count || 0,
       invoicesByCompany,
       invoicesByUser,
       accountantPerformance,
@@ -814,7 +802,7 @@ export const adminRouter = createTRPCRouter({
       }
     }),
 
-  // Admin change invoice status (for re-review invoices)
+  // Admin change invoice status
   changeInvoiceStatus: adminProcedure
     .input(
       z.object({
@@ -856,11 +844,6 @@ export const adminRouter = createTRPCRouter({
         if (input.reason && input.newStatus === "rejected") {
           updateData.rejectionReason = input.reason;
         }
-      }
-
-      // If changing from re_review to pending, clear rejection reason
-      if (previousStatus === "re_review" && input.newStatus === "pending") {
-        updateData.rejectionReason = null;
       }
 
       const [updated] = await db
@@ -910,7 +893,7 @@ export const adminRouter = createTRPCRouter({
             start: z.string().datetime().optional(),
             end: z.string().datetime().optional(),
           }).optional(),
-          statuses: z.array(z.enum(["pending", "in_review", "accepted", "rejected", "re_review", "all"])).optional(),
+          statuses: z.array(z.enum(["pending", "in_review", "accepted", "rejected", "all"])).optional(),
         }),
       })
     )
@@ -986,7 +969,7 @@ export const adminRouter = createTRPCRouter({
 
       // Statuses
       if (input.filters.statuses && input.filters.statuses.length > 0 && !input.filters.statuses.includes("all")) {
-        const validStatuses = input.filters.statuses.filter(s => s !== "all") as Array<"pending" | "in_review" | "accepted" | "rejected" | "re_review">;
+        const validStatuses = input.filters.statuses.filter(s => s !== "all") as Array<"pending" | "in_review" | "accepted" | "rejected">;
         if (validStatuses.length > 0) {
           conditions.push(inArray(invoices.status, validStatuses));
         }
@@ -1161,7 +1144,7 @@ export const adminRouter = createTRPCRouter({
             start: z.string().datetime().optional(),
             end: z.string().datetime().optional(),
           }).optional(),
-          statuses: z.array(z.enum(["pending", "in_review", "accepted", "rejected", "re_review", "all"])).optional(),
+          statuses: z.array(z.enum(["pending", "in_review", "accepted", "rejected", "all"])).optional(),
         }),
       })
     )
@@ -1209,7 +1192,7 @@ export const adminRouter = createTRPCRouter({
       }
 
       if (input.filters.statuses && input.filters.statuses.length > 0 && !input.filters.statuses.includes("all")) {
-        const validStatuses = input.filters.statuses.filter(s => s !== "all") as Array<"pending" | "in_review" | "accepted" | "rejected" | "re_review">;
+        const validStatuses = input.filters.statuses.filter(s => s !== "all") as Array<"pending" | "in_review" | "accepted" | "rejected">;
         if (validStatuses.length > 0) {
           conditions.push(inArray(invoices.status, validStatuses));
         }

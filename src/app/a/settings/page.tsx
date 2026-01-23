@@ -276,7 +276,6 @@ export default function SettingsPage() {
                         notificationInvoiceRejected: !checked,
                         notificationInvoiceSubmitted: !checked,
                         notificationInvoiceAssigned: !checked,
-                        notificationInvoiceReReview: !checked,
                         notificationBudgetRequestSubmitted: !checked,
                         notificationBudgetRequestApproved: !checked,
                         notificationBudgetRequestRejected: !checked,
@@ -391,25 +390,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="rereview" className="text-sm font-medium">
-                      Ponowna weryfikacja
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Powiadom o fakturach wymagających ponownej weryfikacji
-                    </p>
-                  </div>
-                  <Switch
-                    id="rereview"
-                    checked={user?.notificationInvoiceReReview ?? true}
-                    onCheckedChange={(checked) => {
-                      updatePreferencesMutation.mutate({
-                        notificationInvoiceReReview: checked,
-                      });
-                    }}
-                  />
-                </div>
+
 
                 <Separator />
 

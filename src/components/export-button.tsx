@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
-import { exportToCSV, exportToExcel, ExportOptions, sanitizeExportCell } from "@/lib/export";
+import { exportToExcel, ExportOptions, sanitizeExportCell } from "@/lib/export";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Dialog,
@@ -32,7 +32,7 @@ if (pdfFonts && (pdfFonts as unknown as { pdfMake?: { vfs: unknown } }).pdfMake)
   (pdfMake as { vfs?: unknown }).vfs = pdfFonts;
 }
 
-type ExportFormat = "csv" | "xlsx" | "pdf";
+type ExportFormat = "xlsx" | "pdf";
 
 interface FilterOption {
   key: string;
@@ -202,7 +202,7 @@ export function ExportButton<T extends Record<string, unknown>>({
 
       // compute a timestamped filename
       const dateStamp = new Date().toISOString().split('T')[0];
-      const outFilename = filename.endsWith('.csv') || filename.endsWith('.pdf') ? `${filename}_${dateStamp}` : `${filename}_${dateStamp}`;
+      const outFilename = `${filename}_${dateStamp}`;
 
       // human readable filters for metadata
       const filtersMeta = filtersDescription;
@@ -220,30 +220,6 @@ export function ExportButton<T extends Record<string, unknown>>({
           data: exportData,
           columns,
           filename: `${outFilename}.xlsx`,
-          meta: {
-            title: pdfTitle || filename,
-            generatedAt: new Date().toLocaleString('pl-PL'),
-            user: userName,
-            filters: filtersMeta,
-          }
-        });
-
-        setProgress(90);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        setProgress(100);
-      } else if (exportFormat === "csv") {
-        setProgress(50);
-
-        // Show incremental progress for large datasets
-        if (exportData.length > 100) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-          setProgress(60);
-        }
-
-        exportToCSV({
-          data: exportData,
-          columns,
-          filename: `${outFilename}.csv`,
           meta: {
             title: pdfTitle || filename,
             generatedAt: new Date().toLocaleString('pl-PL'),
@@ -597,7 +573,6 @@ export function ExportButton<T extends Record<string, unknown>>({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="xlsx">Excel (XLSX)</SelectItem>
-                    <SelectItem value="csv">CSV</SelectItem>
                     <SelectItem value="pdf">PDF (do druku)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -667,7 +642,7 @@ export function ExportButton<T extends Record<string, unknown>>({
 
             {isExporting && (
               <div className="space-y-2">
-                <Label>{exportFormat === "xlsx" ? "Generowanie Excel..." : exportFormat === "csv" ? "Generowanie CSV..." : "Generowanie PDF..."}</Label>
+                <Label>{exportFormat === "xlsx" ? "Generowanie Excel..." : "Generowanie PDF..."}</Label>
                 <Progress value={progress} className="w-full" />
               </div>
             )}

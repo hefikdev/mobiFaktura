@@ -34,7 +34,6 @@ The system supports multiple filter types:
   - In Review
   - Accepted
   - Rejected
-  - Re-review
 
 ### 3. **Safe Deletion Process**
 
@@ -196,7 +195,7 @@ input: {
     year?: number;
     month?: number;
     dateRange?: { start: string; end: string };
-    statuses?: Array<"pending" | "in_review" | "accepted" | "rejected" | "re_review" | "all">;
+    statuses?: Array<"pending" | "in_review" | "accepted" | "rejected" | "all">;
   };
 }
 output: {

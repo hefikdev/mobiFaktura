@@ -10,7 +10,7 @@
 - Key Data Models & Types 🗂️
 - Core Flows
   - Budget Request (request → approve → settle/rozliczono / reject) 🧾
-  - Invoices (submit → assign → accept/reject → re-review) 🧾
+  - Invoices (submit → assign → accept/reject) 🧾
   - Saldo (transactions and rollbacks) 💳
   - Notifications (in-app + PWA push plan) 🔔
   - Admin features (bulk delete, system notifications) 🛠️
@@ -42,7 +42,7 @@ Access rules are enforced server-side in TRPC procedures that require specific r
 
 ## Key Data Models & Types 🗂️
 - `users` — holds profile, preferences, `saldo`, notification preferences
-- `invoices` — invoice details, `status` (pending, in_review, accepted, rejected, re_review), `ksefNumber`, image references
+- `invoices` — invoice details, `status` (pending, in_review, accepted, rejected, transferred, settled), `ksefNumber`, image references
 - `budget_requests` — budget increase requests: `status` (pending, approved, rejected, rozliczono), `requested_amount`, `reviewedAt`, `reviewedBy`, `rejectionReason`
 - `notifications` — system/app notifications stored per user
 - `saldo_transactions` — ledger of adjustments (references invoices and requests)
@@ -144,7 +144,7 @@ Note: For exact invoice ↔ budget request relation, consider adding a linking t
 - Submit invoice (user): stored with `status = pending`.
 - Assign to accountant(s) and notify via `notifyInvoiceSubmitted`.
 - Accountant reviews and may `accept` (deducts amount from user's `saldo` and records `saldo_transactions`) or `reject` (set `status = rejected`, provide reason).
-- Re-review flow: allowed for `accepted` or `rejected` via `re_review` status and special flow.
+- After acceptance, invoice can progress to `transferred` (payment received) and finally `settled` (reconciled).
 
 Rollbacks:
 - If invoice acceptance fails while adjusting saldo, the transaction rolls back and the invoice creation/acceptance fails.

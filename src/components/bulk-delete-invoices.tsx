@@ -107,7 +107,7 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
   );
 
   interface FilterParams {
-    statuses: ("all" | "pending" | "in_review" | "accepted" | "rejected" | "re_review")[];
+    statuses: ("all" | "pending" | "in_review" | "accepted" | "rejected")[];
     olderThanMonths?: number;
     year?: number;
     month?: number;
@@ -120,7 +120,7 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
 
   function buildFilters(): FilterParams {
     const filters: FilterParams = {
-      statuses: selectedStatuses as ("all" | "pending" | "in_review" | "accepted" | "rejected" | "re_review")[],
+      statuses: selectedStatuses as ("all" | "pending" | "in_review" | "accepted" | "rejected")[],
     };
 
     if (filterType === "older") {
@@ -557,7 +557,6 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
                     <SelectItem value="in_review">W trakcie przeglądu</SelectItem>
                     <SelectItem value="accepted">Zaakceptowane</SelectItem>
                     <SelectItem value="rejected">Odrzucone</SelectItem>
-                    <SelectItem value="re_review">Do ponownej oceny</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

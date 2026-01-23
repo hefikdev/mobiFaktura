@@ -48,7 +48,7 @@ filtered = [...filtered].sort((a, b) => {
 
 ### What Was Added
 - **Export button** using ExportButton component
-- Dynamic filename: `prosBy-o-budzet-YYYY-MM-DD.csv/pdf`
+- Dynamic filename: `prosBy-o-budzet-YYYY-MM-DD.xlsx/pdf`
 - Full column mapping with Polish headers
 - PDF export with proper title and subtitle
 
@@ -107,7 +107,7 @@ ALTER TABLE "invoices" RENAME COLUMN "wplynela_at" TO "transferred_at";
 
 -- Update enum
 ALTER TYPE invoice_status RENAME TO invoice_status_old;
-CREATE TYPE invoice_status AS ENUM ('pending', 'in_review', 'accepted', 'transferred', 'settled', 'rejected', 're_review');
+CREATE TYPE invoice_status AS ENUM ('pending', 'in_review', 'accepted', 'transferred', 'settled', 'rejected');
 
 -- Migrate existing data
 ALTER TABLE "invoices" ALTER COLUMN "status" TYPE invoice_status USING (
@@ -315,7 +315,7 @@ All documentation files have been updated to reflect the `wplynela` → `transfe
 ### Frontend Testing
 - [ ] ✅ Budget requests page loads without errors
 - [ ] ✅ Sorting dropdown works (date, amount, status)
-- [ ] ✅ Export button generates CSV with correct Polish headers
+- [ ] ✅ Export button generates Excel (XLSX) with correct Polish headers
 - [ ] ✅ Export button generates PDF with correct title
 - [ ] ✅ All budget request statuses show correct colors
 - [ ] ✅ money_transferred status shows cyan color

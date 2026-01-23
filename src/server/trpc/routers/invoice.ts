@@ -534,7 +534,7 @@ export const invoiceRouter = createTRPCRouter({
         .leftJoin(users, eq(invoices.userId, users.id))
         .leftJoin(companies, eq(invoices.companyId, companies.id))
         .leftJoin(reviewer, eq(invoices.reviewedBy, reviewer.id))
-        .where(or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected"), eq(invoices.status, "re_review")))
+        .where(or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected")))
         .orderBy(desc(invoices.updatedAt))
         .limit(limit + 1)
         .offset(cursor);
@@ -1188,73 +1188,6 @@ export const invoiceRouter = createTRPCRouter({
       };
     }),
 
-  // Request re-review (accountant can request admin to review again)
-  requestReReview: accountantProcedure
-    .input(
-      z.object({
-        id: z.string().uuid(),
-        reason: z.string().min(1, "Powód jest wymagany"),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const [invoice] = await db
-        .select()
-        .from(invoices)
-        .where(eq(invoices.id, input.id))
-        .limit(1);
-
-      if (!invoice) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Faktura nie została znaleziona",
-        });
-      }
-
-      // Can only request re-review on accepted or rejected invoices
-      if (invoice.status !== "accepted" && invoice.status !== "rejected") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Można poprosić o edycję tylko zaakceptowanych lub odrzuconych faktur",
-        });
-      }
-
-      // Check if the accountant reviewed this invoice
-      if (invoice.reviewedBy !== ctx.user.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Możesz poprosić o edycję tylko faktur, które sam rozpatrzyłeś",
-        });
-      }
-
-      // Update status to re_review with conflict prevention
-      const [updated] = await db
-        .update(invoices)
-        .set({
-          status: "re_review",
-          rejectionReason: input.reason, // Store the reason for re-review
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(invoices.id, input.id),
-            or(eq(invoices.status, "accepted"), eq(invoices.status, "rejected")) // Only allow if still in final state
-          )
-        )
-        .returning();
-
-      if (!updated) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "Status faktury został już zmieniony",
-        });
-      }
-
-      return {
-        success: true,
-        invoice: updated,
-      };
-    }),
-
   // Get duplicate invoices (for conflict detection)
   getDuplicates: accountantProcedure.query(async () => {
     // Find invoices with matching kwota, ksefNumber, and companyId that are accepted
@@ -1515,10 +1448,16 @@ export const invoiceRouter = createTRPCRouter({
       }
 
       if (input.searchQuery) {
+        // Allow searching by UUID (with or without dashes) as well as invoice number
+        const normalizedQuery = input.searchQuery.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
         conditions.push(
           or(
+            // direct text match (keeps existing behaviour)
             sql`${invoices.id}::text ILIKE ${`%${input.searchQuery}%`}`,
-            sql`${invoices.invoiceNumber} ILIKE ${`%${input.searchQuery}%`}`
+            sql`${invoices.invoiceNumber} ILIKE ${`%${input.searchQuery}%`}`,
+            // match UUIDs even if user omits dashes: compare regexp_replace(id, '-', '') against normalized query
+            sql`regexp_replace(${invoices.id}::text, '-', '', 'g') ILIKE ${`%${normalizedQuery}%`}`
           )!
         );
       }

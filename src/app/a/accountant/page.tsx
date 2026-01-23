@@ -40,7 +40,7 @@ export default function AccountantPage() {
   const router = useRouter();
   const [lastInvoiceSync, setLastInvoiceSync] = useState<string>("");
   const [sortBy, setSortBy] = useState<"date">("date");
-  const [filterStatus, setFilterStatus] = useState<"all" | "accepted" | "rejected" | "re_review">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "accepted" | "rejected">("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<BudgetRequest | null>(null);
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
@@ -340,7 +340,7 @@ export default function AccountantPage() {
                 
                 {/* Filter and Sorting controls */}
                 <div className="flex items-center gap-2">
-                  <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | "accepted" | "rejected" | "re_review")}>
+                  <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | "accepted" | "rejected")}>
                     <SelectTrigger className="w-[140px] h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -348,7 +348,6 @@ export default function AccountantPage() {
                       <SelectItem value="all">Wszystkie</SelectItem>
                       <SelectItem value="accepted">Zaakceptowane</SelectItem>
                       <SelectItem value="rejected">Odrzucone</SelectItem>
-                      <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
                     </SelectContent>
                   </Select>
                   

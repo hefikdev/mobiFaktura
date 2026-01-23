@@ -21,7 +21,6 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
   "transferred",
   "settled",
   "rejected",
-  "re_review",
 ]);
 export const invoiceTypeEnum = pgEnum("invoice_type", [
   "einvoice",
@@ -33,7 +32,6 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "invoice_rejected",
   "invoice_submitted",
   "invoice_assigned",
-  "invoice_re_review",
   "budget_request_submitted",
   "budget_request_approved",
   "budget_request_rejected",
@@ -55,7 +53,6 @@ export const users = pgTable("users", {
   notificationInvoiceRejected: boolean("notification_invoice_rejected").notNull().default(true),
   notificationInvoiceSubmitted: boolean("notification_invoice_submitted").notNull().default(true),
   notificationInvoiceAssigned: boolean("notification_invoice_assigned").notNull().default(true),
-  notificationInvoiceReReview: boolean("notification_invoice_re_review").notNull().default(true),
   notificationBudgetRequestSubmitted: boolean("notification_budget_request_submitted").notNull().default(true),
   notificationBudgetRequestApproved: boolean("notification_budget_request_approved").notNull().default(true),
   notificationBudgetRequestRejected: boolean("notification_budget_request_rejected").notNull().default(true),
@@ -524,8 +521,8 @@ export type NewBudgetRequest = typeof budgetRequests.$inferInsert;
 export type UserCompanyPermission = typeof userCompanyPermissions.$inferSelect;
 export type NewUserCompanyPermission = typeof userCompanyPermissions.$inferInsert;
 export type UserRole = "user" | "accountant" | "admin";
-export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
+export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected";
 export type InvoiceType = "einvoice" | "receipt" | "correction";
-export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";
+export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";
 export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund" | "advance_credit" | "invoice_delete_refund";
 export type BudgetRequestStatus = "pending" | "approved" | "rejected";

@@ -1,7 +1,7 @@
 import { Clock, CheckCircle, XCircle, RefreshCw, DollarSign, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review" | "money_transferred" | "transferred" | "settled";
+type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "money_transferred" | "transferred" | "settled";
 
 interface InvoiceStatusBadgeProps {
   status: InvoiceStatus | string;
@@ -51,12 +51,6 @@ export function InvoiceStatusBadge({ status, variant = "default" }: InvoiceStatu
       icon: XCircle,
       className: "text-red-600 dark:text-red-400",
       bgClassName: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-    },
-    re_review: {
-      label: "Ponowna weryfikacja",
-      icon: RefreshCw,
-      className: "text-orange-600 dark:text-orange-400",
-      bgClassName: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
     },
   };
 

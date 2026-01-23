@@ -145,7 +145,7 @@ export default withPWA({
       },
     },
     {
-      urlPattern: /\.(?:json|xml|csv)$/i,
+      urlPattern: /\.(?:json|xml)$/i,
       handler: "NetworkFirst",
       options: {
         cacheName: "static-data-assets",

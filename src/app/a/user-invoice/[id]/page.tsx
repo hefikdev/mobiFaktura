@@ -528,7 +528,7 @@ function UserInvoiceContent({ id }: { id: string }) {
                     <p className="text-sm text-red-800 dark:text-red-300">{invoice.rejectionReason}</p>
                   </div>
                 )}
-                {(invoice.status === "accepted" || invoice.status === "re_review") && invoice.rejectionReason && (
+                {invoice.status === "accepted" && invoice.rejectionReason && (
                   <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
                     <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">Dekretacja księgowego:</p>
                     <p className="text-sm text-blue-800 dark:text-blue-300">{invoice.rejectionReason}</p>

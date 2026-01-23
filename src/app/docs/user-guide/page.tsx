@@ -173,7 +173,7 @@ export default function UserGuidePage() {
                   <li>Przeglądanie wszystkich faktur w systemie</li>
                   <li>Masowe usuwanie faktur</li>
                   <li>Zmiana statusu faktur</li>
-                  <li>Eksport danych do CSV/PDF</li>
+                  <li>Eksport danych do Excel (XLSX) / PDF</li>
                   <li>Filtrowanie po firmie, statusie, okresie</li>
                 </ul>
               </div>

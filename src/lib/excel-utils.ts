@@ -99,7 +99,6 @@ export async function generateSingleInvoiceExcel(
     in_review: "W trakcie weryfikacji",
     accepted: "Zaakceptowana",
     rejected: "Odrzucona",
-    re_review: "Ponowna weryfikacja",
   };
 
   // Create vertical layout (label-value pairs)
@@ -344,7 +343,6 @@ export async function generateInvoicesExcel(
     in_review: "W trakcie weryfikacji",
     accepted: "Zaakceptowana",
     rejected: "Odrzucona",
-    re_review: "Ponowna weryfikacja",
   };
 
   // Add data rows

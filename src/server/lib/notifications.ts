@@ -89,20 +89,6 @@ export async function notifyInvoiceAssigned(
   });
 }
 
-export async function notifyInvoiceReReview(
-  userId: string,
-  invoiceNumber: string,
-  invoiceId: string
-) {
-  return createNotification({
-    userId,
-    type: "invoice_re_review",
-    title: "Faktura wymaga ponownej weryfikacji",
-    message: `Twoja faktura ${invoiceNumber} wymaga dodatkowej weryfikacji przez księgowego.`,
-    invoiceId,
-  });
-}
-
 export async function notifyCompanyUpdated(
   userId: string,
   companyName: string,

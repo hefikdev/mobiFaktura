@@ -739,7 +739,6 @@ mobiFaktura/
 │  ├─ All USER permissions                                         │
 │  ├─ View all pending invoices                                   │
 │  ├─ Approve/Reject invoices                                     │
-│  ├─ Request invoice re-review                                   │
 │  ├─ View analytics dashboard                                    │
 │  ├─ Export all invoices                                         │
 │  └─ Bulk operations on invoices                                  │

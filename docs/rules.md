@@ -72,7 +72,6 @@ This document consolidates all system-wide rules, validation requirements, and b
 - `in_review` - Under accountant review
 - `accepted` - Approved by accountant
 - `rejected` - Rejected by accountant
-- `re_review` - Requires additional review
 
 ### **Assignment Rules**
 - **Can Assign**: Accountants can assign invoices to themselves

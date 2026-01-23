@@ -41,7 +41,7 @@ if (pdfFonts && (pdfFonts as unknown as { pdfMake?: { vfs: unknown } }).pdfMake)
 }
 
 type ExportPeriod = "last30" | "specificMonth" | "last3Months" | "last6Months" | "thisYear" | "all";
-type ExportFormat = "csv" | "xlsx" | "pdf";
+type ExportFormat = "xlsx" | "pdf";
 
 interface Company {
   id: string;
@@ -187,16 +187,6 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
       return;
     }
 
-    // Check if there are any invoices with re_review status
-    const reReviewInvoices = exportInvoices.filter(inv => inv.status === "re_review");
-    if (reReviewInvoices.length > 0) {
-      toast({
-        title: "Ostrzeżenie",
-        description: `Eksportowana partia zawiera ${reReviewInvoices.length} faktur(y) w statusie "Ponowna weryfikacja". Sprawdź dokumenty przed eksportem.`,
-        variant: "destructive",
-      });
-    }
-
     // Convert to table format
     const headers: string[] = ["Data przesłania", "Data decyzji", "Numer faktury", "KSeF", "Użytkownik", "Firma", "Status", "Księgowy", "Opis"];
     const rows: string[][] = exportInvoices.map(inv => [
@@ -206,12 +196,12 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
       inv.ksefNumber || "-",
       inv.userName || "",
       inv.companyName || "",
-      inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : inv.status === "re_review" ? "Ponowna weryfikacja" : "Oczekuje",
+      inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : "Oczekuje",
       inv.reviewerName || "-",
       inv.description || "-"
     ]);
 
-    // Precompute periodText and filterLine for both CSV and PDF exports
+    // Precompute periodText and filterLine for Excel and PDF exports
     let periodText = "";
     switch (exportPeriod) {
       case "last30": periodText = "Ostatnie 30 dni"; break;
@@ -249,7 +239,7 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
         ksefNumber: inv.ksefNumber || "-",
         user: inv.userName || "",
         company: inv.companyName || "",
-        status: inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : inv.status === "re_review" ? "Ponowna weryfikacja" : "Oczekuje",
+        status: inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : "Oczekuje",
         reviewer: inv.reviewerName || "-",
         description: inv.description || "-",
       }));
@@ -279,57 +269,6 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
         });
       }).catch(e => {
         console.error('Excel export helper load failed', e);
-      });
-
-      setProgress(100);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      setIsGenerating(false);
-      setProgress(0);
-    } else if (exportFormat === "csv") {
-      setIsGenerating(true);
-      setProgress(20);
-      
-      // Allow UI to update
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Use shared exportToCSV helper to ensure BOM and metadata
-      const formattedRows = exportInvoices.map(inv => ({
-        submittedAt: inv.createdAt ? formatDate(inv.createdAt) : "",
-        reviewedAt: inv.reviewedAt ? formatDate(inv.reviewedAt) : "-",
-        invoiceNumber: inv.invoiceNumber || "",
-        ksefNumber: inv.ksefNumber || "-",
-        user: inv.userName || "",
-        company: inv.companyName || "",
-        status: inv.status === "accepted" ? "Zaakceptowana" : inv.status === "rejected" ? "Odrzucona" : inv.status === "in_review" ? "W trakcie" : inv.status === "re_review" ? "Ponowna weryfikacja" : "Oczekuje",
-        reviewer: inv.reviewerName || "-",
-        description: inv.description || "-",
-      }));
-
-      // trigger CSV download
-      import("@/lib/export").then(({ exportToCSV }) => {
-        exportToCSV({
-          filename: `faktury_${exportPeriod}_${new Date().toISOString().split("T")[0]}`,
-          columns: [
-            { key: 'submittedAt', header: String(headers[0] ?? '') },
-            { key: 'reviewedAt', header: String(headers[1] ?? '') },
-            { key: 'invoiceNumber', header: String(headers[2] ?? '') },
-            { key: 'ksefNumber', header: String(headers[3] ?? '') },
-            { key: 'user', header: String(headers[4] ?? '') },
-            { key: 'company', header: String(headers[5] ?? '') },
-            { key: 'status', header: String(headers[6] ?? '') },
-            { key: 'reviewer', header: String(headers[7] ?? '') },
-            { key: 'description', header: String(headers[8] ?? '') },
-          ],
-          data: formattedRows,
-          meta: {
-            title: 'Raport Faktur - mobiFaktura',
-            generatedAt: new Date().toLocaleString('pl-PL'),
-            user: selectedUserName,
-            filters: periodText + (filterLine ? ' | ' + filterLine : '')
-          }
-        });
-      }).catch(e => {
-        console.error('CSV export helper load failed', e);
       });
 
       setProgress(100);
@@ -578,13 +517,12 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
         <div className="space-y-4 max-h-[calc(90vh-120px)] overflow-y-auto pr-2">
           <div className="space-y-2">
             <Label htmlFor="format">Format</Label>
-            <Select value={exportFormat} onValueChange={(value: string) => setExportFormat(value as "csv" | "pdf")}>
+            <Select value={exportFormat} onValueChange={(value: string) => setExportFormat(value as "xlsx" | "pdf")}>
               <SelectTrigger id="format">
                 <SelectValue placeholder="Wybierz format" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="xlsx">Excel (XLSX)</SelectItem>
-                <SelectItem value="csv">CSV</SelectItem>
                 <SelectItem value="pdf">PDF (do druku)</SelectItem>
               </SelectContent>
             </Select>
@@ -665,7 +603,6 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
                 <SelectItem value="in_review">W trakcie</SelectItem>
                 <SelectItem value="accepted">Zaakceptowane</SelectItem>
                 <SelectItem value="rejected">Odrzucone</SelectItem>
-                <SelectItem value="re_review">Ponowna weryfikacja</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -724,7 +661,7 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
           </div>
           {isGenerating && (
             <div className="space-y-2">
-              <Label>{exportFormat === "xlsx" ? "Generowanie Excel..." : exportFormat === "csv" ? "Generowanie CSV..." : "Generowanie PDF..."}</Label>
+              <Label>{exportFormat === "xlsx" ? "Generowanie Excel..." : "Generowanie PDF..."}</Label>
               <Progress value={progress} className="w-full" />
             </div>
           )}

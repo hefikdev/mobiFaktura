@@ -13,7 +13,7 @@ describe('Invoice Business Logic', () => {
     it('should allow transition from in_review to accepted', () => {
       const currentStatus = 'in_review';
       const newStatus = 'accepted';
-      const validTransitions = ['accepted', 'rejected', 're_review'];
+      const validTransitions = ['accepted', 'rejected'];
       
       expect(validTransitions.includes(newStatus)).toBe(true);
     });
@@ -21,15 +21,7 @@ describe('Invoice Business Logic', () => {
     it('should allow transition from in_review to rejected', () => {
       const currentStatus = 'in_review';
       const newStatus = 'rejected';
-      const validTransitions = ['accepted', 'rejected', 're_review'];
-      
-      expect(validTransitions.includes(newStatus)).toBe(true);
-    });
-
-    it('should allow transition from rejected to re_review', () => {
-      const currentStatus = 'rejected';
-      const newStatus = 're_review';
-      const validTransitions = ['re_review'];
+      const validTransitions = ['accepted', 'rejected'];
       
       expect(validTransitions.includes(newStatus)).toBe(true);
     });

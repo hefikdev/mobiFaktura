@@ -535,19 +535,15 @@ export default function CorrectionsPage() {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Utwórz fakturę korygującą</DialogTitle>
-              <DialogDescription>
-                Utwórz fakturę korygującą, aby dostosować kwotę dla zaakceptowanej faktury
-              </DialogDescription>
             </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Invoice Search */}
             <div className="space-y-2">
-              <Label>Wyszukaj fakturę do skorygowania</Label>
               <div className="flex gap-2 items-end min-w-0">
                 <div className="flex-1 min-w-0">
                   <SearchInput
-                    placeholder="Numer faktury..."
+                    placeholder="Podaj UUID"
                     value={invoiceSearchQuery}
                     onChange={setInvoiceSearchQuery}
                     className="w-full"

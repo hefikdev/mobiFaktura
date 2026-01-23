@@ -75,7 +75,7 @@ All queries that need names perform LEFT JOINs with users table:
 - ✅ Added `transferred_at` - when payment marked received
 - ✅ Added `settled_by` - who marked invoice as settled
 - ✅ Added `settled_at` - when invoice marked settled
-- ✅ Updated enum to support: `pending`, `in_review`, `accepted`, `transferred`, `settled`, `rejected`, `re_review`
+- ✅ Updated enum to support: `pending`, `in_review`, `accepted`, `transferred`, `settled`, `rejected`
 - ✅ Migration 0025: Renamed `wplynela_by` → `transferred_by`, `wplynela_at` → `transferred_at`
 
 ### Database Enhancements
@@ -101,7 +101,7 @@ All queries that need names perform LEFT JOINs with users table:
 - ✅ Database enum value: `'settled'` (was 'rozliczono')
 - ✅ Database enum value: `'transferred'` (was 'wplynela')
 - ✅ TypeScript types: `BudgetRequestStatus = "pending" | "approved" | "money_transferred" | "rejected" | "settled"`
-- ✅ TypeScript types: `InvoiceStatus = "pending" | "in_review" | "accepted" | "transferred" | "settled" | "rejected" | "re_review"`
+- ✅ TypeScript types: `InvoiceStatus = "pending" | "in_review" | "accepted" | "transferred" | "settled" | "rejected"`
 - ✅ API endpoints use English internally
 - ✅ Zod validation schemas updated
 
@@ -136,7 +136,6 @@ All queries that need names perform LEFT JOINs with users table:
 | Invoice Rejected | `notification_invoice_rejected` | ✅ ON |
 | Invoice Submitted | `notification_invoice_submitted` | ✅ ON |
 | Invoice Assigned | `notification_invoice_assigned` | ✅ ON |
-| Invoice Re-Review | `notification_invoice_re_review` | ✅ ON |
 | Budget Request Submitted | `notification_budget_request_submitted` | ✅ ON |
 | Budget Request Approved | `notification_budget_request_approved` | ✅ ON |
 | Budget Request Rejected | `notification_budget_request_rejected` | ✅ ON |
@@ -164,7 +163,6 @@ All queries that need names perform LEFT JOINs with users table:
 | **Wpłynęła** (transferred) | 🔷 Cyan | `bg-cyan-100 text-cyan-800` | `bg-cyan-900/30 text-cyan-300` |
 | **Rozliczono** (settled) | 🟣 Purple | `bg-purple-100 text-purple-800` | `bg-purple-900/30 text-purple-300` |
 | **Odrzucona** (rejected) | 🔴 Red | `bg-red-100 text-red-800` | `bg-red-900/30 text-red-300` |
-| **Ponowna weryfikacja** (re_review) | 🟠 Orange | `bg-orange-100 text-orange-800` | `bg-orange-900/30 text-orange-300` |
 
 ### Dark Mode Improvements
 - ✅ Used `/30` opacity for backgrounds (better contrast)
@@ -207,8 +205,7 @@ CREATE TYPE invoice_status AS ENUM (
   'accepted', 
   'transferred', -- NEW (Payment received - UI displays "Wpłynęła")
   'settled',     -- NEW (was rozliczono)
-  'rejected', 
-  're_review'
+  'rejected'
 );
 ```
 
@@ -262,18 +259,9 @@ pending/in_review
 rejected (terminal)
 ```
 
-**OR**
-
-```
-accepted 
-  ↓ (needs additional verification)
-re_review 
-  ↓ (loops back to review)
-```
-
 ### Key Points
 - ✅ Each status transition logged with who and when
-- ✅ Status can only move forward (except re_review loop)
+- ✅ Status can only move forward
 - ✅ User sees payment progression clearly
 - ✅ Accountants have granular control over payment lifecycle
 

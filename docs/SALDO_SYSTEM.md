@@ -316,7 +316,7 @@ All headers (user, accountant, admin) now show:
 2. **Budget Limits**: Set hard limits to prevent exceeding budget
 3. **Notifications**: Alert users when budget is low or negative
 4. **Batch Operations**: Adjust multiple users' balances at once
-5. **Export Functionality**: Export transaction history to CSV/PDF
+5. **Export Functionality**: Export transaction history to Excel (XLSX) / PDF
 6. **Budget Categories**: Assign different budgets for different invoice types
 7. **Recurring Budgets**: Automatically reset budgets monthly/quarterly
 8. **Approval Workflow**: Require approval for budget adjustments above threshold
