@@ -527,5 +527,5 @@ export type UserRole = "user" | "accountant" | "admin";
 export type InvoiceStatus = "pending" | "in_review" | "accepted" | "rejected" | "re_review";
 export type InvoiceType = "einvoice" | "receipt" | "correction";
 export type NotificationType = "invoice_accepted" | "invoice_rejected" | "invoice_submitted" | "invoice_assigned" | "invoice_re_review" | "budget_request_submitted" | "budget_request_approved" | "budget_request_rejected" | "saldo_adjusted" | "system_message" | "company_updated" | "password_changed";
-export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund" | "advance_credit";
+export type SaldoTransactionType = "adjustment" | "invoice_deduction" | "invoice_refund" | "advance_credit" | "invoice_delete_refund";
 export type BudgetRequestStatus = "pending" | "approved" | "rejected";

@@ -56,6 +56,7 @@ CREATE TABLE "saldo_transactions" (
 - `adjustment` - Manual balance adjustment by admin/accountant
 - `invoice_deduction` - Automatic deduction when invoice is submitted
 - `invoice_refund` - Refund when invoice is rejected/deleted (optional)
+- `invoice_delete_refund` - Automatic refund when invoice is deleted by user/accountant/admin
 
 ## API Endpoints (tRPC)
 
@@ -240,12 +241,31 @@ All headers (user, accountant, admin) now show:
 3. Identifies users who exceeded budget (red highlight)
 4. Takes appropriate action
 
+### 5. Deleting an Invoice (Automatic Refund)
+1. User/accountant/admin deletes an invoice
+2. System automatically:
+   - Refunds the kwota back to the user's saldo
+   - Creates a `invoice_delete_refund` transaction record
+   - Links the transaction to the deleted invoice ID
+   - Notes the refund with invoice number
+
 ## Implementation Details
 
 ### Transaction Safety
 - All balance changes use database transactions
 - Ensures atomicity between balance update and transaction log
 - Prevents race conditions with proper locking
+- Invoice deletion includes saldo refund in the same transaction
+
+### Automatic Refunds on Deletion
+- When an invoice with `kwota` is deleted, the system automatically refunds the amount
+- Applies to:
+  - User deletion of their own invoices
+  - Accountant/admin deletion of any invoice
+  - Bulk deletion by admins
+  - Deletion of advance (zaliczka) with associated invoices
+- Transaction type: `invoice_delete_refund`
+- UI label: "Zwrot z usuniętej faktury"
 
 ### Negative Balances
 - System allows negative balances by design
@@ -274,7 +294,9 @@ All headers (user, accountant, admin) now show:
 - [ ] User sees updated saldo in header
 - [ ] User sees updated saldo on dashboard
 - [ ] Invoice submission reduces saldo correctly
+- [ ] Invoice deletion refunds saldo correctly
 - [ ] Transaction history shows correct amounts
+- [ ] Transaction history shows delete refunds with proper label
 - [ ] Transaction history links to invoices
 - [ ] User cannot access saldo management page
 - [ ] User cannot view other users' saldo
@@ -284,11 +306,13 @@ All headers (user, accountant, admin) now show:
 - [ ] Positive balances display in green
 - [ ] Notes are required for adjustments
 - [ ] Minimum note length is enforced (5 characters)
+- [ ] Advance deletion with invoices refunds all invoice amounts
+- [ ] Bulk invoice deletion refunds all amounts correctly
 
 ## Future Enhancements
 
 ### Potential Features
-1. **Invoice Refunds**: Automatically restore saldo when invoice is rejected
+1. **Invoice Refunds**: Automatically restore saldo when invoice is rejected (in addition to delete refunds)
 2. **Budget Limits**: Set hard limits to prevent exceeding budget
 3. **Notifications**: Alert users when budget is low or negative
 4. **Batch Operations**: Adjust multiple users' balances at once

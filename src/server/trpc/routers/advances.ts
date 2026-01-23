@@ -419,8 +419,64 @@ export const advancesRouter = createTRPCRouter({
 
       await db.transaction(async (tx) => {
         if (input.strategy === "delete_with_invoices") {
-          // Delete linked invoices first
+          // Delete linked invoices first and refund their saldo
           if (linkedInvoices.length > 0) {
+            // Get full invoice details for saldo refunds
+            const invoicesToDelete = await tx
+              .select()
+              .from(invoices)
+              .where(eq(invoices.advanceId, input.id));
+
+            // Process saldo refunds for each invoice
+            for (const invoice of invoicesToDelete) {
+              if (invoice.kwota && parseFloat(invoice.kwota) > 0) {
+                const refundAmount = parseFloat(invoice.kwota);
+
+                // Get current user saldo
+                const [invoiceUser] = await tx
+                  .select({ saldo: users.saldo, updatedAt: users.updatedAt })
+                  .from(users)
+                  .where(eq(users.id, invoice.userId))
+                  .limit(1);
+
+                if (invoiceUser) {
+                  const balanceBefore = invoiceUser.saldo ? parseFloat(invoiceUser.saldo) : 0;
+                  const balanceAfter = balanceBefore + refundAmount;
+                  const lastUpdatedAt = invoiceUser.updatedAt;
+
+                  // Update user saldo
+                  const saldoUpdateResult = await tx
+                    .update(users)
+                    .set({ 
+                      saldo: balanceAfter.toFixed(2),
+                      updatedAt: new Date(),
+                    })
+                    .where(
+                      and(
+                        eq(users.id, invoice.userId),
+                        eq(users.updatedAt, lastUpdatedAt)
+                      )
+                    )
+                    .returning({ id: users.id });
+
+                  if (saldoUpdateResult && saldoUpdateResult.length > 0) {
+                    // Create saldo transaction record for refund
+                    await tx.insert(saldoTransactions).values({
+                      userId: invoice.userId,
+                      amount: refundAmount.toFixed(2),
+                      balanceBefore: balanceBefore.toFixed(2),
+                      balanceAfter: balanceAfter.toFixed(2),
+                      transactionType: "invoice_delete_refund",
+                      referenceId: invoice.id,
+                      notes: `Zwrot z usuniętej faktury ${invoice.invoiceNumber} (usunięcie zaliczki)`,
+                      createdBy: ctx.user.id,
+                    });
+                  }
+                }
+              }
+            }
+
+            // Now delete the invoices
             await tx
               .delete(invoices)
               .where(eq(invoices.advanceId, input.id));

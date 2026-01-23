@@ -156,8 +156,22 @@ Rollbacks:
 - All changes to `users.saldo` are recorded in `saldo_transactions` with `balanceBefore`, `balanceAfter`, `transactionType` and `referenceId` referencing invoice or budget request.
 - Important behaviors:
   - Use database transactions when modifying `saldo` and inserting to `saldo_transactions` to keep atomicity.
-  - For invoice acceptance, `transactionType = invoice_deduction`; for refunds or rollbacks, `invoice_refund`.
+  - For invoice submission with kwota, `transactionType = invoice_deduction`; for refunds or rollbacks, `invoice_refund`.
+  - For invoice deletion, `transactionType = invoice_delete_refund` - automatically refunds the kwota back to user.
   - For budget approvals, `transactionType = zasilenie` (top-up) and reference the budget request id.
+  - For advance (zaliczka) credits, `transactionType = advance_credit`.
+
+#### Invoice Deletion Refund Flow
+When an invoice is deleted (by user, accountant, or admin):
+1. System checks if invoice has `kwota` value
+2. If yes, refunds the amount to the user's saldo
+3. Creates a `saldo_transaction` with type `invoice_delete_refund`
+4. Links the transaction to the deleted invoice ID
+5. All operations happen in a database transaction for atomicity
+6. Applies to:
+   - Individual invoice deletion
+   - Admin bulk invoice deletion
+   - Advance (zaliczka) deletion with associated invoices
 
 ---
 

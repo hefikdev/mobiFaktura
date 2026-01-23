@@ -8,6 +8,7 @@ import {
   companies, 
   loginLogs, 
   invoiceEditHistory,
+  saldoTransactions,
   sessions,
   loginAttempts,
   notifications
@@ -711,30 +712,90 @@ export const adminRouter = createTRPCRouter({
       let dbDeleted = false;
 
       try {
-        // 1. Delete from MinIO
-        await deleteFile(invoice.imageKey);
-        minioDeleted = true;
+        // Perform deletion and saldo refund in a transaction
+        await db.transaction(async (tx) => {
+          // Refund saldo if invoice has kwota
+          if (invoice.kwota && parseFloat(invoice.kwota) > 0) {
+            const refundAmount = parseFloat(invoice.kwota);
 
-        // 2. Delete edit history
-        await db.delete(invoiceEditHistory).where(eq(invoiceEditHistory.invoiceId, input.id));
+            // Get current user saldo
+            const [invoiceUser] = await tx
+              .select({ saldo: users.saldo, updatedAt: users.updatedAt })
+              .from(users)
+              .where(eq(users.id, invoice.userId))
+              .limit(1);
 
-        // 3. Delete from database
-        await db.delete(invoices).where(eq(invoices.id, input.id));
-        dbDeleted = true;
+            if (!invoiceUser) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Użytkownik faktury nie został znaleziony",
+              });
+            }
 
-        // 4. Verify complete deletion from database
-        const [stillExistsInDb] = await db
-          .select()
-          .from(invoices)
-          .where(eq(invoices.id, input.id))
-          .limit(1);
+            const balanceBefore = invoiceUser.saldo ? parseFloat(invoiceUser.saldo) : 0;
+            const balanceAfter = balanceBefore + refundAmount;
+            const lastUpdatedAt = invoiceUser.updatedAt;
 
-        if (stillExistsInDb) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Nie udało się usunąć faktury z bazy danych",
-          });
-        }
+            // Update user saldo with optimistic locking
+            const saldoUpdateResult = await tx
+              .update(users)
+              .set({ 
+                saldo: balanceAfter.toFixed(2),
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(users.id, invoice.userId),
+                  eq(users.updatedAt, lastUpdatedAt)
+                )
+              )
+              .returning({ id: users.id });
+
+            if (!saldoUpdateResult || saldoUpdateResult.length === 0) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: "Saldo zostało zmodyfikowane podczas usuwania faktury. Spróbuj ponownie.",
+              });
+            }
+
+            // Create saldo transaction record for refund
+            await tx.insert(saldoTransactions).values({
+              userId: invoice.userId,
+              amount: refundAmount.toFixed(2),
+              balanceBefore: balanceBefore.toFixed(2),
+              balanceAfter: balanceAfter.toFixed(2),
+              transactionType: "invoice_delete_refund",
+              referenceId: invoice.id,
+              notes: `Zwrot z usuniętej faktury ${invoice.invoiceNumber}`,
+              createdBy: ctx.user.id,
+            });
+          }
+
+          // 1. Delete from MinIO
+          await deleteFile(invoice.imageKey);
+          minioDeleted = true;
+
+          // 2. Delete edit history
+          await tx.delete(invoiceEditHistory).where(eq(invoiceEditHistory.invoiceId, input.id));
+
+          // 3. Delete from database
+          await tx.delete(invoices).where(eq(invoices.id, input.id));
+          dbDeleted = true;
+
+          // 4. Verify complete deletion from database
+          const [stillExistsInDb] = await tx
+            .select()
+            .from(invoices)
+            .where(eq(invoices.id, input.id))
+            .limit(1);
+
+          if (stillExistsInDb) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Nie udało się usunąć faktury z bazy danych",
+            });
+          }
+        });
 
         return { 
           success: true,
@@ -986,43 +1047,93 @@ export const adminRouter = createTRPCRouter({
       const imageKey = invoice.imageKey;
 
       try {
-        // Step 1: Delete from MinIO
-        await deleteFile(imageKey);
+        // Perform deletion and saldo refund in a transaction
+        await db.transaction(async (tx) => {
+          // Refund saldo if invoice has kwota
+          if (invoice.kwota && parseFloat(invoice.kwota) > 0) {
+            const refundAmount = parseFloat(invoice.kwota);
 
-        // Step 2: Verify MinIO deletion by trying to get presigned URL (should fail)
-        let minioDeleted = false;
-        try {
-          await minioClient.statObject(BUCKET_NAME, imageKey);
-          minioDeleted = false;
-        } catch (err: unknown) {
-          if (err && typeof err === 'object' && 'code' in err && err.code === 'NotFound') {
-            minioDeleted = true;
+            // Get current user saldo
+            const [invoiceUser] = await tx
+              .select({ saldo: users.saldo, updatedAt: users.updatedAt })
+              .from(users)
+              .where(eq(users.id, invoice.userId))
+              .limit(1);
+
+            if (invoiceUser) {
+              const balanceBefore = invoiceUser.saldo ? parseFloat(invoiceUser.saldo) : 0;
+              const balanceAfter = balanceBefore + refundAmount;
+              const lastUpdatedAt = invoiceUser.updatedAt;
+
+              // Update user saldo with optimistic locking
+              const saldoUpdateResult = await tx
+                .update(users)
+                .set({ 
+                  saldo: balanceAfter.toFixed(2),
+                  updatedAt: new Date(),
+                })
+                .where(
+                  and(
+                    eq(users.id, invoice.userId),
+                    eq(users.updatedAt, lastUpdatedAt)
+                  )
+                )
+                .returning({ id: users.id });
+
+              if (saldoUpdateResult && saldoUpdateResult.length > 0) {
+                // Create saldo transaction record for refund
+                await tx.insert(saldoTransactions).values({
+                  userId: invoice.userId,
+                  amount: refundAmount.toFixed(2),
+                  balanceBefore: balanceBefore.toFixed(2),
+                  balanceAfter: balanceAfter.toFixed(2),
+                  transactionType: "invoice_delete_refund",
+                  referenceId: invoice.id,
+                  notes: `Zwrot z usuniętej faktury ${invoice.invoiceNumber}`,
+                  createdBy: ctx.user.id,
+                });
+              }
+            }
           }
-        }
 
-        if (!minioDeleted) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `Failed to delete from MinIO: ${imageKey}`,
-          });
-        }
+          // Step 1: Delete from MinIO
+          await deleteFile(imageKey);
 
-        // Step 3: Delete from PostgreSQL
-        await db.delete(invoices).where(eq(invoices.id, input.invoiceId));
+          // Step 2: Verify MinIO deletion by trying to get presigned URL (should fail)
+          let minioDeleted = false;
+          try {
+            await minioClient.statObject(BUCKET_NAME, imageKey);
+            minioDeleted = false;
+          } catch (err: unknown) {
+            if (err && typeof err === 'object' && 'code' in err && err.code === 'NotFound') {
+              minioDeleted = true;
+            }
+          }
 
-        // Step 4: Verify PostgreSQL deletion
-        const [stillExists] = await db
-          .select()
-          .from(invoices)
-          .where(eq(invoices.id, input.invoiceId))
-          .limit(1);
+          if (!minioDeleted) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: `Failed to delete from MinIO: ${imageKey}`,
+            });
+          }
 
-        if (stillExists) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `Failed to delete from database: ${input.invoiceId}`,
-          });
-        }
+          // Step 3: Delete from PostgreSQL
+          await tx.delete(invoices).where(eq(invoices.id, input.invoiceId));
+
+          // Step 4: Verify PostgreSQL deletion
+          const [stillExists] = await tx
+            .select()
+            .from(invoices)
+            .where(eq(invoices.id, input.invoiceId))
+            .limit(1);
+
+          if (stillExists) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: `Failed to delete from database: ${input.invoiceId}`,
+            });
+          }
+        });
 
         return {
           success: true,

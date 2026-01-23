@@ -213,6 +213,8 @@ export default function SaldoHistoryPage() {
         return "Odliczenie faktury";
       case "invoice_refund":
         return "Zwrot za fakturę";
+      case "invoice_delete_refund":
+        return "Zwrot z usuniętej faktury";
       case "advance_credit":
         return "Zaliczka";
       default:
