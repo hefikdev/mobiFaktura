@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { invoices, companies } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { KSeFInvoiceData } from "@/types";
+import { parseKsefQRCode, getKsefApiUrl, detectKsefEnvironment } from "@/lib/ksef-utils";
 
 const KSEF_URL = "https://ksef.mf.gov.pl";
 
@@ -16,7 +17,7 @@ const ksefNumberSchema = z.string()
   .max(36, "KSeF number must be at most 36 characters")
   .regex(/^[A-Z0-9\-]+$/, "Invalid KSeF number format");
 
-// authenticateWithKSeF function
+// authenticateWithKSeF function - checks env variables only
 async function authenticateWithKSeF(nip: string | null): Promise<string> {
   // Try to get company-specific token first
   let token = nip ? process.env[`KSEF_TOKEN_${nip.replace(/[^0-9]/g, "")}`] : null;
@@ -167,6 +168,141 @@ async function parseInvoiceXML(xmlData: string): Promise<KSeFInvoiceData> {
 }
 
 export const ksefRouter = createTRPCRouter({
+  // Fetch invoice data from QR code for auto-filling form
+  fetchInvoiceData: protectedProcedure
+    .input(z.object({
+      qrCode: z.string().optional(),
+      ksefNumber: ksefNumberSchema.optional(),
+      companyId: z.string().uuid(),
+    }).refine((data) => data.qrCode || data.ksefNumber, {
+      message: "Either qrCode or ksefNumber must be provided",
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const startTime = Date.now();
+
+      try {
+        let ksefNumber: string | undefined;
+        let qrData = null;
+
+        // Parse QR code if provided
+        if (input.qrCode) {
+          qrData = parseKsefQRCode(input.qrCode);
+          if (!qrData || qrData.type !== 'invoice') {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Invalid KSeF QR code format",
+            });
+          }
+          
+          apiLogger.info({
+            type: "ksef_qr_parsed",
+            userId: ctx.user.id,
+            nip: qrData.nip,
+            date: qrData.date,
+          });
+        }
+
+        // Use KSeF number from QR or direct input
+        ksefNumber = input.ksefNumber;
+
+        // Get company NIP for authentication
+        const [companyData] = await db
+          .select({
+            nip: companies.nip,
+          })
+          .from(companies)
+          .where(eq(companies.id, input.companyId))
+          .limit(1);
+
+        const nip = companyData?.nip || null;
+
+        apiLogger.info({
+          type: "ksef_fetch_start",
+          userId: ctx.user.id,
+          ksefNumber,
+          companyId: input.companyId,
+        });
+
+        // Authenticate with KSeF
+        const sessionToken = await authenticateWithKSeF(nip);
+
+        // Fetch invoice XML - either by KSeF number or by QR data
+        let xmlData: string;
+        if (ksefNumber) {
+          xmlData = await getInvoiceFromKSeF(sessionToken, ksefNumber);
+        } else if (qrData?.nip && qrData?.date && qrData?.hash) {
+          // For QR codes without KSeF number, we need to search by hash
+          // This is for invoices not yet assigned a KSeF number
+          throw new TRPCError({
+            code: "NOT_IMPLEMENTED",
+            message: "Fetching by QR hash not yet implemented. Please wait for KSeF number to be assigned.",
+          });
+        } else {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No valid identifier for fetching invoice",
+          });
+        }
+
+        // Parse XML to JSON
+        const invoice = await parseInvoiceXML(xmlData);
+
+        // Extract key data for form auto-fill
+        const invoiceNumber = invoice.Faktura?.Fa?.NrFa || "";
+        const kwota = invoice.Faktura?.FaPodsumowanie?.KwotaBrutto 
+          ? parseFloat(invoice.Faktura.FaPodsumowanie.KwotaBrutto)
+          : null;
+        const seller = invoice.Faktura?.Podmiot1?.DaneIdentyfikacyjne?.Nazwa || "";
+        const buyer = invoice.Faktura?.Podmiot2?.DaneIdentyfikacyjne?.Nazwa || "";
+        const date = invoice.Faktura?.FaPodsumowanie?.DataWystawienia || "";
+
+        const duration = Date.now() - startTime;
+
+        apiLogger.info({
+          type: "ksef_fetch_success",
+          userId: ctx.user.id,
+          ksefNumber,
+          duration: `${duration}ms`,
+        });
+
+        return {
+          success: true,
+          data: {
+            invoiceNumber,
+            kwota,
+            seller,
+            buyer,
+            date,
+            ksefNumber,
+          },
+          fullInvoice: invoice,
+        };
+      } catch (error) {
+        const duration = Date.now() - startTime;
+
+        if (error instanceof TRPCError) {
+          apiLogger.warn({
+            type: "ksef_fetch_failed",
+            userId: ctx.user.id,
+            error: error.message,
+            duration: `${duration}ms`,
+          });
+          throw error;
+        }
+
+        logError(error, {
+          type: "ksef_fetch_error",
+          userId: ctx.user.id,
+          duration: `${duration}ms`,
+        });
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to fetch invoice data from KSeF",
+        });
+      }
+    }),
+
   // Verify invoice in KSeF system
   verifyInvoice: protectedProcedure
     .input(z.object({

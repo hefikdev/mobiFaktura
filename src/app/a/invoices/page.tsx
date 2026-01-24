@@ -104,6 +104,7 @@ export default function InvoicesPage() {
   const [ksefPopupOpen, setKsefPopupOpen] = useState(false);
   const [ksefPopupNumber, setKsefPopupNumber] = useState<string | null>(null);
   const [ksefPopupInvoiceId, setKsefPopupInvoiceId] = useState<string | null>(null);
+  const [ksefPopupUserData, setKsefPopupUserData] = useState<{invoiceNumber?: string; kwota?: number} | null>(null);
 
   // Data fetching with infinite query
   const {
@@ -412,12 +413,14 @@ export default function InvoicesPage() {
       <KsefInvoicePopup
         ksefNumber={ksefPopupNumber || ""}
         invoiceId={ksefPopupInvoiceId}
+        userInvoiceData={ksefPopupUserData}
         open={!!ksefPopupOpen && !!ksefPopupNumber}
         onOpenChange={(open) => {
           setKsefPopupOpen(open);
           if (!open) {
             setKsefPopupNumber(null);
             setKsefPopupInvoiceId(null);
+            setKsefPopupUserData(null);
           }
         }}
       />
@@ -567,6 +570,10 @@ export default function InvoicesPage() {
                                           e.stopPropagation();
                                           setKsefPopupNumber(invoice.ksefNumber);
                                           setKsefPopupInvoiceId(invoice.id);
+                                          setKsefPopupUserData({
+                                            invoiceNumber: invoice.invoiceNumber,
+                                            kwota: parseFloat(invoice.kwota || "0"),
+                                          });
                                           setKsefPopupOpen(true);
                                         }}
                                       >
@@ -641,6 +648,10 @@ export default function InvoicesPage() {
                                               if (invoice.ksefNumber) {
                                                 setKsefPopupNumber(invoice.ksefNumber);
                                                 setKsefPopupInvoiceId(invoice.id);
+                                                setKsefPopupUserData({
+                                                  invoiceNumber: invoice.invoiceNumber,
+                                                  kwota: parseFloat(invoice.kwota || "0"),
+                                                });
                                                 setKsefPopupOpen(true);
                                               } else {
                                                 toast({

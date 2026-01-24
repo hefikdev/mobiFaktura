@@ -48,10 +48,37 @@ export default function UploadPage() {
   const [isScanning, setIsScanning] = useState(false);
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isFetchingKsef, setIsFetchingKsef] = useState(false);
 
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
   const { data: companies, isLoading: loadingCompanies } = trpc.company.list.useQuery();
+  
+  // KSeF data fetch mutation
+  const fetchKsefMutation = trpc.ksef.fetchInvoiceData.useMutation({
+    onSuccess: (data) => {
+      if (data.success && data.data) {
+        // Auto-fill form fields
+        if (data.data.invoiceNumber) setInvoiceNumber(data.data.invoiceNumber);
+        if (data.data.kwota) setKwota(data.data.kwota.toString());
+        if (data.data.ksefNumber) setKsefNumber(data.data.ksefNumber);
+        
+        toast({
+          title: "Dane pobrane z KSeF",
+          description: `Numer faktury: ${data.data.invoiceNumber}, Kwota: ${data.data.kwota} PLN`,
+        });
+      }
+      setIsFetchingKsef(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Błąd pobierania danych KSeF",
+        description: error.message,
+        variant: "destructive",
+      });
+      setIsFetchingKsef(false);
+    },
+  });
 
   // Prepare company options for SearchableSelect
   const companyOptions: SearchableSelectOption[] = useMemo(() => {
@@ -136,9 +163,19 @@ export default function UploadPage() {
           scanHandledRef.current = true;
           // Successfully scanned
           setKsefNumber(decodedText);
+          
+          // Try to auto-fetch data from KSeF
+          if (companyId) {
+            setIsFetchingKsef(true);
+            fetchKsefMutation.mutate({
+              qrCode: decodedText,
+              companyId: companyId,
+            });
+          }
+          
           toast({
             title: "Zeskanowano QR kod",
-            description: "Numer KSEF został wypełniony",
+            description: companyId ? "Pobieranie danych z KSeF..." : "Wybierz firmę aby pobrać dane",
           });
           stopQrScanner();
         },
@@ -369,7 +406,134 @@ export default function UploadPage() {
         <h2 className="text-xl md:text-2xl font-semibold mb-5 md:mb-6">Dodaj fakturę</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
-          {/* Image capture area */}
+          {/* Invoice Type - MOVED TO TOP */}
+          <div className="space-y-2">
+            <Label htmlFor="invoiceType">
+              Typ dokumentu <span className="text-red-500">*</span>
+            </Label>
+            <Select value={invoiceType} onValueChange={(value: "einvoice" | "receipt") => {
+              setInvoiceType(value);
+              // Clear KSeF number when switching to receipt
+              if (value === "receipt") {
+                setKsefNumber("");
+              }
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz typ dokumentu" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="einvoice">E-faktura (z KSeF)</SelectItem>
+                <SelectItem value="receipt">Paragon (bez KSeF)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* KSEF Number - only show for einvoice - MOVED BEFORE IMAGE */}
+          {invoiceType === "einvoice" && (
+            <div className="space-y-2">
+              <Label htmlFor="ksefNumber">
+                Nr KSEF
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="ksefNumber"
+                  value={ksefNumber}
+                  onChange={(e) => setKsefNumber(e.target.value)}
+                  placeholder="np. 1234567890-ABC-XYZ"
+                  className="flex-1"
+                  disabled={isFetchingKsef}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleQrScanner}
+                  title="Skanuj kod QR"
+                  disabled={isFetchingKsef}
+                >
+                  {showQrScanner ? <X className="h-4 w-4" /> : <QrCode className="h-4 w-4" />}
+                </Button>
+                {ksefNumber && companyId && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setIsFetchingKsef(true);
+                      fetchKsefMutation.mutate({
+                        ksefNumber: ksefNumber,
+                        companyId: companyId,
+                      });
+                    }}
+                    disabled={isFetchingKsef}
+                    title="Pobierz dane z KSeF"
+                  >
+                    {isFetchingKsef ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Pobierz dane"
+                    )}
+                  </Button>
+                )}
+              </div>
+              
+              {isFetchingKsef && (
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Pobieranie danych z KSeF...
+                </p>
+              )}
+              
+              {!companyId && ksefNumber && (
+                <p className="text-xs text-amber-600">
+                  Wybierz firmę aby automatycznie pobrać dane z KSeF
+                </p>
+              )}
+
+              {/* QR Scanner */}
+              {showQrScanner && (
+                <Card className="mt-4">
+                  <CardContent className="p-3 md:p-4 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <Label>Skaner kodów QR</Label>
+                      {qrCameras.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={changeCamera}
+                          disabled={!isScanning}
+                        >
+                          <SwitchCamera className="h-4 w-4 mr-2" />
+                          Zmień kamerę
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div 
+                      id="qr-reader" 
+                      className="w-full rounded-lg overflow-hidden border-2 border-primary"
+                      style={{ minHeight: "300px" }}
+                    />
+                    
+                    <div className="text-sm text-muted-foreground text-center">
+                      Skieruj kamerę na kod QR z numerem KSEF
+                    </div>
+                    
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="w-full"
+                      onClick={stopQrScanner}
+                    >
+                      Anuluj skanowanie
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Image capture area - MOVED AFTER KSEF */}
           <div className="relative">
             <input
               ref={fileInputRef}
@@ -440,97 +604,6 @@ export default function UploadPage() {
               required
             />
           </div>
-
-          {/* Invoice Type */}
-          <div className="space-y-2">
-            <Label htmlFor="invoiceType">
-              Typ dokumentu <span className="text-red-500">*</span>
-            </Label>
-            <Select value={invoiceType} onValueChange={(value: "einvoice" | "receipt") => {
-              setInvoiceType(value);
-              // Clear KSeF number when switching to receipt
-              if (value === "receipt") {
-                setKsefNumber("");
-              }
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder="Wybierz typ dokumentu" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="einvoice">E-faktura (z KSeF)</SelectItem>
-                <SelectItem value="receipt">Paragon (bez KSeF)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* KSEF Number - only show for einvoice */}
-          {invoiceType === "einvoice" && (
-            <div className="space-y-2">
-              <Label htmlFor="ksefNumber">
-                Nr KSEF
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="ksefNumber"
-                  value={ksefNumber}
-                  onChange={(e) => setKsefNumber(e.target.value)}
-                  placeholder="np. 1234567890-ABC-XYZ"
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={toggleQrScanner}
-                  title="Skanuj kod QR"
-                >
-                  {showQrScanner ? <X className="h-4 w-4" /> : <QrCode className="h-4 w-4" />}
-                </Button>
-              </div>
-
-              {/* QR Scanner */}
-              {showQrScanner && (
-                <Card className="mt-4">
-                  <CardContent className="p-3 md:p-4 space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                      <Label>Skaner kodów QR</Label>
-                      {qrCameras.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={changeCamera}
-                          disabled={!isScanning}
-                        >
-                          <SwitchCamera className="h-4 w-4 mr-2" />
-                          Zmień kamerę
-                        </Button>
-                      )}
-                    </div>
-                    
-                    <div 
-                      id="qr-reader" 
-                      className="w-full rounded-lg overflow-hidden border-2 border-primary"
-                      style={{ minHeight: "300px" }}
-                    />
-                    
-                    <div className="text-sm text-muted-foreground text-center">
-                      Skieruj kamerę na kod QR z numerem KSEF
-                    </div>
-                    
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      className="w-full"
-                      onClick={stopQrScanner}
-                    >
-                      Anuluj skanowanie
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
 
           {/* Kwota (Amount) */}
           <div className="space-y-2">

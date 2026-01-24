@@ -51,7 +51,9 @@ import {
   ExternalLink,
   RefreshCw,
   Trash2,
-  ImageOff
+  ImageOff,
+  Receipt,
+  FileEdit
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -799,7 +801,7 @@ export default function InvoiceReviewPage() {
 
         {/* Horizontal layout: Image + Info in middle, Buttons on right */}
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-          {/* Left: Image */}
+          {/* Left: Image or KSeF Data */}
           <div className="w-full lg:w-2/5">
             <Card className="h-full">
               <CardContent className="pt-6">
@@ -817,10 +819,54 @@ export default function InvoiceReviewPage() {
                       />
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
-                      <ImageOff className="h-8 w-8" />
-                      <p className="text-sm">Brak obrazu faktury</p>
-                      <p className="text-xs">Nie znaleziono pliku lub jest niedostępny</p>
+                    <div className="flex items-center justify-center min-h-[400px] py-10 px-4">
+                      {invoice.invoiceType === "einvoice" && invoice.ksefNumber ? (
+                        // Show KSeF data for e-invoices without image
+                        <div className="w-full space-y-3">
+                          <div className="flex items-center gap-2 text-primary justify-center mb-4">
+                            <FileText className="h-6 w-6" />
+                            <p className="font-semibold">E-faktura KSeF</p>
+                          </div>
+                          <div className="bg-muted/50 p-4 rounded-lg space-y-2 text-sm">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Numer KSeF</p>
+                              <p className="font-mono text-xs break-all">{invoice.ksefNumber}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Firma</p>
+                              <p className="font-medium">{invoice.company?.name || "Brak danych"}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Kwota</p>
+                              <p className="font-bold text-lg">{invoice.kwota ? `${parseFloat(invoice.kwota).toFixed(2)} PLN` : "Brak danych"}</p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-center text-muted-foreground mt-4">
+                            Kliknij przycisk KSeF aby zweryfikować fakturę w systemie
+                          </p>
+                        </div>
+                      ) : invoice.invoiceType === "receipt" ? (
+                        // Show message for receipts (no image, no KSeF)
+                        <div className="text-center space-y-3">
+                          <Receipt className="h-8 w-8 mx-auto text-muted-foreground" />
+                          <p className="text-sm font-medium">Paragon</p>
+                          <p className="text-xs text-muted-foreground">Brak obrazu dokumentu</p>
+                        </div>
+                      ) : invoice.invoiceType === "correction" ? (
+                        // Show message for corrections
+                        <div className="text-center space-y-3">
+                          <FileEdit className="h-8 w-8 mx-auto text-muted-foreground" />
+                          <p className="text-sm font-medium">Faktura korygująca</p>
+                          <p className="text-xs text-muted-foreground">Brak obrazu dokumentu</p>
+                        </div>
+                      ) : (
+                        // Default: no image message
+                        <div className="text-center space-y-2">
+                          <ImageOff className="h-8 w-8 mx-auto text-muted-foreground" />
+                          <p className="text-sm">Brak obrazu faktury</p>
+                          <p className="text-xs text-muted-foreground">Nie znaleziono pliku lub jest niedostępny</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -894,7 +940,7 @@ export default function InvoiceReviewPage() {
                     )}
                   </div>
                   {isCorrection && (
-                    <p className="text-sm font-semibold mt-1 text-green-700">
+                    <p className="text-l font-semibold mt-1 text-green-500 text-center">
                       Kwota korekty: {invoice.correctionAmount ? parseFloat(invoice.correctionAmount).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace('.', ',') : '0,00'} PLN
                     </p>
                   )}
