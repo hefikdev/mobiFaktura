@@ -86,6 +86,37 @@ services:
     networks:
       - mobifaktura_network
 
+  # Lightweight PostgreSQL web UI (pgweb)
+  # - Exposes Postgres over HTTP (default :8081). Control host mapping with PGWEB_PORT in your .env
+  # - WARNING: consider protecting this in production (reverse-proxy auth / VPN) before exposing publicly.
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: mobifaktura_pgweb
+    restart: unless-stopped
+    environment:
+      # By default disable SSL for local/dev Postgres. In production override
+      # either PGWEB_SSLMODE or provide a full PGWEB_DATABASE_URL in your .env.
+      DATABASE_URL: "${PGWEB_DATABASE_URL:-postgres://${POSTGRES_USER:-mobifaktura}:${POSTGRES_PASSWORD:-mobifaktura_secret}@postgres:5432/${POSTGRES_DB:-mobifaktura}?sslmode=${PGWEB_SSLMODE:-disable}}"
+      PGWEB_SSLMODE: ${PGWEB_SSLMODE:-disable}
+    # Safety: publish pgweb to localhost only (not publicly routable)
+    ports:
+      - "127.0.0.1:${PGWEB_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - mobifaktura_network
+
   # ============================================
   # Next.js Application
   # ============================================
@@ -168,6 +199,7 @@ volumes:
 #   - PostgreSQL: localhost:5432
 #   - MinIO: localhost:9000
 #   - App: localhost:3000
+#   - Pgweb (Postgres GUI): localhost:8081 (set PGWEB_PORT in .env to change)
 #
 # PRODUCTION (only app exposed):
 #   Set in .env: NODE_ENV=production

@@ -75,6 +75,34 @@ services:
     networks:
       - mobifaktura_dev_network
 
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: mobifaktura_pgweb_dev
+    restart: unless-stopped
+    environment:
+      # pgweb reads DATABASE_URL by default — explicitly disable SSL for local Postgres
+      # You can override by setting PGWEB_SSLMODE in your .env (e.g. 'require' in prod)
+      DATABASE_URL: "postgres://${POSTGRES_USER:-mobifaktura}:${POSTGRES_PASSWORD:-mobifaktura_secret}@postgres:5432/${POSTGRES_DB:-mobifaktura}?sslmode=${PGWEB_SSLMODE:-disable}"
+      PGWEB_SSLMODE: ${PGWEB_SSLMODE:-disable}
+    # Safety: publish pgweb to localhost only (not publicly routable)
+    ports:
+      - "127.0.0.1:${PGWEB_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - mobifaktura_dev_network
+
 networks:
   mobifaktura_dev_network:
     driver: bridge
