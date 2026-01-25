@@ -45,7 +45,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: varchar("email", { length: 255 }).notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   role: userRoleEnum("role").notNull().default("user"),
   notificationSound: boolean("notification_sound").notNull().default(true),
@@ -86,7 +86,7 @@ export const companies = pgTable("companies", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
   nip: varchar("nip", { length: 20 }),
-  address: text("address"),
+  address: varchar("address", { length: 1024 }),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -113,14 +113,14 @@ export const invoices = pgTable("invoices", {
   invoiceType: invoiceTypeEnum("invoice_type").notNull().default("einvoice"),
   
   // File storage
-  imageKey: text("image_key").notNull(), // MinIO object key
+  imageKey: varchar("image_key", { length: 1024 }).notNull(), // MinIO object key
   
   // User-provided data
   invoiceNumber: varchar("invoice_number", { length: 100 }).notNull(),
   ksefNumber: varchar("ksef_number", { length: 100 }), // KSEF number (letters and numbers) - only for einvoice
   kwota: numeric("kwota", { precision: 12, scale: 2 }), // Invoice amount
-  description: text("description"),
-  justification: text("justification"), // Reason for invoice submission
+  description: varchar("description", { length: 2000 }),
+  justification: varchar("justification", { length: 2000 }), // Reason for invoice submission
   
   // Correction invoice fields
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -131,7 +131,7 @@ export const invoices = pgTable("invoices", {
   status: invoiceStatusEnum("status").notNull().default("pending"),
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  rejectionReason: text("rejection_reason"), // Reason for rejection (visible to user)
+  rejectionReason: varchar("rejection_reason", { length: 1000 }), // Reason for rejection (visible to user)
   currentReviewer: uuid("current_reviewer").references(() => users.id),
   reviewStartedAt: timestamp("review_started_at", { withTimezone: true }),
   lastReviewPing: timestamp("last_review_ping", { withTimezone: true }), // Heartbeat for active review
@@ -167,8 +167,8 @@ export const invoiceEditHistory = pgTable("invoice_edit_history", {
     .references(() => users.id),
   previousInvoiceNumber: varchar("previous_invoice_number", { length: 100 }),
   newInvoiceNumber: varchar("new_invoice_number", { length: 100 }),
-  previousDescription: text("previous_description"),
-  newDescription: text("new_description"),
+  previousDescription: varchar("previous_description", { length: 2000 }),
+  newDescription: varchar("new_description", { length: 2000 }),
   editedAt: timestamp("edited_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -200,7 +200,7 @@ export const loginLogs = pgTable("login_logs", {
   ipAddress: varchar("ip_address", { length: 45 }), // IPv6 max length
   success: boolean("success").notNull(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }), // null if failed login
-  userAgent: text("user_agent"),
+  userAgent: varchar("user_agent", { length: 1000 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -210,7 +210,7 @@ export const loginLogs = pgTable("login_logs", {
 export const loginAttempts = pgTable("login_attempts", {
   id: uuid("id").primaryKey().defaultRandom(),
   identifier: varchar("identifier", { length: 255 }).notNull(), // email or IP address
-  attemptCount: varchar("attempt_count", { length: 10 }).notNull().default("0"),
+  attemptCount: integer("attempt_count").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -228,7 +228,7 @@ export const notifications = pgTable("notifications", {
     .references(() => users.id, { onDelete: "cascade" }),
   type: notificationTypeEnum("type").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
-  message: text("message").notNull(),
+  message: varchar("message", { length: 2000 }).notNull(),
   read: boolean("read").notNull().default(false),
   invoiceId: uuid("invoice_id").references(() => invoices.id, { onDelete: "cascade" }),
   companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }),
@@ -249,7 +249,7 @@ export const saldoTransactions = pgTable("saldo_transactions", {
   balanceAfter: numeric("balance_after", { precision: 12, scale: 2 }).notNull(),
   transactionType: varchar("transaction_type", { length: 50 }).notNull(), // 'adjustment', 'invoice_deduction', 'invoice_refund', 'advance_credit'
   referenceId: uuid("reference_id"), // invoice id if related to invoice
-  notes: text("notes"),
+  notes: varchar("notes", { length: 1000 }),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => users.id),
@@ -267,11 +267,11 @@ export const invoiceDeletionRequests = pgTable("invoice_deletion_requests", {
   requestedBy: uuid("requested_by")
     .notNull()
     .references(() => users.id),
-  reason: text("reason").notNull(),
+  reason: varchar("reason", { length: 1000 }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  rejectionReason: text("rejection_reason"),
+  rejectionReason: varchar("rejection_reason", { length: 2000 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -294,11 +294,11 @@ export const budgetRequests = pgTable("budget_requests", {
     .references(() => companies.id, { onDelete: "cascade" }),
   requestedAmount: numeric("requested_amount", { precision: 12, scale: 2 }).notNull(),
   currentBalanceAtRequest: numeric("current_balance_at_request", { precision: 12, scale: 2 }).notNull(),
-  justification: text("justification").notNull(),
+  justification: varchar("justification", { length: 1000 }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  rejectionReason: text("rejection_reason"),
+  rejectionReason: varchar("rejection_reason", { length: 1000 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -319,7 +319,7 @@ export const advances = pgTable("zaliczki", {
   status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'transferred', 'settled'
   sourceType: varchar("source_type", { length: 50 }).notNull(), // 'budget_request', 'manual'
   sourceId: uuid("source_id"), // Can be budgetRequestId or null
-  description: text("description"),
+  description: varchar("description", { length: 1000 }),
   transferNumber: varchar("transfer_number", { length: 255 }),
   transferDate: timestamp("transfer_date", { withTimezone: true }),
   transferConfirmedBy: uuid("transfer_confirmed_by").references(() => users.id),

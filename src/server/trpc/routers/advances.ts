@@ -13,12 +13,12 @@ const createManualAdvanceSchema = z.object({
   userId: z.string().uuid(),
   companyId: z.string().uuid(),
   amount: z.number().positive(),
-  description: z.string().trim().min(5, "Opis musi mieć co najmniej 5 znaków"),
+  description: z.string().trim().min(5, "Opis musi mieć co najmniej 5 znaków").max(2000, "Opis nie może przekraczać 2000 znaków"),
 });
 
 const transferAdvanceSchema = z.object({
   id: z.string().uuid(),
-  transferNumber: z.string().optional(),
+  transferNumber: z.string().max(255, "Numer przelewu nie może przekraczać 255 znaków").optional(),
 });
 
 export const advancesRouter = createTRPCRouter({
@@ -29,7 +29,7 @@ export const advancesRouter = createTRPCRouter({
       userId: z.string().uuid().optional(),
       limit: z.number().min(1).max(200).default(50),
       cursor: z.number().optional(),
-      search: z.string().optional(),
+      search: z.string().max(255, "Zapytanie nie może przekraczać 255 znaków").optional(),
     }).optional())
     .query(async ({ input }) => {
       const limit = input?.limit || 50;

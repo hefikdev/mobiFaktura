@@ -25,7 +25,7 @@ const reviewBudgetRequestSchema = z.object({
   action: z.enum(["approve", "reject"], {
     errorMap: () => ({ message: "Akcja musi być 'approve' lub 'reject'" }),
   }),
-  rejectionReason: z.string().optional(),
+  rejectionReason: z.string().max(2000, "Powód odrzucenia nie może przekraczać 2000 znaków").optional(),
 });
 
 const getBudgetRequestsSchema = z.object({
@@ -33,7 +33,7 @@ const getBudgetRequestsSchema = z.object({
   userId: z.string().uuid().optional(),
   cursor: z.number().optional(),
   limit: z.number().min(1).max(200).default(50),
-  search: z.string().optional(),
+  search: z.string().max(255, "Zapytanie nie może przekraczać 255 znaków").optional(),
   sortBy: z.enum(["createdAt", "requestedAmount", "status"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });

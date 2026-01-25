@@ -20,12 +20,12 @@ export const invoiceRouter = createTRPCRouter({
     .input(
       z.object({
         imageDataUrl: z.string().min(1, "Zdjęcie jest wymagane"),
-        invoiceNumber: z.string().min(1, "Numer faktury jest wymagany"),
+        invoiceNumber: z.string().min(1, "Numer faktury jest wymagany").max(100, "Numer faktury nie może przekraczać 100 znaków"),
         invoiceType: z.enum(["einvoice", "receipt"]).default("einvoice"),
-        ksefNumber: z.string().optional(),
+        ksefNumber: z.string().max(100, "Numer KSeF nie może przekraczać 100 znaków").optional(),
         kwota: z.number().positive("Kwota musi być większa od zera").optional(),
         companyId: z.string().uuid("Firma jest wymagana"),
-        justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków"),
+        justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków").max(2000, "Uzasadnienie nie może przekraczać 2000 znaków"),
         budgetRequestId: z.string().uuid().optional(),
       })
     )
@@ -922,8 +922,8 @@ export const invoiceRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string().uuid(),
-        invoiceNumber: z.string().optional(),
-        description: z.string().optional(),
+        invoiceNumber: z.string().max(100, "Numer faktury nie może przekraczać 100 znaków").optional(),
+        description: z.string().max(2000, "Opis nie może przekraczać 2000 znaków").optional(),
         kwota: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
       })
     )
@@ -1092,7 +1092,7 @@ export const invoiceRouter = createTRPCRouter({
       z.object({
         id: z.string().uuid(),
         status: z.enum(["accepted", "rejected"]),
-        rejectionReason: z.string().min(1, "Dekretacja jest wymagana"),
+        rejectionReason: z.string().min(1, "Dekretacja jest wymagana").max(2000, "Powód odrzucenia nie może przekraczać 2000 znaków"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1265,7 +1265,7 @@ export const invoiceRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string().uuid(),
-        password: z.string().min(1, "Hasło jest wymagane"),
+        password: z.string().min(1, "Hasło jest wymagane").max(30, "Hasło nie może przekraczać 30 znaków"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1432,7 +1432,7 @@ export const invoiceRouter = createTRPCRouter({
   getCorrectableInvoices: accountantProcedure
     .input(
       z.object({
-        searchQuery: z.string().optional(),
+        searchQuery: z.string().max(255, "Zapytanie nie może przekraczać 255 znaków").optional(),
         companyId: z.string().uuid().optional(),
       })
     )
@@ -1489,7 +1489,7 @@ export const invoiceRouter = createTRPCRouter({
       z.object({
         originalInvoiceId: z.string().uuid("Wybierz oryginalną fakturę"),
         correctionAmount: z.number().positive("Kwota korekty musi być większa od zera"),
-        justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków"),
+        justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków").max(2000, "Uzasadnienie nie może przekraczać 2000 znaków"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1637,7 +1637,7 @@ export const invoiceRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).default(50),
         cursor: z.string().uuid().optional(),
         companyId: z.string().uuid().optional(),
-        searchQuery: z.string().optional(),
+        searchQuery: z.string().max(255, "Zapytanie nie może przekraczać 255 znaków").optional(),
       })
     )
     .query(async ({ ctx, input }) => {

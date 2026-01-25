@@ -18,7 +18,7 @@ const adjustSaldoSchema = z.object({
     required_error: "Kwota jest wymagana",
     invalid_type_error: "Kwota musi być liczbą",
   }),
-  notes: z.string().min(5, "Notatka musi zawierać minimum 5 znaków").max(500, "Notatka nie może przekraczać 500 znaków"),
+  notes: z.string().min(5, "Notatka musi zawierać minimum 5 znaków").max(1000, "Notatka nie może przekraczać 1000 znaków"),
   transactionType: z.enum(["adjustment"], {
     required_error: "Typ transakcji jest wymagany",
     invalid_type_error: "Nieprawidłowy typ transakcji",
@@ -33,7 +33,7 @@ const getSaldoHistorySchema = z.object({
   userId: z.string().uuid().optional(),
   cursor: z.number().optional(),
   limit: z.number().min(1).max(200).default(50),
-  search: z.string().optional(),
+  search: z.string().max(255, "Zapytanie nie może przekraczać 255 znaków").optional(),
   sortBy: z.enum(["createdAt", "amount", "transactionType"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
   // Optional date filters
@@ -45,7 +45,7 @@ const getSaldoHistorySchema = z.object({
 const getAllUsersSaldoSchema = z.object({
   cursor: z.number().optional(),
   limit: z.number().min(1).max(200).default(50),
-  search: z.string().optional(),
+  search: z.string().max(255, "Zapytanie nie może przekraczać 255 znaków").optional(),
   sortBy: z.enum(["name", "email", "saldo"]).default("name"),
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });

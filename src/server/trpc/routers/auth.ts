@@ -17,8 +17,8 @@ import {
 import { createSession, invalidateSession, invalidateAllUserSessions } from "@/server/auth/session";
 
 // Validation schemas
-const emailSchema = z.string().email("Nieprawidłowy adres email");
-const passwordSchema = z.string().min(8, "Hasło musi mieć minimum 8 znaków");
+const emailSchema = z.string().email("Nieprawidłowy adres email").max(50, "Adres email nie może przekraczać 50 znaków");
+const passwordSchema = z.string().min(8, "Hasło musi mieć minimum 8 znaków").max(30, "Hasło nie może przekraczać 30 znaków");
 
 // Login attempt constants
 const MAX_LOGIN_ATTEMPTS = 3;
@@ -54,7 +54,7 @@ async function checkLoginAttempts(identifier: string): Promise<{
     await db
       .update(loginAttempts)
       .set({
-        attemptCount: "0",
+        attemptCount: 0,
         lockedUntil: null,
         updatedAt: now,
       })
@@ -62,7 +62,7 @@ async function checkLoginAttempts(identifier: string): Promise<{
     return { isLocked: false, remainingAttempts: MAX_LOGIN_ATTEMPTS };
   }
 
-  const currentAttempts = parseInt(attempt.attemptCount);
+  const currentAttempts = attempt.attemptCount;
   const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - currentAttempts);
   return { isLocked: false, remainingAttempts };
 }
@@ -81,11 +81,11 @@ async function recordFailedAttempt(identifier: string): Promise<void> {
     // Create new attempt record
     await db.insert(loginAttempts).values({
       identifier,
-      attemptCount: "1",
+      attemptCount: 1,
       updatedAt: now,
     });
   } else {
-    const currentAttempts = parseInt(attempt.attemptCount);
+    const currentAttempts = attempt.attemptCount;
     const newAttempts = currentAttempts + 1;
 
     if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
@@ -94,7 +94,7 @@ async function recordFailedAttempt(identifier: string): Promise<void> {
       await db
         .update(loginAttempts)
         .set({
-          attemptCount: String(newAttempts),
+          attemptCount: newAttempts,
           lockedUntil: lockUntil,
           updatedAt: now,
         })
@@ -104,7 +104,7 @@ async function recordFailedAttempt(identifier: string): Promise<void> {
       await db
         .update(loginAttempts)
         .set({
-          attemptCount: String(newAttempts),
+          attemptCount: newAttempts,
           updatedAt: now,
         })
         .where(eq(loginAttempts.id, attempt.id));
@@ -117,7 +117,7 @@ async function resetLoginAttempts(identifier: string): Promise<void> {
   await db
     .update(loginAttempts)
     .set({
-      attemptCount: "0",
+      attemptCount: 0,
       lockedUntil: null,
       updatedAt: new Date(),
     })
@@ -131,7 +131,7 @@ export const authRouter = createTRPCRouter({
       z.object({
         email: emailSchema,
         password: passwordSchema,
-        name: z.string().min(2, "Imię musi mieć minimum 2 znaki"),
+        name: z.string().min(2, "Imię musi mieć minimum 2 znaki").max(30, "Imię nie może przekraczać 30 znaków"),
         role: z.enum(["user", "accountant"]).default("user"),
       })
     )

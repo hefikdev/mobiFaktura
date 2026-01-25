@@ -109,9 +109,9 @@ export const adminRouter = createTRPCRouter({
   createUser: adminProcedure
     .input(
       z.object({
-        email: z.string().email("Nieprawidłowy adres email"),
-        password: z.string().min(6, "Hasło musi mieć minimum 6 znaków"),
-        name: z.string().min(1, "Imię i nazwisko są wymagane"),
+        email: z.string().email("Nieprawidłowy adres email").max(50, "Adres email nie może przekraczać 50 znaków"),
+        password: z.string().min(6, "Hasło musi mieć minimum 6 znaków").max(30, "Hasło nie może przekraczać 30 znaków"),
+        name: z.string().min(1, "Imię i nazwisko są wymagane").max(50, "Imię i nazwisko nie mogą przekraczać 50 znaków"),
         role: z.enum(["user", "accountant", "admin"]),
       })
     )
@@ -156,9 +156,9 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string().uuid(),
-        name: z.string().min(1).optional(),
+        name: z.string().min(1).max(50, "Imię i nazwisko nie mogą przekraczać 50 znaków").optional(),
         role: z.enum(["user", "accountant", "admin"]).optional(),
-        password: z.string().min(6).optional(),
+        password: z.string().min(6).max(30, "Hasło nie może przekraczać 30 znaków").optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -279,9 +279,9 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         userId: z.string().uuid(),
-        newPassword: z.string().min(6, "Hasło musi mieć minimum 6 znaków"),
-        confirmPassword: z.string(),
-        adminPassword: z.string().min(1, "Hasło administratora jest wymagane"),
+        newPassword: z.string().min(6, "Hasło musi mieć minimum 6 znaków").max(30, "Hasło nie może przekraczać 30 znaków"),
+        confirmPassword: z.string().max(30, "Hasło nie może przekraczać 30 znaków"),
+        adminPassword: z.string().min(1, "Hasło administratora jest wymagane").max(30, "Hasło nie może przekraczać 30 znaków"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -467,7 +467,7 @@ export const adminRouter = createTRPCRouter({
   deleteAllLoginLogs: adminProcedure
     .input(
       z.object({
-        adminPassword: z.string().min(1, "Hasło jest wymagane"),
+        adminPassword: z.string().min(1, "Hasło jest wymagane").max(30, "Hasło nie może przekraczać 30 znaków"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -808,7 +808,7 @@ export const adminRouter = createTRPCRouter({
       z.object({
         id: z.string().uuid(),
         newStatus: z.enum(["pending", "accepted", "rejected"]),
-        reason: z.string().optional(),
+        reason: z.string().max(2000, "Powód nie może przekraczać 2000 znaków").optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1215,8 +1215,8 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         userId: z.string().uuid(),
-        newPassword: z.string().min(8, "Nowe hasło musi mieć minimum 8 znaków"),
-        adminPassword: z.string().min(1, "Hasło administratora jest wymagane"),
+        newPassword: z.string().min(8, "Nowe hasło musi mieć minimum 8 znaków").max(30, "Hasło nie może przekraczać 30 znaków"),
+        adminPassword: z.string().min(1, "Hasło administratora jest wymagane").max(30, "Hasło nie może przekraczać 30 znaków"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1394,7 +1394,7 @@ export const adminRouter = createTRPCRouter({
   bulkDeleteAllNotifications: adminProcedure
     .input(
       z.object({
-        password: z.string().min(1, "Password is required"),
+        password: z.string().min(1, "Password is required").max(30, "Password cannot exceed 30 characters"),
       })
     )
     .mutation(async ({ ctx, input }) => {

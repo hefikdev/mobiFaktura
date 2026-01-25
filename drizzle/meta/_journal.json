@@ -190,6 +190,13 @@
       "when": 1768421746652,
       "tag": "0026_colorful_thunderbolt_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1769362875770,
+      "tag": "0027_mature_fenris",
+      "breakpoints": true
     }
   ]
 }
