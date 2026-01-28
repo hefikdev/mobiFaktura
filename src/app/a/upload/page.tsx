@@ -23,7 +23,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
-import { Camera, Loader2, X, QrCode, SwitchCamera } from "lucide-react";
+import { Camera, Loader2, X, QrCode, SwitchCamera, FileText, Receipt } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useOnline } from "@/lib/use-online";
 import { OfflineUploadDialog } from "@/components/offline-banner";
@@ -373,6 +373,15 @@ export default function UploadPage() {
         return;
       }
 
+      if (!kwota || !kwota.trim()) {
+        toast({
+          title: "Błąd",
+          description: "Proszę podać kwotę",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (justification.trim().length < 10) {
         toast({
           title: "Błąd",
@@ -383,7 +392,7 @@ export default function UploadPage() {
       }
 
       // Normalize kwota: replace comma with dot, remove spaces, parse to float
-      const normalizedKwota = kwota ? parseFloat(kwota.replace(/,/g, '.').replace(/\s/g, '')) : undefined;
+      const normalizedKwota = parseFloat(kwota.replace(/,/g, '.').replace(/\s/g, ''));
       
       createMutation.mutate({
         imageDataUrl,
@@ -403,7 +412,6 @@ export default function UploadPage() {
       {user?.role === "admin" ? <AdminHeader /> : user?.role === "accountant" ? <AccountantHeader /> : <UserHeader showAddButton={false} />}
 
       <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
-        <h2 className="text-xl md:text-2xl font-semibold mb-5 md:mb-6">Dodaj fakturę</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
           {/* Invoice Type - MOVED TO TOP */}
@@ -411,14 +419,57 @@ export default function UploadPage() {
             <Label htmlFor="invoiceType">
               Typ dokumentu <span className="text-red-500">*</span>
             </Label>
-            <Select value={invoiceType} onValueChange={(value: "einvoice" | "receipt") => {
-              setInvoiceType(value);
-              // Clear KSeF number when switching to receipt
-              if (value === "receipt") {
-                setKsefNumber("");
-              }
-            }}>
-              <SelectTrigger>
+            
+            {/* Mobile: Large square buttons */}
+            <div className="grid grid-cols-2 gap-3 md:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setInvoiceType("einvoice");
+                }}
+                className={`
+                  aspect-square flex flex-col items-center justify-center gap-2 rounded-lg border-2 transition-all
+                  ${invoiceType === "einvoice" 
+                    ? "border-primary bg-primary/10 text-primary font-semibold" 
+                    : "border-muted-foreground/20 hover:border-muted-foreground/40"
+                  }
+                `}
+              >
+                <FileText className="h-8 w-8" />
+                <span className="text-sm text-center px-2">E-faktura<br/>(z KSeF)</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  setInvoiceType("receipt");
+                  setKsefNumber("");
+                }}
+                className={`
+                  aspect-square flex flex-col items-center justify-center gap-2 rounded-lg border-2 transition-all
+                  ${invoiceType === "receipt" 
+                    ? "border-primary bg-primary/10 text-primary font-semibold" 
+                    : "border-muted-foreground/20 hover:border-muted-foreground/40"
+                  }
+                `}
+              >
+                <Receipt className="h-8 w-8" />
+                <span className="text-sm text-center px-2">Paragon<br/>(bez KSeF)</span>
+              </button>
+            </div>
+            
+            {/* Desktop: Standard dropdown */}
+            <Select 
+              value={invoiceType} 
+              onValueChange={(value: "einvoice" | "receipt") => {
+                setInvoiceType(value);
+                // Clear KSeF number when switching to receipt
+                if (value === "receipt") {
+                  setKsefNumber("");
+                }
+              }}
+            >
+              <SelectTrigger className="hidden md:flex">
                 <SelectValue placeholder="Wybierz typ dokumentu" />
               </SelectTrigger>
               <SelectContent>
@@ -608,7 +659,7 @@ export default function UploadPage() {
           {/* Kwota (Amount) */}
           <div className="space-y-2">
             <Label htmlFor="kwota">
-              Kwota
+              Kwota <span className="text-red-500">*</span>
             </Label>
             <Input
               id="kwota"
@@ -620,7 +671,8 @@ export default function UploadPage() {
                 const value = e.target.value.replace(/[^0-9.,\s]/g, '');
                 setKwota(value);
               }}
-              placeholder=""
+              placeholder="np. 123.45"
+              required
             />
           </div>
 
@@ -670,7 +722,7 @@ export default function UploadPage() {
             type="submit"
             className="w-full"
             size="lg"
-            disabled={createMutation.isPending || !imageDataUrl || !invoiceNumber.trim() || !companyId || justification.trim().length < 10}
+            disabled={createMutation.isPending || !imageDataUrl || !invoiceNumber.trim() || !kwota.trim() || !companyId || justification.trim().length < 10}
           >
             {createMutation.isPending ? (
               <>
