@@ -86,7 +86,7 @@ export const companies = pgTable("companies", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
   nip: varchar("nip", { length: 20 }),
-  address: varchar("address", { length: 1024 }),
+  address: varchar("address", { length: 50 }),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -258,31 +258,6 @@ export const saldoTransactions = pgTable("saldo_transactions", {
     .defaultNow(),
 });
 
-// Invoice Deletion Requests table - users/accountants request invoice deletion
-export const invoiceDeletionRequests = pgTable("invoice_deletion_requests", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  invoiceId: uuid("invoice_id")
-    .notNull()
-    .references(() => invoices.id, { onDelete: "cascade" }),
-  requestedBy: uuid("requested_by")
-    .notNull()
-    .references(() => users.id),
-  reason: varchar("reason", { length: 1000 }).notNull(),
-  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
-  reviewedBy: uuid("reviewed_by").references(() => users.id),
-  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  rejectionReason: varchar("rejection_reason", { length: 2000 }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-}, (table) => ({
-  statusIdx: index("idx_deletion_requests_status").on(table.status),
-  invoiceIdx: index("idx_deletion_requests_invoice").on(table.invoiceId),
-}));
-
 // Budget Requests table - users request budget increases
 export const budgetRequests = pgTable("budget_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -294,7 +269,7 @@ export const budgetRequests = pgTable("budget_requests", {
     .references(() => companies.id, { onDelete: "cascade" }),
   requestedAmount: numeric("requested_amount", { precision: 12, scale: 2 }).notNull(),
   currentBalanceAtRequest: numeric("current_balance_at_request", { precision: 12, scale: 2 }).notNull(),
-  justification: varchar("justification", { length: 1000 }).notNull(),
+  justification: varchar("justification", { length: 2000 }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
   reviewedBy: uuid("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
@@ -319,7 +294,7 @@ export const advances = pgTable("zaliczki", {
   status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'transferred', 'settled'
   sourceType: varchar("source_type", { length: 50 }).notNull(), // 'budget_request', 'manual'
   sourceId: uuid("source_id"), // Can be budgetRequestId or null
-  description: varchar("description", { length: 1000 }),
+  description: varchar("description", { length: 2000 }),
   transferNumber: varchar("transfer_number", { length: 255 }),
   transferDate: timestamp("transfer_date", { withTimezone: true }),
   transferConfirmedBy: uuid("transfer_confirmed_by").references(() => users.id),

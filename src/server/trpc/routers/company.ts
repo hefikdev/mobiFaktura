@@ -33,7 +33,7 @@ export const companyRouter = createTRPCRouter({
       z.object({
         name: z.string().min(1, "Nazwa firmy jest wymagana").max(255, "Nazwa firmy nie może przekraczać 255 znaków"),
         nip: z.string().max(20, "NIP nie może przekraczać 20 znaków").optional(),
-        address: z.string().max(1024, "Adres nie może przekraczać 1024 znaków").optional(),
+        address: z.string().max(50, "Adres nie może przekraczać 50 znaków").optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -56,7 +56,7 @@ export const companyRouter = createTRPCRouter({
         id: z.string().uuid(),
         name: z.string().min(1).max(255, "Nazwa firmy nie może przekraczać 255 znaków").optional(),
         nip: z.string().max(20, "NIP nie może przekraczać 20 znaków").optional(),
-        address: z.string().max(1024, "Adres nie może przekraczać 1024 znaków").optional(),
+        address: z.string().max(50, "Adres nie może przekraczać 50 znaków").optional(),
         active: z.boolean().optional(),
         adminPassword: z.string().min(1, "Hasło administratora jest wymagane").max(30, "Hasło nie może przekraczać 30 znaków"),
       })

@@ -167,7 +167,7 @@ export const notificationRouter = createTRPCRouter({
           "password_changed",
         ]),
         title: z.string().min(1).max(255),
-        message: z.string().min(1),
+        message: z.string().min(1).max(2000, "Wiadomość nie może przekraczać 2000 znaków"),
         invoiceId: z.string().uuid().optional(),
         companyId: z.string().uuid().optional(),
       })
@@ -193,7 +193,7 @@ export const notificationRouter = createTRPCRouter({
     .input(
       z.object({
         title: z.string().min(1).max(255),
-        message: z.string().min(1),
+        message: z.string().min(1).max(2000, "Wiadomość nie może przekraczać 2000 znaków"),
         userRole: z.enum(["all", "user", "accountant", "admin"]).optional(),
       })
     )

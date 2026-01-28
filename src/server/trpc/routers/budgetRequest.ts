@@ -16,7 +16,7 @@ import { notifyBudgetRequestSubmitted, notifyBudgetRequestApproved, notifyBudget
 // Zod Schemas
 const createBudgetRequestSchema = z.object({
   requestedAmount: z.number().positive("Kwota musi być większa od zera"),
-  justification: z.string().min(5, "Uzasadnienie musi zawierać minimum 5 znaków").max(1000, "Uzasadnienie nie może przekraczać 1000 znaków"),
+  justification: z.string().min(5, "Uzasadnienie musi zawierać minimum 5 znaków").max(2000, "Uzasadnienie nie może przekraczać 2000 znaków"),
   companyId: z.string().uuid("Nieprawidłowy identyfikator firmy"),
 });
 
@@ -25,7 +25,7 @@ const reviewBudgetRequestSchema = z.object({
   action: z.enum(["approve", "reject"], {
     errorMap: () => ({ message: "Akcja musi być 'approve' lub 'reject'" }),
   }),
-  rejectionReason: z.string().max(2000, "Powód odrzucenia nie może przekraczać 2000 znaków").optional(),
+  rejectionReason: z.string().max(1000, "Powód odrzucenia nie może przekraczać 1000 znaków").optional(),
 });
 
 const getBudgetRequestsSchema = z.object({
