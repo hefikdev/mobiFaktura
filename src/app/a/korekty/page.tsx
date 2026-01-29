@@ -8,7 +8,7 @@ import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SearchInput } from "@/components/search-input";
-import { AdvancedFilters, type FilterConfig } from "@/components/advanced-filters";
+import { AdvancedFilters, type FilterConfig, type FilterValue } from "@/components/advanced-filters";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -75,8 +75,8 @@ type CorrectableInvoice = {
 };
 
 export default function KorektyPage() {
-  const router = useRouter();
   const { toast } = useToast();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auth
@@ -85,7 +85,7 @@ export default function KorektyPage() {
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCompany, setFilterCompany] = useState<string>("__all__");
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, FilterValue>>({});
 
   // Correction form dialog states
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -227,21 +227,25 @@ export default function KorektyPage() {
 
     // Apply advanced filters
     if (advancedFilters.dateFrom) {
-      const dateFrom = new Date(advancedFilters.dateFrom);
+      const dateFrom = advancedFilters.dateFrom instanceof Date 
+        ? advancedFilters.dateFrom 
+        : new Date(String(advancedFilters.dateFrom));
       filtered = filtered.filter(corr => new Date(corr.createdAt) >= dateFrom);
     }
     if (advancedFilters.dateTo) {
-      const dateTo = new Date(advancedFilters.dateTo);
+      const dateTo = advancedFilters.dateTo instanceof Date 
+        ? advancedFilters.dateTo 
+        : new Date(String(advancedFilters.dateTo));
       dateTo.setHours(23, 59, 59, 999);
       filtered = filtered.filter(corr => new Date(corr.createdAt) <= dateTo);
     }
     if (advancedFilters.amountMin) {
-      const amountMin = parseFloat(advancedFilters.amountMin);
+      const amountMin = parseFloat(String(advancedFilters.amountMin));
       filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) >= amountMin);
     }
     if (advancedFilters.amountMax) {
-      const amountMax = parseFloat(advancedFilters.amountMax);
-      filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) <= amountMax);
+      const amountMax = parseFloat(String(advancedFilters.amountMax));
+      filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) >= amountMax);
     }
 
     return filtered;

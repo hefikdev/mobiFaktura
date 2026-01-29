@@ -9,7 +9,7 @@ import { AdminHeader } from "@/components/admin-header";
 import { Footer } from "@/components/footer";
 import { SearchInput } from "@/components/search-input";
 import { AdvancedFilters, type FilterConfig } from "@/components/advanced-filters";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, ArrowUp, ArrowDown, FileText, RefreshCw, Receipt } from "lucide-react";
+import { Loader2, ArrowUp, ArrowDown, FileText, RefreshCw, Receipt, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -28,15 +28,29 @@ import { ExportButton } from "@/components/export-button";
 import { RequestBudgetDialog } from "@/components/request-budget-dialog";
 import { formatters } from "@/lib/export";
 import { SaldoTransactionDetailsDialog } from "@/components/saldo-transaction-details-dialog";
+import type { FilterValue } from "@/types/filters";
+
+type SaldoTransaction = {
+  id: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  transactionType: string;
+  referenceId: string | null;
+  notes: string | null;
+  createdAt: Date;
+  createdByName: string | null;
+  createdByEmail: string | null;
+};
 
 export default function SaldoHistoryPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [showRequestBudget, setShowRequestBudget] = useState(false);
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, FilterValue>>({});
   
   // Dialog states for transaction details
-  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<SaldoTransaction | null>(null);
   const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
 
   // Check user
@@ -147,28 +161,30 @@ export default function SaldoHistoryPage() {
 
     // Apply advanced filters
     if (advancedFilters.dateFrom) {
-      const dateFrom = new Date(advancedFilters.dateFrom);
+      const dateValue = advancedFilters.dateFrom;
+      const dateFrom = dateValue instanceof Date ? dateValue : new Date(dateValue as string | number);
       filtered = filtered.filter(tx => new Date(tx.createdAt) >= dateFrom);
     }
     if (advancedFilters.dateTo) {
-      const dateTo = new Date(advancedFilters.dateTo);
+      const dateValue = advancedFilters.dateTo;
+      const dateTo = dateValue instanceof Date ? dateValue : new Date(dateValue as string | number);
       dateTo.setHours(23, 59, 59, 999);
       filtered = filtered.filter(tx => new Date(tx.createdAt) <= dateTo);
     }
     if (advancedFilters.amountMin) {
-      const amountMin = parseFloat(advancedFilters.amountMin);
+      const amountMin = parseFloat(String(advancedFilters.amountMin));
       filtered = filtered.filter(tx => tx.amount >= amountMin);
     }
     if (advancedFilters.amountMax) {
-      const amountMax = parseFloat(advancedFilters.amountMax);
+      const amountMax = parseFloat(String(advancedFilters.amountMax));
       filtered = filtered.filter(tx => tx.amount <= amountMax);
     }
     if (advancedFilters.balanceMin) {
-      const balanceMin = parseFloat(advancedFilters.balanceMin);
+      const balanceMin = parseFloat(String(advancedFilters.balanceMin));
       filtered = filtered.filter(tx => tx.balanceAfter >= balanceMin);
     }
     if (advancedFilters.balanceMax) {
-      const balanceMax = parseFloat(advancedFilters.balanceMax);
+      const balanceMax = parseFloat(String(advancedFilters.balanceMax));
       filtered = filtered.filter(tx => tx.balanceAfter <= balanceMax);
     }
 
@@ -223,7 +239,7 @@ export default function SaldoHistoryPage() {
   };
   
   // Handle clicking on a transaction
-  const handleTransactionClick = (tx: any) => {
+  const handleTransactionClick = (tx: SaldoTransaction) => {
     if (tx.transactionType === 'adjustment') {
       // Open popup with transaction details
       setSelectedTransaction(tx);
@@ -293,6 +309,18 @@ export default function SaldoHistoryPage() {
           </CardContent>
         </Card>
       )}
+      
+      {/* Mobile: Button below Aktualne Saldo */}
+      <div className="mb-6 md:hidden">
+        <Button
+          onClick={() => setShowRequestBudget(true)}
+          size="lg"
+          className="w-full h-20 text-lg font-semibold"
+        >
+          <Plus className="mr-2 h-6 w-6" />
+          Prośba o zaliczkę
+        </Button>
+      </div>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-3">
           
           <div className="flex items-center gap-3">
@@ -301,15 +329,15 @@ export default function SaldoHistoryPage() {
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Historia Saldo</h1>
             </div>
           </div>
-          {/* Mobile: center button, Desktop: right align */}
-          <div className="flex w-full md:w-auto justify-center md:justify-end gap-2">
+          {/* Desktop only: right align button */}
+          <div className="hidden md:flex w-auto justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => setShowRequestBudget(true)}
               className="flex items-center gap-2"
             >
               <ArrowUp className="h-4 w-4" />
-              Prośba o zwiększenie budżetu
+              Prośba o zaliczkę
             </Button>
           </div>
         </div>
@@ -349,13 +377,13 @@ export default function SaldoHistoryPage() {
               { value: '__specific_month__', label: 'Konkretne miesiąc' },
             ]
           }]}
-          onExport={async (filters) => {
+          onExport={async (filters): Promise<never[]> => {
             // Call the server export with parsed filter input (filters may include dateFrom or specificMonth)
-            // Use a safe any-cast to call the client-side fetch implementation (type definitions sometimes don't expose fetch)
+            // Use a safe cast to call the client-side fetch implementation
             try {
-              const fn = (trpc.saldo.exportSaldoHistory as any).fetch;
+              const fn = (trpc.saldo.exportSaldoHistory as unknown as { fetch: (args: unknown) => Promise<unknown> }).fetch;
               if (typeof fn === 'function') {
-                const data = await fn(filters || {});
+                const data = await fn(filters || {}) as never[];
                 return data || [];
               }
             } catch (e) {
@@ -365,7 +393,7 @@ export default function SaldoHistoryPage() {
             // Fallback: if fetch isn't available on the client, use the refetch helper (if available)
             try {
               const result = await exportQuery.refetch();
-              return result.data || [];
+              return (result.data as never[]) || [];
             } catch (e) {
               console.error('Export fallback failed', e);
               return [];

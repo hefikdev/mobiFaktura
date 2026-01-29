@@ -5,8 +5,7 @@
  */
 
 // Mock environment variables for tests
-// NODE_ENV is set by the test runner
-(process.env as any).NODE_ENV = 'test';
+// @ts-ignore - Allow setting NODE_ENV for tests
 process.env.DATABASE_URL = 'postgres://test:test@localhost:5432/test';
 process.env.JWT_SECRET = 'test-jwt-secret-for-testing-purposes-only-must-be-32-chars-long';
 process.env.SESSION_COOKIE_NAME = 'test_session';

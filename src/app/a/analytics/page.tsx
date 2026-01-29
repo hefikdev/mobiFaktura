@@ -6,7 +6,7 @@ import { Unauthorized } from "@/components/unauthorized";
 import { Footer } from "@/components/footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorDisplay } from "@/components/error-display";
-import { Loader2, TrendingUp, FileText, CheckCircle, XCircle, Clock, BarChart3, Wallet, DollarSign } from "lucide-react";
+import { Loader2, TrendingUp, FileText, CheckCircle, XCircle, Clock, BarChart3, DollarSign } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -23,8 +23,6 @@ import {
   Line,
 } from "recharts";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
-
 export default function AnalyticsPage() {
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
   const { data: stats, isLoading: loadingStats, error: statsError } = trpc.admin.getAnalytics.useQuery(
@@ -34,7 +32,7 @@ export default function AnalyticsPage() {
     }
   );
   
-  const { data: budgetStats, isLoading: loadingBudget } = trpc.saldo.getSaldoStats.useQuery();
+  const { data: budgetStats } = trpc.saldo.getSaldoStats.useQuery();
 
   if (loadingUser) {
     return (

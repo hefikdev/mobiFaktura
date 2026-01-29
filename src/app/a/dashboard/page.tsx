@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { SectionLoader } from "@/components/section-loader";
 import { UserHeader } from "@/components/user-header";
@@ -28,7 +27,6 @@ import { useOnline } from "@/lib/use-online";
 import { OfflineUploadDialog } from "@/components/offline-banner";
 
 export default function DashboardPage() {
-  const router = useRouter();
   const { isOnline, refresh } = useOnline();
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
 

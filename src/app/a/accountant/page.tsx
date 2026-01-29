@@ -27,8 +27,6 @@ import {
   ArrowUpDown,
   Clock,
   CheckCircle,
-  Wallet,
-  DollarSign,
   XCircle,
   Building2,
 } from "lucide-react";
@@ -39,7 +37,6 @@ import { BudgetRequest } from "@/types";
 export default function AccountantPage() {
   const router = useRouter();
   const [lastInvoiceSync, setLastInvoiceSync] = useState<string>("");
-  const [sortBy, setSortBy] = useState<"date">("date");
   const [filterStatus, setFilterStatus] = useState<"all" | "accepted" | "rejected">("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<BudgetRequest | null>(null);
@@ -49,8 +46,6 @@ export default function AccountantPage() {
   // Refs for infinite scroll
   const pendingObserver = useRef<IntersectionObserver>();
   const reviewedObserver = useRef<IntersectionObserver>();
-  const pendingLoadMoreRef = useRef<HTMLDivElement>(null);
-  const reviewedLoadMoreRef = useRef<HTMLDivElement>(null);
 
   // All hooks must be called before any conditional returns
   const { data: user, isLoading: loadingUser } = trpc.auth.me.useQuery();
@@ -91,7 +86,7 @@ export default function AccountantPage() {
   );
   
   // Budget requests - pending
-  const { data: budgetRequestsData, isLoading: loadingBudgetRequests, refetch: refetchBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
+  const { data: budgetRequestsData, refetch: refetchBudgetRequests } = trpc.budgetRequest.getAll.useQuery(
     { status: "pending", limit: 10, cursor: 0 },
     {
       refetchInterval: 10000, // 10 seconds
@@ -111,7 +106,7 @@ export default function AccountantPage() {
   );
 
   // Get duplicate conflicts
-  const { data: conflictsData, isLoading: loadingConflicts } = trpc.invoice.getDuplicates.useQuery(undefined, {
+  const { data: conflictsData } = trpc.invoice.getDuplicates.useQuery(undefined, {
     refetchInterval: 30000, // 30 seconds - conflicts don't change as frequently
     refetchOnWindowFocus: true,
     staleTime: 20000,
@@ -378,7 +373,7 @@ export default function AccountantPage() {
                           type: "budget" | "invoice";
                           date: number;
                           id: string;
-                          payload: any;
+                          payload: unknown;
                         };
 
                         const budgetEntries: Entry[] = (sortedReviewedBudgetRequests || []).map((r) => ({

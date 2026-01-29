@@ -2,8 +2,6 @@
 
 import { useState, useRef, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc/client";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +48,6 @@ import {
   Loader2,
   Pencil,
   Trash2,
-  Download,
   HardDrive,
   KeyRound,
   Bell
@@ -78,8 +75,8 @@ export default function AdminPage() {
   const [companyAddress, setCompanyAddress] = useState("");
 
   // Sorting states
-  const [sortBy, setSortBy] = useState<"date" | "number" | "company" | "user" | "status">("date");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortBy] = useState<"date" | "number" | "company" | "user" | "status">("date");
+  const [sortOrder] = useState<"asc" | "desc">("desc");
 
   // Login logs states
   const [loginLogsDays, setLoginLogsDays] = useState(30);
@@ -130,7 +127,7 @@ export default function AdminPage() {
   const [notificationRole, setNotificationRole] = useState<"all" | "user" | "accountant" | "admin">("all");
 
   // Queries
-  const { data: stats, isLoading: loadingStats, error: statsError } = trpc.admin.getStats.useQuery();
+  const { data: stats, isLoading: loadingStats } = trpc.admin.getStats.useQuery();
   
   // Users with infinite query
   const {
@@ -169,7 +166,7 @@ export default function AdminPage() {
     refetchOnWindowFocus: true,
     staleTime: 20000,
   });
-  const { data: invoices, error: invoicesError } = trpc.admin.getAllInvoices.useQuery();
+  const { data: invoices } = trpc.admin.getAllInvoices.useQuery();
 
   // Login logs with infinite query
   const {
@@ -416,41 +413,6 @@ export default function AdminPage() {
   if (!user) {
     return <Unauthorized />;
   }
-
-  // Sorting function
-  const sortedInvoices = invoices ? [...invoices].sort((a, b) => {
-    let compareA: number | string;
-    let compareB: number | string;
-
-    switch (sortBy) {
-      case "date":
-        compareA = new Date(a.createdAt).getTime();
-        compareB = new Date(b.createdAt).getTime();
-        break;
-      case "number":
-        compareA = a.invoiceNumber || "";
-        compareB = b.invoiceNumber || "";
-        break;
-      case "company":
-        compareA = a.companyName || "";
-        compareB = b.companyName || "";
-        break;
-      case "user":
-        compareA = a.userName || "";
-        compareB = b.userName || "";
-        break;
-      case "status":
-        compareA = a.status;
-        compareB = b.status;
-        break;
-      default:
-        return 0;
-    }
-
-    if (compareA < compareB) return sortOrder === "asc" ? -1 : 1;
-    if (compareA > compareB) return sortOrder === "asc" ? 1 : -1;
-    return 0;
-  }) : [];
 
   return (
     <div className="min-h-screen bg-background">

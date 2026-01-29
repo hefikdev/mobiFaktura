@@ -91,7 +91,15 @@ function UserInvoiceContent({ id }: { id: string }) {
     
     try {
       setExportProgress(30);
-      await generateSingleInvoiceExcel(invoice, {
+      await generateSingleInvoiceExcel({
+        invoiceNumber: invoice.invoiceNumber,
+        userName: invoice.submitter?.name || null,
+        companyName: invoice.company?.name || null,
+        kwota: invoice.kwota,
+        status: invoice.status,
+        createdAt: invoice.createdAt,
+        description: invoice.description,
+      }, {
         dateFormat: "dd/MM/yyyy",
         currencyFormat: "PLN",
         showCurrencySymbol: true,
@@ -103,10 +111,11 @@ function UserInvoiceContent({ id }: { id: string }) {
         description: "Faktura została wyeksportowana",
       });
       setExportDialogOpen(false);
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Nie udało się wyeksportować faktury";
       toast({
         title: "Błąd",
-        description: error.message || "Nie udało się wyeksportować faktury",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

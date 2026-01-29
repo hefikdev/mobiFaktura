@@ -1,16 +1,16 @@
 # mobiFaktura
 
-Professional invoice management system built with modern web technologies. Designed for businesses to streamline invoice processing with role-based workflows (Users, Accountants, Admins).
+Professional Polish invoice and financial management system built with modern web technologies. Designed for businesses to streamline invoice processing, budget management, and financial workflows with role-based access control.
 
 ## 🎯 Project Overview
 
-mobiFaktura is an enterprise-grade invoice management platform that enables:
+mobiFaktura is an enterprise-grade financial management platform that enables:
 
-- **Users** to upload, track, and manage invoices with real-time status updates
-- **Accountants** to review invoices efficiently with bulk operations and quality control
-- **Admins** to manage users, companies, and oversee system operations
+- **Users** to upload and track invoices, request budget increases, manage advances, and monitor their balance (saldo)
+- **Accountants** to review and process invoices, budget requests, advances, and corrections with bulk operations and comprehensive reporting
+- **Admins** to manage users, companies, permissions, and oversee all system operations with analytics
 
-The system is built with security and scalability in mind, featuring end-to-end encryption for sensitive data and comprehensive audit logging.
+The system features comprehensive financial workflows including invoice management (e-invoices, receipts, corrections), budget request system, advance payments (zaliczki), balance tracking (saldo), KSeF integration for Polish e-invoicing, and complete audit trails.
 
 ## 🏗️ Architecture
 
@@ -40,44 +40,76 @@ The system is built with security and scalability in mind, featuring end-to-end 
 - **CSRF Protection** - Origin-based CSRF validation on all mutations
 - **Login Attempt Lockout** - Account lockout after 3 failed attempts (30-second cooldown)
 
-## 📋 Features
+## 📋 Core Features
 
-### User Management
-- Role-based access control (User, Accountant, Admin)
-- Secure authentication with email and password
-- Session management with 60-day expiration
-- Emergency super admin account for disaster recovery
-- Comprehensive login logging and attempt tracking
+### 👤 User Management
+- **Role-based access control** (User, Accountant, Admin)
+- **Secure authentication** with Argon2id password hashing
+- **Session management** with 60-day expiration
+- **Multi-company support** with per-company permissions
+- **Emergency super admin** account for disaster recovery
+- **Login tracking & lockout** after 3 failed attempts
+- **Audit trail** for all user actions
 
-### Invoice Management
-- Upload invoices with multiple file formats
-- Real-time status tracking (Draft, Under Review, Approved, Rejected)
-- Bulk operations for efficient batch processing
-- Edit history tracking with audit logs
-- Search and filtering capabilities
-- File storage in S3-compatible MinIO
+### 📄 Invoice Management
+- **Multiple invoice types**: E-invoices, receipts (paragons), corrections
+- **Status workflow**: Pending → In Review → Accepted/Rejected → Transferred → Settled
+- **KSeF integration**: Direct upload to Polish e-invoicing system with QR code scanning
+- **Bulk operations**: Approve/reject multiple invoices at once
+- **Edit history**: Complete audit trail of all changes
+- **Advanced search & filters**: By company, date, status, amount, type, KSeF number
+- **File storage**: Secure S3-compatible MinIO storage with image preview and zoom
 
-### Accounting Operations
-- Multi-accountant workflow with concurrent reviews
-- Bulk approve/reject with comments
-- Performance tracking with submission and review metrics
-- Quality metrics and reporting
-- Rejection reason tracking for process improvement
+### 💰 Financial Management
+- **Saldo (Balance) System**: Per-user balance tracking with transaction history
+- **Budget Requests**: Users request balance increases, accountants approve/reject/settle
+- **Advances (Zaliczki)**: Track advance payments with transfer dates and settlement
+- **Corrections**: Create correction invoices that automatically adjust user balances
+- **Transaction Ledger**: Complete history of all balance changes with references
 
-### Admin Functions
-- User and company management
-- System monitoring and logging
-- Emergency account lockout recovery
-- Notification management and preferences
+### 📊 Reporting & Analytics
+- **Analytics Dashboard**: Visual charts for invoices, budget requests, saldo trends
+- **Advanced Export System**: Generate Excel/PDF reports for invoices, advances, budget requests, saldo, corrections
+- **Customizable filters**: Date ranges, companies, statuses, users
+- **Performance metrics**: Submission rates, review times, approval rates
 
-### Technical Features
-- **Real-time Updates** - WebSocket-ready architecture for live status updates
-- **Comprehensive Logging** - Structured logging for debugging and monitoring
-- **Progressive Web App (PWA)** - Offline-first capabilities with service workers
-- **Performance Optimized** - Image optimization, code splitting, lazy loading
-- **Type Safety** - Full TypeScript with zero-any policy
-- **Database Migrations** - Drizzle-powered schema versioning
-- **API Documentation** - Auto-generated from tRPC procedures
+### 🧾 Accounting Operations
+- **Unified Review Dashboard**: All pending items (invoices, budget requests) in one view
+- **Multi-accountant workflow**: Concurrent reviews with conflict resolution
+- **Bulk actions**: Process multiple items efficiently
+- **Quality control**: Rejection reasons, review comments
+- **Status management**: Mark invoices as transferred/settled after payment
+
+### 🔧 Admin Functions
+- **User & Company Management**: Create, edit, deactivate users and companies
+- **Permission Management**: Assign users to specific companies
+- **Bulk Data Operations**: Delete old invoices, budget requests, notifications
+- **System Monitoring**: View system stats, storage usage
+- **Notification Management**: System-wide announcements
+
+### 🔔 Notification System
+- **In-app notifications**: Real-time alerts for status changes
+- **Customizable preferences**: Users control which notifications they receive
+- **Sound alerts**: Optional audio notifications (can be disabled)
+- **Auto-cleanup**: Old notifications deleted after 2 days
+
+### 🔒 Security & Compliance
+- **Argon2id password hashing**: Industry-leading password security
+- **CSRF protection**: Origin-based validation on all mutations
+- **JWT sessions**: Secure httpOnly cookies with database validation
+- **Data encryption**: Secure storage for all sensitive data
+- **Audit logging**: Complete trail of all system actions
+- **GDPR compliant**: Data retention policies and cleanup
+
+### ⚙️ Technical Features
+- **Progressive Web App (PWA)**: Install as native app, offline capability
+- **Real-time Updates**: Optimistic UI with automatic refetching
+- **Type Safety**: Full end-to-end TypeScript with tRPC
+- **Performance Optimized**: Image optimization, lazy loading, code splitting
+- **Responsive Design**: Works on desktop, tablet, and mobile
+- **Dark Mode**: Full dark theme support
+- **Database Migrations**: Version-controlled schema changes
+- **Automated Cleanup**: Daily maintenance tasks (sessions, logs, notifications)
 
 ## 🚀 Quick Start
 
@@ -250,12 +282,41 @@ All services read from `.env` file. Set `NODE_ENV=production` for production dep
 
 ## 📚 Documentation
 
-For detailed information, see:
-- [AUTH_SECURITY_AUDIT.md](docs/AUTH_SECURITY_AUDIT.md) - Security analysis and migration recommendations
-- [AUTH_IMPLEMENTATION_GUIDE.md](docs/AUTH_IMPLEMENTATION_GUIDE.md) - Auth system implementation details
-- [AUTH_FIXES_IMPLEMENTED.md](docs/AUTH_FIXES_IMPLEMENTED.md) - Summary of security fixes
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture and design decisions
-- [MONITORING.md](docs/MONITORING.md) - System monitoring and logging
+**📖 [Complete Documentation Index](docs/INDEX.md)** - Full documentation navigation
+
+### Quick Links
+
+**For Users:**
+- **[USER_GUIDE.md](docs/USER_GUIDE.md)** - Complete user manual with step-by-step instructions
+
+**For Developers:**
+- **[FEATURES.md](docs/FEATURES.md)** - Detailed feature documentation
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture and design
+- **[API.md](docs/API.md)** - tRPC API reference
+- **[LOGIC.md](docs/LOGIC.md)** - Business logic and workflows
+
+**For Administrators:**
+- **[ADMIN_QUICKREF.md](docs/ADMIN_QUICKREF.md)** - Admin panel quick reference
+- **[ADMIN_ACCOUNT_MANAGEMENT.md](docs/ADMIN_ACCOUNT_MANAGEMENT.md)** - User management
+- **[DATA_LIFECYCLE_STRATEGY.md](docs/DATA_LIFECYCLE_STRATEGY.md)** - Data retention policies
+
+**For DevOps:**
+- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment guide
+- **[MONITORING.md](docs/MONITORING.md)** - System monitoring setup
+
+### Feature-Specific Guides
+
+- **[INVOICE_TYPES_QUICKREF.md](docs/INVOICE_TYPES_QUICKREF.md)** - Invoice types reference
+- **[KSEF_QUICKREF.md](docs/KSEF_QUICKREF.md)** - KSeF e-invoicing integration
+- **[SALDO_QUICKREF.md](docs/SALDO_QUICKREF.md)** - Balance system reference
+- **[MONEY_TRANSFERRED_QUICKREF.md](docs/MONEY_TRANSFERRED_QUICKREF.md)** - Payment workflow
+
+### Technical Documentation
+
+- **[TESTING.md](docs/TESTING.md)** - Testing strategy
+- **[LOGGING.md](docs/LOGGING.md)** - Logging system
+- **[RATE_LIMITING.md](docs/RATE_LIMITING.md)** - Rate limiting
+- **[PWA_IMPLEMENTATION.md](docs/PWA_IMPLEMENTATION.md)** - Progressive Web App
 
 ## 📝 License
 

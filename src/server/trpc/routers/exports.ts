@@ -1,10 +1,116 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "../init";
+import { createTRPCRouter, protectedProcedure, type Context } from "../init";
 import { db } from "@/server/db";
-import { eq, desc, asc, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, gte, lte, sql, inArray, type SQL } from "drizzle-orm";
 import { invoices, users, companies, advances, budgetRequests, saldoTransactions } from "@/server/db/schema";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import ExcelJS from "exceljs";
+
+// Type definitions for data structures
+type ColumnConfig = z.infer<typeof columnConfigSchema>;
+type ReportConfig = z.infer<typeof reportConfigSchema>;
+type InvoiceReportParams = z.infer<typeof invoiceReportParamsSchema>;
+type AdvancesReportParams = z.infer<typeof advancesReportParamsSchema>;
+type BudgetRequestsReportParams = z.infer<typeof budgetRequestsReportParamsSchema>;
+type SaldoReportParams = z.infer<typeof saldoReportParamsSchema>;
+type CorrectionsReportParams = z.infer<typeof correctionsReportParamsSchema>;
+
+type ReportParams = 
+  | InvoiceReportParams 
+  | AdvancesReportParams 
+  | BudgetRequestsReportParams 
+  | SaldoReportParams 
+  | CorrectionsReportParams;
+
+interface InvoiceData {
+  id: string;
+  invoiceNumber: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  kwota: string | null;
+  status: string;
+  ksefNumber: string | null;
+  invoiceType: string;
+  description: string | null;
+  createdAt: Date;
+  reviewedAt: Date | null;
+}
+
+interface AdvanceData {
+  id: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  amount: string;
+  status: string;
+  description: string | null;
+  createdAt: Date;
+  transferDate: Date | null;
+  settledAt: Date | null;
+}
+
+interface BudgetRequestData {
+  id: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  requestedAmount: string;
+  currentBalanceAtRequest: string;
+  status: string;
+  justification: string;
+  createdAt: Date;
+  reviewedAt: Date | null;
+  approvedAt: Date | null;
+  rejectionReason: string | null;
+}
+
+interface SaldoData {
+  id: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  transactionType: string;
+  type: string;
+  referenceId: string | null;
+  notes: string | null;
+  createdAt: Date;
+  balance: number;
+  companyName: string;
+  companyId: string | null;
+}
+
+interface CorrectionData {
+  id: string;
+  invoiceNumber: string | null;
+  originalInvoiceId: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  correctionAmount: string | null;
+  status: string;
+  description: string | null;
+  createdAt: Date;
+  originalInvoiceNumber: string;
+}
+
+type ExportData = InvoiceData | AdvanceData | BudgetRequestData | SaldoData | CorrectionData;
+
+interface SortableItem {
+  [key: string]: unknown;
+}
 
 // Column configuration schema
 const columnConfigSchema = z.object({
@@ -141,18 +247,6 @@ function autoFitColumns(worksheet: ExcelJS.Worksheet, minWidth: number = 10, max
   });
 }
 
-// Helper function to apply filters to query
-function applyDateFilters(query: any, params: any, dateColumn: any) {
-  if (params.dateFrom) {
-    query = query.where(gte(dateColumn, new Date(params.dateFrom)));
-
-  }
-  if (params.dateTo) {
-    query = query.where(lte(dateColumn, new Date(params.dateTo)));
-  }
-  return query;
-}
-
 export const exportsRouter = createTRPCRouter({
   // Generate mixed report with multiple worksheets
   generateMixedReport: protectedProcedure
@@ -162,7 +256,7 @@ export const exportsRouter = createTRPCRouter({
         exportFormat: z.enum(["xlsx", "pdf"]),
       })
     )
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }) => {
       // Only accountants and admins can generate reports
       if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
         throw new Error("Unauthorized");
@@ -174,26 +268,25 @@ export const exportsRouter = createTRPCRouter({
       workbook.modified = new Date();
 
       // Process each enabled report
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const report of input.reports.filter((r: any) => r.enabled)) {
-        let data: any[] = [];
+      for (const report of input.reports.filter((r) => r.enabled)) {
+        let data: ExportData[] = [];
         let sheetName = report.params.sheetName || report.type;
 
         switch (report.type) {
           case "invoices":
-            data = await generateInvoicesData(ctx, report.params as any);
+            data = await generateInvoicesData(ctx, report.params as InvoiceReportParams);
             break;
           case "advances":
-            data = await generateAdvancesData(ctx, report.params as any);
+            data = await generateAdvancesData(ctx, report.params as AdvancesReportParams);
             break;
           case "budgetRequests":
-            data = await generateBudgetRequestsData(ctx, report.params as any);
+            data = await generateBudgetRequestsData(ctx, report.params as BudgetRequestsReportParams);
             break;
           case "saldo":
-            data = await generateSaldoData(ctx, report.params as any);
+            data = await generateSaldoData(ctx, report.params as SaldoReportParams);
             break;
           case "corrections":
-            data = await generateCorrectionsData(ctx, report.params as any);
+            data = await generateCorrectionsData(ctx, report.params as CorrectionsReportParams);
             break;
         }
 
@@ -202,12 +295,9 @@ export const exportsRouter = createTRPCRouter({
 
         if (data.length > 0) {
           // Get enabled columns
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const enabledColumns = report.params.columns?.filter((c: any) => c.enabled) || [];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const headers = enabledColumns.map((c: any) => c.label);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const columnKeys = enabledColumns.map((c: any) => c.id);
+          const enabledColumns = report.params.columns?.filter((c) => c.enabled) || [];
+          const headers = enabledColumns.map((c) => c.label);
+          const columnKeys = enabledColumns.map((c) => c.id);
 
           // Add header row
           worksheet.addRow(headers);
@@ -222,21 +312,21 @@ export const exportsRouter = createTRPCRouter({
 
           // Add data rows
           data.forEach((item) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const row = columnKeys.map((key: any) => {
-              let value = item[key];
+            const row = columnKeys.map((key) => {
+              const itemRecord = item as unknown as Record<string, unknown>;
+              let value = itemRecord[key];
 
               // Format dates
               if (key.includes("At") || key.includes("Date") || key === "createdAt" || key === "reviewedAt" || key === "transferDate" || key === "settledAt") {
                 if (value) {
-                  value = formatDate(value, "dd/MM/yyyy");
+                  value = formatDate(value as Date | string, "dd/MM/yyyy");
                 }
               }
 
               // Format currency
               if (key.includes("amount") || key.includes("Amount") || key === "kwota" || key === "balance") {
                 if (value !== null && value !== undefined) {
-                  value = formatCurrency(value, report.params.currencyFormat || "PLN", report.params.showCurrencySymbol !== false);
+                  value = formatCurrency(value as number | string, report.params.currencyFormat || "PLN", report.params.showCurrencySymbol !== false);
                 }
               }
 
@@ -276,7 +366,7 @@ export const exportsRouter = createTRPCRouter({
   // Generate single invoice report
   generateInvoiceReport: protectedProcedure
     .input(invoiceReportParamsSchema)
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }) => {
       if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
         throw new Error("Unauthorized");
       }
@@ -288,7 +378,7 @@ export const exportsRouter = createTRPCRouter({
   // Generate single advances report
   generateAdvancesReport: protectedProcedure
     .input(advancesReportParamsSchema)
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }) => {
       if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
         throw new Error("Unauthorized");
       }
@@ -300,7 +390,7 @@ export const exportsRouter = createTRPCRouter({
   // Generate budget requests report
   generateBudgetRequestsReport: protectedProcedure
     .input(budgetRequestsReportParamsSchema)
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }) => {
       if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
         throw new Error("Unauthorized");
       }
@@ -312,7 +402,7 @@ export const exportsRouter = createTRPCRouter({
   // Generate single advances Excel report
   generateAdvancesExcel: protectedProcedure
     .input(advancesReportParamsSchema)
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
         throw new Error("Unauthorized");
       }
@@ -328,15 +418,15 @@ export const exportsRouter = createTRPCRouter({
 
       if (data.length > 0) {
         // Get enabled columns or use all columns
-        const enabledColumns = input.columns?.filter((c: any) => c.enabled) || [
+        const enabledColumns = input.columns?.filter((c) => c.enabled) || [
           { id: "userName", label: "Użytkownik" },
           { id: "companyName", label: "Firma" },
           { id: "amount", label: "Kwota" },
           { id: "status", label: "Status" },
           { id: "createdAt", label: "Data utworzenia" },
         ];
-        const headers = enabledColumns.map((c: any) => c.label);
-        const columnKeys = enabledColumns.map((c: any) => c.id);
+        const headers = enabledColumns.map((c) => c.label);
+        const columnKeys = enabledColumns.map((c) => c.id);
 
         // Add header row
         worksheet.addRow(headers);
@@ -357,26 +447,27 @@ export const exportsRouter = createTRPCRouter({
         };
 
         // Add data rows
-        data.forEach((item: any) => {
-          const row = columnKeys.map((key: any) => {
-            let value = item[key];
+        data.forEach((item) => {
+          const row = columnKeys.map((key) => {
+            const itemRecord = item as unknown as Record<string, unknown>;
+            let value = itemRecord[key];
 
             // Format dates
             if (key.includes("At") || key.includes("Date") || key === "createdAt" || key === "reviewedAt" || key === "transferDate" || key === "settledAt") {
               if (value) {
-                value = formatDate(value, "dd/MM/yyyy");
+                value = formatDate(value as Date | string, "dd/MM/yyyy");
               }
             }
 
             // Format currency
             if (key.includes("amount") || key.includes("Amount") || key === "kwota" || key === "balance") {
               if (value !== null && value !== undefined) {
-                value = formatCurrency(value, input.currencyFormat || "PLN", input.showCurrencySymbol !== false);
+                value = formatCurrency(value as number | string, input.currencyFormat || "PLN", input.showCurrencySymbol !== false);
               }
             }
 
             // Format status
-            if (key === "status" && value && statusLabels[value]) {
+            if (key === "status" && value && typeof value === "string" && statusLabels[value]) {
               value = statusLabels[value];
             }
 
@@ -426,7 +517,7 @@ export const exportsRouter = createTRPCRouter({
   // Generate single invoices Excel report
   generateInvoicesExcel: protectedProcedure
     .input(invoiceReportParamsSchema)
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "accountant" && ctx.user.role !== "admin") {
         throw new Error("Unauthorized");
       }
@@ -442,7 +533,7 @@ export const exportsRouter = createTRPCRouter({
 
       if (data.length > 0) {
         // Get enabled columns or use all columns
-        const enabledColumns = input.columns?.filter((c: any) => c.enabled) || [
+        const enabledColumns = input.columns?.filter((c) => c.enabled) || [
           { id: "invoiceNumber", label: "Numer faktury" },
           { id: "companyName", label: "Firma" },
           { id: "userName", label: "Użytkownik" },
@@ -450,8 +541,8 @@ export const exportsRouter = createTRPCRouter({
           { id: "status", label: "Status" },
           { id: "createdAt", label: "Data utworzenia" },
         ];
-        const headers = enabledColumns.map((c: any) => c.label);
-        const columnKeys = enabledColumns.map((c: any) => c.id);
+        const headers = enabledColumns.map((c) => c.label);
+        const columnKeys = enabledColumns.map((c) => c.id);
 
         // Add header row
         worksheet.addRow(headers);
@@ -480,31 +571,32 @@ export const exportsRouter = createTRPCRouter({
         };
 
         // Add data rows
-        data.forEach((item: any) => {
-          const row = columnKeys.map((key: any) => {
-            let value = item[key];
+        data.forEach((item) => {
+          const row = columnKeys.map((key) => {
+            const itemRecord = item as unknown as Record<string, unknown>;
+            let value = itemRecord[key];
 
             // Format dates
             if (key.includes("At") || key.includes("Date") || key === "createdAt" || key === "reviewedAt") {
               if (value) {
-                value = formatDate(value, "dd/MM/yyyy");
+                value = formatDate(value as Date | string, "dd/MM/yyyy");
               }
             }
 
             // Format currency
             if (key.includes("amount") || key.includes("Amount") || key === "kwota") {
               if (value !== null && value !== undefined) {
-                value = formatCurrency(value, input.currencyFormat || "PLN", input.showCurrencySymbol !== false);
+                value = formatCurrency(value as number | string, input.currencyFormat || "PLN", input.showCurrencySymbol !== false);
               }
             }
 
             // Format status
-            if (key === "status" && value && statusLabels[value]) {
+            if (key === "status" && value && typeof value === "string" && statusLabels[value]) {
               value = statusLabels[value];
             }
 
             // Format invoice type
-            if (key === "invoiceType" && value && invoiceTypeLabels[value]) {
+            if (key === "invoiceType" && value && typeof value === "string" && invoiceTypeLabels[value]) {
               value = invoiceTypeLabels[value];
             }
 
@@ -555,7 +647,7 @@ export const exportsRouter = createTRPCRouter({
       showCurrencySymbol: z.boolean().optional(),
       fileName: z.string().optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }) => {
       if (!ctx.user || (ctx.user.role !== "user" && ctx.user.role !== "accountant" && ctx.user.role !== "admin")) {
         throw new Error("Unauthorized");
       }
@@ -588,13 +680,17 @@ export const exportsRouter = createTRPCRouter({
         throw new Error("Invoice not found");
       }
 
+      const data = invoice[0];
+      if (!data) {
+        throw new Error("Invoice not found");
+      }
+
       const workbook = new ExcelJS.Workbook();
       workbook.creator = ctx.user.name;
       workbook.created = new Date();
       workbook.modified = new Date();
 
       const worksheet = workbook.addWorksheet("Faktura");
-      const data = invoice[0];
 
       // Status translations
       const statusLabels: Record<string, string> = {
@@ -882,7 +978,7 @@ export const exportsRouter = createTRPCRouter({
 });
 
 // Helper functions to generate data for each report type
-async function generateInvoicesData(ctx: any, params: any): Promise<any[]> {
+async function generateInvoicesData(ctx: Context, params: InvoiceReportParams): Promise<InvoiceData[]> {
   let query = ctx.db
     .select({
       id: invoices.id,
@@ -904,26 +1000,38 @@ async function generateInvoicesData(ctx: any, params: any): Promise<any[]> {
     .leftJoin(users, eq(invoices.userId, users.id))
     .leftJoin(companies, eq(invoices.companyId, companies.id));
 
-  // Apply filters
+  // Apply filters - build all conditions upfront
+  const conditions = [];
   if (params.dateFrom) {
-    query = query.where(gte(invoices.createdAt, new Date(params.dateFrom)));
+    conditions.push(gte(invoices.createdAt, new Date(params.dateFrom)));
   }
   if (params.dateTo) {
-    query = query.where(lte(invoices.createdAt, new Date(params.dateTo)));
+    conditions.push(lte(invoices.createdAt, new Date(params.dateTo)));
   }
   if (params.status && params.status !== "all") {
-    query = query.where(eq(invoices.status, params.status));
+    conditions.push(eq(invoices.status, params.status as "pending" | "in_review" | "accepted" | "transferred" | "settled" | "rejected"));
   }
 
-  const results = await query;
+  // Apply all conditions at once if any exist
+  let results;
+  if (conditions.length > 0) {
+    results = await query.where(and(...conditions));
+  } else {
+    results = await query;
+  }
 
   // Apply sorting
-  const sortBy = params.sortBy || "createdAt";
+  const sortBy = (params.sortBy || "createdAt") as keyof InvoiceData;
   const sortOrder = params.sortOrder || "desc";
   
-  results.sort((a: any, b: any) => {
+  results.sort((a, b) => {
     const aVal = a[sortBy];
     const bVal = b[sortBy];
+    // Handle null values - put them at the end
+    if (aVal === null && bVal === null) return 0;
+    if (aVal === null) return 1;
+    if (bVal === null) return -1;
+    
     if (sortOrder === "asc") {
       return aVal > bVal ? 1 : -1;
     } else {
@@ -931,10 +1039,10 @@ async function generateInvoicesData(ctx: any, params: any): Promise<any[]> {
     }
   });
 
-  return results;
+  return results as InvoiceData[];
 }
 
-async function generateAdvancesData(ctx: any, params: any): Promise<any[]> {
+async function generateAdvancesData(ctx: Context, params: AdvancesReportParams): Promise<AdvanceData[]> {
   let query = ctx.db
     .select({
       id: advances.id,
@@ -954,26 +1062,37 @@ async function generateAdvancesData(ctx: any, params: any): Promise<any[]> {
     .leftJoin(users, eq(advances.userId, users.id))
     .leftJoin(companies, eq(advances.companyId, companies.id));
 
-  // Apply filters
+  // Apply filters - build all conditions upfront
+  const conditions = [];
   if (params.dateFrom) {
-    query = query.where(gte(advances.createdAt, new Date(params.dateFrom)));
+    conditions.push(gte(advances.createdAt, new Date(params.dateFrom)));
   }
   if (params.dateTo) {
-    query = query.where(lte(advances.createdAt, new Date(params.dateTo)));
+    conditions.push(lte(advances.createdAt, new Date(params.dateTo)));
   }
   if (params.status && params.status !== "all") {
-    query = query.where(eq(advances.status, params.status));
+    conditions.push(eq(advances.status, params.status));
   }
 
-  const results = await query;
+  // Apply all conditions at once if any exist
+  let results;
+  if (conditions.length > 0) {
+    results = await query.where(and(...conditions));
+  } else {
+    results = await query;
+  }
 
   // Apply sorting
-  const sortBy = params.sortBy || "createdAt";
+  const sortBy = (params.sortBy || "createdAt") as keyof AdvanceData;
   const sortOrder = params.sortOrder || "desc";
   
-  results.sort((a: any, b: any) => {
+  results.sort((a, b) => {
     const aVal = a[sortBy];
     const bVal = b[sortBy];
+    // Handle null/undefined values
+    if ((aVal === null || aVal === undefined) && (bVal === null || bVal === undefined)) return 0;
+    if (aVal === null || aVal === undefined) return 1;
+    if (bVal === null || bVal === undefined) return -1;
     if (sortOrder === "asc") {
       return aVal > bVal ? 1 : -1;
     } else {
@@ -981,10 +1100,10 @@ async function generateAdvancesData(ctx: any, params: any): Promise<any[]> {
     }
   });
 
-  return results;
+  return results as AdvanceData[];
 }
 
-async function generateBudgetRequestsData(ctx: any, params: any): Promise<any[]> {
+async function generateBudgetRequestsData(ctx: Context, params: BudgetRequestsReportParams): Promise<BudgetRequestData[]> {
   let query = ctx.db
     .select({
       id: budgetRequests.id,
@@ -1007,26 +1126,38 @@ async function generateBudgetRequestsData(ctx: any, params: any): Promise<any[]>
     .leftJoin(users, eq(budgetRequests.userId, users.id))
     .leftJoin(companies, eq(budgetRequests.companyId, companies.id));
 
-  // Apply filters
+  // Apply filters - build all conditions upfront
+  const conditions = [];
   if (params.dateFrom) {
-    query = query.where(gte(budgetRequests.createdAt, new Date(params.dateFrom)));
+    conditions.push(gte(budgetRequests.createdAt, new Date(params.dateFrom)));
   }
   if (params.dateTo) {
-    query = query.where(lte(budgetRequests.createdAt, new Date(params.dateTo)));
+    conditions.push(lte(budgetRequests.createdAt, new Date(params.dateTo)));
   }
   if (params.status && params.status !== "all") {
-    query = query.where(eq(budgetRequests.status, params.status));
+    conditions.push(eq(budgetRequests.status, params.status));
   }
 
-  const results = await query;
+  // Apply all conditions at once if any exist
+  let results;
+  if (conditions.length > 0) {
+    results = await query.where(and(...conditions));
+  } else {
+    results = await query;
+  }
 
   // Apply sorting
-  const sortBy = params.sortBy || "createdAt";
+  const sortBy = (params.sortBy || "createdAt") as keyof BudgetRequestData;
   const sortOrder = params.sortOrder || "desc";
   
-  results.sort((a: any, b: any) => {
+  results.sort((a, b) => {
     const aVal = a[sortBy];
     const bVal = b[sortBy];
+    // Handle null/undefined values - put them at the end
+    if ((aVal === null || aVal === undefined) && (bVal === null || bVal === undefined)) return 0;
+    if (aVal === null || aVal === undefined) return 1;
+    if (bVal === null || bVal === undefined) return -1;
+    
     if (sortOrder === "asc") {
       return aVal > bVal ? 1 : -1;
     } else {
@@ -1034,10 +1165,10 @@ async function generateBudgetRequestsData(ctx: any, params: any): Promise<any[]>
     }
   });
 
-  return results;
+  return results as BudgetRequestData[];
 }
 
-async function generateSaldoData(ctx: any, params: any): Promise<any[]> {
+async function generateSaldoData(ctx: Context, params: SaldoReportParams): Promise<SaldoData[]> {
   let query = ctx.db
     .select({
       id: saldoTransactions.id,
@@ -1055,23 +1186,35 @@ async function generateSaldoData(ctx: any, params: any): Promise<any[]> {
     .from(saldoTransactions)
     .leftJoin(users, eq(saldoTransactions.userId, users.id));
 
-  // Apply filters
+  // Apply filters - build all conditions upfront
+  const conditions = [];
   if (params.dateFrom) {
-    query = query.where(gte(saldoTransactions.createdAt, new Date(params.dateFrom)));
+    conditions.push(gte(saldoTransactions.createdAt, new Date(params.dateFrom)));
   }
   if (params.dateTo) {
-    query = query.where(lte(saldoTransactions.createdAt, new Date(params.dateTo)));
+    conditions.push(lte(saldoTransactions.createdAt, new Date(params.dateTo)));
   }
 
-  const results = await query;
+  // Apply all conditions at once if any exist
+  let results;
+  if (conditions.length > 0) {
+    results = await query.where(and(...conditions));
+  } else {
+    results = await query;
+  }
 
   // Apply sorting
   const sortBy = params.sortBy || "createdAt";
   const sortOrder = params.sortOrder || "desc";
   
-  results.sort((a: any, b: any) => {
-    const aVal = a[sortBy];
-    const bVal = b[sortBy];
+  results.sort((a, b) => {
+    const aVal = a[sortBy as keyof typeof a];
+    const bVal = b[sortBy as keyof typeof b];
+    // Handle null/undefined values - put them at the end
+    if ((aVal === null || aVal === undefined) && (bVal === null || bVal === undefined)) return 0;
+    if (aVal === null || aVal === undefined) return 1;
+    if (bVal === null || bVal === undefined) return -1;
+    
     if (sortOrder === "asc") {
       return aVal > bVal ? 1 : -1;
     } else {
@@ -1080,43 +1223,53 @@ async function generateSaldoData(ctx: any, params: any): Promise<any[]> {
   });
 
   // Enrich saldo rows so mixed export includes company and UI-friendly fields
-  const refIds = results.filter((r: any) => r.referenceId).map((r: any) => r.referenceId as string);
+  const refIds = results.filter((r) => r.referenceId).map((r) => r.referenceId as string);
   const uniqueRefIds = Array.from(new Set(refIds));
 
-  const invoicesById: Record<string, any> = {};
-  const advancesById: Record<string, any> = {};
-  const requestsById: Record<string, any> = {};
+  interface CompanyReference {
+    id: string;
+    companyId: string | null;
+  }
+
+  const invoicesById: Record<string, CompanyReference> = {};
+  const advancesById: Record<string, CompanyReference> = {};
+  const requestsById: Record<string, CompanyReference> = {};
 
   if (uniqueRefIds.length > 0) {
     const invs = await ctx.db
       .select({ id: invoices.id, companyId: invoices.companyId })
       .from(invoices)
-      .where(inArray(invoices.id, uniqueRefIds as string[]));
-    invs.forEach((i: any) => { invoicesById[i.id] = i; });
+      .where(inArray(invoices.id, uniqueRefIds));
+    invs.forEach((i) => { invoicesById[i.id] = i; });
 
     const advs = await ctx.db
       .select({ id: advances.id, companyId: advances.companyId })
       .from(advances)
-      .where(inArray(advances.id, uniqueRefIds as string[]));
-    advs.forEach((a: any) => { advancesById[a.id] = a; });
+      .where(inArray(advances.id, uniqueRefIds));
+    advs.forEach((a) => { advancesById[a.id] = a; });
 
     const reqs = await ctx.db
       .select({ id: budgetRequests.id, companyId: budgetRequests.companyId })
       .from(budgetRequests)
-      .where(inArray(budgetRequests.id, uniqueRefIds as string[]));
-    reqs.forEach((r: any) => { requestsById[r.id] = r; });
+      .where(inArray(budgetRequests.id, uniqueRefIds));
+    reqs.forEach((r) => { requestsById[r.id] = r; });
   }
 
   const companyIds = Array.from(new Set([
-    ...Object.values(invoicesById).map((v: any) => v.companyId).filter(Boolean),
-    ...Object.values(advancesById).map((v: any) => v.companyId).filter(Boolean),
-    ...Object.values(requestsById).map((v: any) => v.companyId).filter(Boolean),
+    ...Object.values(invoicesById).map((v) => v.companyId).filter(Boolean) as string[],
+    ...Object.values(advancesById).map((v) => v.companyId).filter(Boolean) as string[],
+    ...Object.values(requestsById).map((v) => v.companyId).filter(Boolean) as string[],
   ]));
 
-  const companiesById: Record<string, any> = {};
+  interface CompanyInfo {
+    id: string;
+    name: string | null;
+  }
+
+  const companiesById: Record<string, CompanyInfo> = {};
   if (companyIds.length > 0) {
-    const comps = await ctx.db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, companyIds as string[]));
-    comps.forEach((c: any) => { companiesById[c.id] = c; });
+    const comps = await ctx.db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, companyIds));
+    comps.forEach((c) => { companiesById[c.id] = c; });
   }
 
   const typeLabels: Record<string, string> = {
@@ -1127,7 +1280,7 @@ async function generateSaldoData(ctx: any, params: any): Promise<any[]> {
     invoice_delete_refund: 'Zwrot (usunięcie faktury)'
   } as const;
 
-  return results.map((tx: any) => {
+  return results.map((tx): SaldoData => {
     let resolvedCompanyId: string | null = null;
     let resolvedCompanyName: string | null = null;
 
@@ -1156,14 +1309,14 @@ async function generateSaldoData(ctx: any, params: any): Promise<any[]> {
       notes: tx.notes,
       createdAt: tx.createdAt,
       // aliases used by frontend/export UI
-      balance: tx.balanceAfter ?? tx.balanceAfter,
-      companyName: resolvedCompanyName || tx.companyName || '-',
-      companyId: resolvedCompanyId || tx.companyId || null,
+      balance: tx.balanceAfter ? parseFloat(tx.balanceAfter) : 0,
+      companyName: resolvedCompanyName || '-',
+      companyId: resolvedCompanyId,
     };
   });
 }
 
-async function generateCorrectionsData(ctx: any, params: any): Promise<any[]> {
+async function generateCorrectionsData(ctx: Context, params: CorrectionsReportParams): Promise<CorrectionData[]> {
   let query = ctx.db
     .select({
       id: invoices.id,
@@ -1181,26 +1334,45 @@ async function generateCorrectionsData(ctx: any, params: any): Promise<any[]> {
     })
     .from(invoices)
     .leftJoin(users, eq(invoices.userId, users.id))
-    .leftJoin(companies, eq(invoices.companyId, companies.id))
-    .where(eq(invoices.invoiceType, "correction"));
+    .leftJoin(companies, eq(invoices.companyId, companies.id));
 
-  // Apply filters
+  // Apply filters - build all conditions upfront (including correction type filter)
+  const conditions = [eq(invoices.invoiceType, "correction")];
   if (params.dateFrom) {
-    query = query.where(gte(invoices.createdAt, new Date(params.dateFrom)));
+    conditions.push(gte(invoices.createdAt, new Date(params.dateFrom)));
   }
   if (params.dateTo) {
-    query = query.where(lte(invoices.createdAt, new Date(params.dateTo)));
+    conditions.push(lte(invoices.createdAt, new Date(params.dateTo)));
   }
 
-  const results = await query;
+  // Apply all conditions at once
+  type QueryResult = {
+    id: string;
+    invoiceNumber: string | null;
+    originalInvoiceId: string | null;
+    companyId: string | null;
+    companyName: string | null;
+    userId: string;
+    userName: string | null;
+    userEmail: string | null;
+    correctionAmount: string | null;
+    status: string;
+    description: string | null;
+    createdAt: Date;
+  };
+  const results: QueryResult[] = await query.where(and(...conditions));
 
   // Apply sorting
   const sortBy = params.sortBy || "createdAt";
   const sortOrder = params.sortOrder || "desc";
   
-  results.sort((a: any, b: any) => {
-    const aVal = a[sortBy];
-    const bVal = b[sortBy];
+  results.sort((a, b) => {
+    const aVal = a[sortBy as keyof typeof a];
+    const bVal = b[sortBy as keyof typeof b];
+    // Handle null/undefined values
+    if ((aVal === null || aVal === undefined) && (bVal === null || bVal === undefined)) return 0;
+    if (aVal === null || aVal === undefined) return 1;
+    if (bVal === null || bVal === undefined) return -1;
     if (sortOrder === "asc") {
       return aVal > bVal ? 1 : -1;
     } else {
@@ -1209,28 +1381,35 @@ async function generateCorrectionsData(ctx: any, params: any): Promise<any[]> {
   });
 
   // Resolve original invoice numbers in batch and expose `originalInvoiceNumber` for exports
-  const originalIds = results.filter((r: any) => r.originalInvoiceId).map((r: any) => r.originalInvoiceId);
+  const originalIds = results.filter((r) => r.originalInvoiceId).map((r) => r.originalInvoiceId as string);
   const uniqueOriginalIds = Array.from(new Set(originalIds));
-  let originalsById: Record<string, any> = {};
+  
+  interface OriginalInvoice {
+    id: string;
+    invoiceNumber: string | null;
+  }
+  
+  const originalsById: Record<string, OriginalInvoice> = {};
   if (uniqueOriginalIds.length > 0) {
     const originals = await ctx.db
       .select({ id: invoices.id, invoiceNumber: invoices.invoiceNumber })
       .from(invoices)
-      .where(inArray(invoices.id, uniqueOriginalIds as string[]));
-    originals.forEach((o: any) => { originalsById[o.id] = o; });
+      .where(inArray(invoices.id, uniqueOriginalIds));
+    originals.forEach((o) => { originalsById[o.id] = o; });
   }
 
-  return results.map((r: any) => ({
+  return results.map((r): CorrectionData => ({
     ...r,
     originalInvoiceNumber: r.originalInvoiceId ? (originalsById[r.originalInvoiceId]?.invoiceNumber || '-') : '-',
   }));
 }
 
 // Generate filename based on reports
-function generateFileName(reports: any[]): string {
+function generateFileName(reports: ReportConfig[]): string {
   const enabledReports = reports.filter((r) => r.enabled);
   if (enabledReports.length === 1) {
     const report = enabledReports[0];
+    if (!report) return `raport_${formatDate(new Date(), "yyyy-MM-dd")}.xlsx`;
     const baseName = report.params.fileName || report.type;
     const timestamp = report.params.includeTimestamp !== false 
       ? `_${formatDate(new Date(), "yyyy-MM-dd")}`

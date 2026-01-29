@@ -35,11 +35,11 @@ describe('Logger Utilities - Logic Tests', () => {
     });
 
     it('should handle custom error properties', () => {
-      const error = new Error('Test');
+      const error = new Error('Test') as Error & { statusCode?: number; metadata?: Record<string, unknown> };
       Object.assign(error, { statusCode: 500, metadata: { foo: 'bar' } });
       
-      expect((error as any).statusCode).toBe(500);
-      expect((error as any).metadata).toEqual({ foo: 'bar' });
+      expect(error.statusCode).toBe(500);
+      expect(error.metadata).toEqual({ foo: 'bar' });
     });
   });
 

@@ -366,7 +366,7 @@ export const advancesRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Użytkownik nie znaleziony" });
       }
 
-      const isPasswordValid = await verifyPassword(input.password, currentUser.passwordHash);
+      const isPasswordValid = await verifyPassword(currentUser.passwordHash, input.password);
       if (!isPasswordValid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Nieprawidłowe hasło" });
       }

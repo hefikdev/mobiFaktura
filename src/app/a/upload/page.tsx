@@ -23,7 +23,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { useToast } from "@/components/ui/use-toast";
 import { Unauthorized } from "@/components/unauthorized";
-import { Camera, Loader2, X, QrCode, SwitchCamera, FileText, Receipt } from "lucide-react";
+import { Loader2, QrCode, SwitchCamera, FileText, Receipt, Camera, X } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useOnline } from "@/lib/use-online";
 import { OfflineUploadDialog } from "@/components/offline-banner";
@@ -179,7 +179,7 @@ export default function UploadPage() {
           });
           stopQrScanner();
         },
-        (errorMessage) => {
+        () => {
           // Scanning in progress, ignore error messages
         }
       );
@@ -201,8 +201,8 @@ export default function UploadPage() {
         await qrScannerRef.current.stop();
         qrScannerRef.current.clear();
         qrScannerRef.current = null;
-      } catch (err) {
-        console.error("Error stopping scanner:", err);
+      } catch {
+        console.error("Error stopping scanner");
       }
     }
     setIsScanning(false);
@@ -645,7 +645,7 @@ export default function UploadPage() {
           {/* Invoice Number */}
           <div className="space-y-2">
             <Label htmlFor="invoiceNumber">
-              Numer faktury <span className="text-red-500">*</span>
+              {invoiceType === "receipt" ? "Numer paragonu" : "Numer faktury"} <span className="text-red-500">*</span>
             </Label>
             <Input
               id="invoiceNumber"

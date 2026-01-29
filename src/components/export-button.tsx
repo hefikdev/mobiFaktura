@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import type { TDocumentDefinitions } from "pdfmake/interfaces";
+import type { TDocumentDefinitions, Content } from "pdfmake/interfaces";
 import pdfMake from "pdfmake/build/pdfmake";
 import * as pdfFonts from "pdfmake/build/vfs_fonts";
 
@@ -167,7 +167,7 @@ export function ExportButton<T extends Record<string, unknown>>({
               // If the filter value looks like a numeric date range (days), treat as date-range filter
               if (/^[0-9]+$/.test(filterValue)) {
                 const days = parseInt(filterValue, 10);
-                const dateValue = itemValue instanceof Date ? itemValue : new Date(itemValue as any);
+                const dateValue = itemValue instanceof Date ? itemValue : (typeof itemValue === 'string' || typeof itemValue === 'number' ? new Date(itemValue) : null);
                 if (!dateValue || isNaN(dateValue.getTime())) return false;
                 const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
                 return dateValue >= cutoff;
@@ -177,7 +177,7 @@ export function ExportButton<T extends Record<string, unknown>>({
               if (filterValue === '__specific_month__') {
                 const sel = monthSelections[filter.key];
                 if (!sel || !sel.year || !sel.month) return false;
-                const dateValue = itemValue instanceof Date ? itemValue : new Date(itemValue as any);
+                const dateValue = itemValue instanceof Date ? itemValue : (typeof itemValue === 'string' || typeof itemValue === 'number' ? new Date(itemValue) : null);
                 if (!dateValue || isNaN(dateValue.getTime())) return false;
                 return dateValue.getFullYear() === parseInt(sel.year, 10) && (dateValue.getMonth() + 1) === parseInt(sel.month, 10);
               }
@@ -426,7 +426,14 @@ export function ExportButton<T extends Record<string, unknown>>({
     }
 
     // Build table body as array of rows with per-cell objects and alternating fillColor, and safe wrapping
-    const tableBody: any[] = [];
+    interface PDFCell {
+      text: string;
+      style?: string;
+      alignment?: string;
+      noWrap?: boolean;
+      fillColor?: string;
+    }
+    const tableBody: Array<Array<PDFCell>> = [];
     tableBody.push(headers.map(h => ({ text: insertSoftBreaks(String(h || '')), style: 'tableHeader', alignment: 'center', noWrap: false })));
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r] || [];
@@ -460,17 +467,17 @@ export function ExportButton<T extends Record<string, unknown>>({
         {
           table: {
             headerRows: 1,
-            widths: numericWidths as any,
+            widths: numericWidths as (number | string)[],
             body: tableBody
           },
           layout: {
-            fillColor: undefined,
+            fillColor: undefined as unknown,
             hLineWidth: () => 0.5,
             vLineWidth: () => 0.5,
             hLineColor: () => '#000000',
             vLineColor: () => '#000000'
           }
-        }
+        } as unknown as Content
       ],
       styles: {
         header: {
@@ -504,7 +511,7 @@ export function ExportButton<T extends Record<string, unknown>>({
     setProgress(95);
 
     // Preflight: ensure there are no NaN numbers in the docDefinition which pdfMake cannot handle
-    const findNaN = (obj: any, path: string[] = []): string | null => {
+    const findNaN = (obj: unknown, path: string[] = []): string | null => {
       if (obj === null || obj === undefined) return null;
       if (typeof obj === 'number') {
         if (Number.isNaN(obj)) return path.join('.') || 'root';
@@ -520,7 +527,7 @@ export function ExportButton<T extends Record<string, unknown>>({
       }
       if (typeof obj === 'object') {
         for (const k of Object.keys(obj)) {
-          const res = findNaN((obj as any)[k], [...path, k]);
+          const res = findNaN((obj as Record<string, unknown>)[k], [...path, k]);
           if (res) return res;
         }
       }

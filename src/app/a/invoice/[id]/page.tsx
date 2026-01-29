@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
-import { UserHeader } from "@/components/user-header";
 import { AdminHeader } from "@/components/admin-header";
 import { AccountantHeader } from "@/components/accountant-header";
 import { Footer } from "@/components/footer";
@@ -17,7 +16,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { useToast } from "@/components/ui/use-toast";
 import { exportToExcel } from "@/lib/export";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -37,7 +35,6 @@ import {
   Loader2, 
   Check, 
   X, 
-  ZoomIn, 
   FileText,
   Building2,
   AlertCircle,
@@ -46,19 +43,16 @@ import {
   Download,
   Printer,
   ArrowLeft,
-  UserIcon,
-  UserCircleIcon,
   ExternalLink,
-  RefreshCw,
   Trash2,
   ImageOff,
   Receipt,
-  FileEdit
+  FileEdit,
+  RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
-import { InvoiceTypeBadge } from "@/components/invoice-type-badge";
 import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -556,7 +550,7 @@ export default function InvoiceReviewPage() {
         title: "Pobrano",
         description: "Faktura została pobrana",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Błąd",
         description: "Nie udało się pobrać faktury",

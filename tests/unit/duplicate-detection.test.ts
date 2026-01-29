@@ -312,7 +312,7 @@ describe('Duplicate Invoice Detection', () => {
     });
 
     it('should return zero conflicts when no duplicates exist', () => {
-      const duplicateGroups: any[] = [];
+      const duplicateGroups: unknown[] = [];
       
       expect(duplicateGroups.length).toBe(0);
     });
@@ -332,7 +332,7 @@ describe('Duplicate Invoice Detection', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty invoice list', () => {
-      const invoices: any[] = [];
+      const invoices: Array<{ kwota: string; ksefNumber: string; companyId: string }> = [];
       const duplicateGroups: Record<string, typeof invoices> = {};
       
       for (const invoice of invoices) {
@@ -347,7 +347,7 @@ describe('Duplicate Invoice Detection', () => {
     });
 
     it('should handle invoice with undefined first element safely', () => {
-      const group: any[] = [];
+      const group: unknown[] = [];
       const firstInvoice = group[0];
       
       expect(firstInvoice).toBeUndefined();

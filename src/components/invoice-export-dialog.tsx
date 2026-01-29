@@ -408,7 +408,7 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
           {
             table: {
               headerRows: 1,
-              widths: numericWidths as any,
+              widths: numericWidths as (number | string)[],
               body: [
                 headers.map(h => ({ text: insertSoftBreaks(String(h || '')), style: 'tableHeader', alignment: 'center' })),
                 ...sanitizedRows
@@ -456,7 +456,7 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Preflight NaN check
-      const findNaN = (obj: any, path: string[] = []): string | null => {
+      const findNaN = (obj: unknown, path: string[] = []): string | null => {
         if (obj === null || obj === undefined) return null;
         if (typeof obj === 'number') return Number.isNaN(obj) ? path.join('.') || 'root' : null;
         if (typeof obj === 'string' || typeof obj === 'boolean') return null;
@@ -469,7 +469,7 @@ const InvoiceExportDialog = React.memo(function InvoiceExportDialog({ invoices, 
         }
         if (typeof obj === 'object') {
           for (const k of Object.keys(obj)) {
-            const res = findNaN((obj as any)[k], [...path, k]);
+            const res = findNaN((obj as Record<string, unknown>)[k], [...path, k]);
             if (res) return res;
           }
         }

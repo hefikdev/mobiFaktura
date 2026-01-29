@@ -10,11 +10,11 @@ import { Footer } from "@/components/footer";
 import { SearchInput } from "@/components/search-input";
 import { ExportButton } from "@/components/export-button";
 import { SearchableSelect, SearchableSelectOption } from "@/components/ui/searchable-select";
-import { AdvancedFilters, FilterConfig } from "@/components/advanced-filters";
+import { AdvancedFilters, FilterConfig, FilterValue } from "@/components/advanced-filters";
 import dynamic from "next/dynamic";
 const BudgetRequestReviewDialog = dynamic(() => import("@/components/budget-request-review-dialog").then(m => m.BudgetRequestReviewDialog));
 import { AdvanceDetailsDialog } from "@/components/advance-details-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import {
@@ -33,10 +33,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Check, X, Filter, DollarSign, User, Calendar, Building2 } from "lucide-react";
+import { Loader2, Check, X, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
-import { Label } from "@/components/ui/label";
 import { BudgetRequest } from "@/types";
 
 type BudgetRequestStatus = "all" | "pending" | "approved" | "rejected";
@@ -54,7 +53,7 @@ export default function BudgetRequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAdvanceId, setSelectedAdvanceId] = useState<string | null>(null);
   const [isAdvanceDialogOpen, setIsAdvanceDialogOpen] = useState(false);
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, FilterValue>>({});
 
   // Check user role
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
@@ -151,18 +150,22 @@ export default function BudgetRequestsPage() {
 
     // Advanced filters
     if (advancedFilters.dateFrom) {
-      const fromDate = new Date(advancedFilters.dateFrom);
+      const fromDate = advancedFilters.dateFrom instanceof Date 
+        ? advancedFilters.dateFrom 
+        : new Date(String(advancedFilters.dateFrom));
       filtered = filtered.filter((req) => new Date(req.createdAt) >= fromDate);
     }
     if (advancedFilters.dateTo) {
-      const toDate = new Date(advancedFilters.dateTo);
+      const toDate = advancedFilters.dateTo instanceof Date 
+        ? advancedFilters.dateTo 
+        : new Date(String(advancedFilters.dateTo));
       filtered = filtered.filter((req) => new Date(req.createdAt) <= toDate);
     }
     if (advancedFilters.amountMin) {
-      filtered = filtered.filter((req) => (req.requestedAmount || 0) >= parseFloat(advancedFilters.amountMin));
+      filtered = filtered.filter((req) => (req.requestedAmount || 0) >= parseFloat(String(advancedFilters.amountMin)));
     }
     if (advancedFilters.amountMax) {
-      filtered = filtered.filter((req) => (req.requestedAmount || 0) <= parseFloat(advancedFilters.amountMax));
+      filtered = filtered.filter((req) => (req.requestedAmount || 0) <= parseFloat(String(advancedFilters.amountMax)));
     }
 
     // Sort by date descending (newest first) - same as invoices page
@@ -172,8 +175,6 @@ export default function BudgetRequestsPage() {
 
     return filtered;
   }, [allRequests, searchQuery, companyFilter, advancedFilters]);
-
-  const { data: pendingCount } = trpc.budgetRequest.getPendingCount.useQuery();
 
   // Ref for infinite scroll
   const observer = useRef<IntersectionObserver>();

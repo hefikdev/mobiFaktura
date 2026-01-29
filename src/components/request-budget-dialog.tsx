@@ -113,7 +113,7 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
     if (!selectedCompanyId) {
       toast({
         title: "Błąd",
-        description: "Wybierz firmę, dla której prosisz o zasilenie",
+        description: "Wybierz firmę, dla której prosisz o zaliczkę",
         variant: "destructive",
       });
       return;
@@ -147,7 +147,7 @@ export function RequestBudgetDialog({ open, onOpenChange }: { open?: boolean; on
     <Dialog open={controlledOpen} onOpenChange={setControlledOpen}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Poproś o zasilenie salda</DialogTitle>
+          <DialogTitle>Poproś o zaliczkę</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
           <div className="grid gap-2">

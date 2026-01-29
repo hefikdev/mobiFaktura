@@ -8,8 +8,8 @@ describe('sanitizeExportCell', () => {
   });
 
   it('uses formatter and handles formatter returning NaN', () => {
-    const f = (v: any) => {
-      if (v === 'bad') return NaN as any;
+    const f = (v: unknown): string | number => {
+      if (v === 'bad') return NaN;
       return `#${v}`;
     };
     expect(sanitizeExportCell('good', f)).toBe('#good');

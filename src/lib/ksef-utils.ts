@@ -70,15 +70,22 @@ export function parseKsefQRCode(qrText: string): KsefQRData | null {
  * @param invoiceData - The invoice data from KSeF API
  * @returns KSeF number or null
  */
-export function extractKsefNumber(invoiceData: any): string | null {
+export function extractKsefNumber(invoiceData: unknown): string | null {
   // The KSeF number is typically in the ElementReferenceNumber field
   try {
-    if (typeof invoiceData === 'object' && invoiceData?.Faktura) {
+    if (typeof invoiceData === 'object' && invoiceData !== null && 'Faktura' in invoiceData) {
+      const data = invoiceData as {
+        KsefReferenceNumber?: string;
+        ElementReferenceNumber?: string;
+        Faktura?: {
+          KsefReferenceNumber?: string;
+        };
+      };
       // Try to find KSeF number in various possible locations
       const ksefNum = 
-        invoiceData.KsefReferenceNumber ||
-        invoiceData.ElementReferenceNumber ||
-        invoiceData.Faktura?.KsefReferenceNumber;
+        data.KsefReferenceNumber ||
+        data.ElementReferenceNumber ||
+        data.Faktura?.KsefReferenceNumber;
       
       if (ksefNum && typeof ksefNum === 'string') {
         return ksefNum;

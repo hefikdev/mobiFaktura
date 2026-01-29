@@ -25,15 +25,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { User, Mail, Shield, LogOut, Globe, Clock, Bell, Volume2, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Shield, LogOut, Globe, Clock, Bell, Lock, Eye, EyeOff } from "lucide-react";
 import { formatDateTime } from "@/lib/date-utils";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { data: user, isLoading } = trpc.auth.me.useQuery();
-  
   const utils = trpc.useUtils();
+  const { data: user, isLoading } = trpc.auth.me.useQuery();
   
   // Password change state
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);

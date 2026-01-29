@@ -82,7 +82,15 @@ export function autoFitColumns(worksheet: ExcelJS.Worksheet, minWidth: number = 
 
 // Generate Excel for single invoice
 export async function generateSingleInvoiceExcel(
-  invoice: any,
+  invoice: {
+    invoiceNumber: string | null;
+    userName: string | null;
+    companyName: string | null;
+    kwota: string | null;
+    status: string;
+    createdAt: Date | string;
+    description: string | null;
+  },
   options: {
     dateFormat: "dd/MM/yyyy" | "yyyy-MM-dd" | "dd.MM.yyyy";
     currencyFormat: "PLN" | "EUR" | "USD";
@@ -152,8 +160,20 @@ export async function generateSingleInvoiceExcel(
 
 // Generate Excel for single advance
 export async function generateSingleAdvanceExcel(
-  advance: any,
-  budgetRequest: any,
+  advance: {
+    userName: string | null;
+    userEmail: string | null;
+    companyName: string | null;
+    amount: number | string;
+    status: string;
+    createdAt: Date | string;
+    transferDate: Date | string | null;
+    settledAt: Date | string | null;
+    description: string | null;
+  },
+  budgetRequest: {
+    justification: string;
+  } | null,
   options: {
     dateFormat: "dd/MM/yyyy" | "yyyy-MM-dd" | "dd.MM.yyyy";
     currencyFormat: "PLN" | "EUR" | "USD";
@@ -232,7 +252,18 @@ export async function generateSingleAdvanceExcel(
 
 // Generate Excel for single budget request
 export async function generateSingleBudgetRequestExcel(
-  budgetRequest: any,
+  budgetRequest: {
+    userName: string | null;
+    companyName: string | null;
+    requestedAmount: number | string;
+    currentBalanceAtRequest: number | string | null;
+    status: string;
+    createdAt: Date | string;
+    reviewedAt: Date | string | null;
+    reviewerName: string | null;
+    justification: string;
+    rejectionReason: string | null;
+  },
   options: {
     dateFormat: "dd/MM/yyyy" | "yyyy-MM-dd" | "dd.MM.yyyy";
     currencyFormat: "PLN" | "EUR" | "USD";
@@ -314,7 +345,15 @@ export async function generateSingleBudgetRequestExcel(
 
 // Generate Excel for invoices list
 export async function generateInvoicesExcel(
-  invoices: any[],
+  invoices: Array<{
+    invoiceNumber: string | null;
+    userName: string | null;
+    companyName: string | null;
+    kwota: string | null;
+    status: string;
+    createdAt: Date | string;
+    description: string | null;
+  }>,
   options: {
     dateFormat: "dd/MM/yyyy" | "yyyy-MM-dd" | "dd.MM.yyyy";
     currencyFormat: "PLN" | "EUR" | "USD";
@@ -379,7 +418,15 @@ export async function generateInvoicesExcel(
 
 // Generate Excel for advances list
 export async function generateAdvancesExcel(
-  advances: any[],
+  advances: Array<{
+    userName: string | null;
+    companyName: string | null;
+    amount: number | string;
+    status: string;
+    createdAt: Date | string;
+    transferDate: Date | string | null;
+    settledAt: Date | string | null;
+  }>,
   options: {
     dateFormat: "dd/MM/yyyy" | "yyyy-MM-dd" | "dd.MM.yyyy";
     currencyFormat: "PLN" | "EUR" | "USD";

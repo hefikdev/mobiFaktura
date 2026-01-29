@@ -57,7 +57,7 @@ describe('Admin Utils - Logic Tests', () => {
 
   describe('User List Filtering', () => {
     it('should filter empty user list', () => {
-      const users: any[] = [];
+      const users: Array<{ role: string }> = [];
       const admins = users.filter(u => u.role === 'admin');
       
       expect(admins).toHaveLength(0);

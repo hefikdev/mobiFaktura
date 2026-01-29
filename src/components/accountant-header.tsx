@@ -224,60 +224,60 @@ export function AccountantHeader({ lastInvoiceSync }: AccountantHeaderProps) {
               <span className="sr-only">Dodaj fakturę</span>
             </Link>
           </Button>
+
+          <Button asChild variant="ghost" size="sm" className="text-xs">
+            <Link href="/a/dashboard">
+              <User className="mr-1 h-3 w-3" />
+              Moje faktury
+            </Link>
+          </Button>
           
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" size="sm" className="text-xs">
             <Link href="/a/accountant">
-              <BookCheck className="mr-2 h-4 w-4" />
+              <BookCheck className="mr-1 h-3 w-3" />
               Widok
             </Link>
           </Button>
           
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" size="sm" className="text-xs">
             <Link href="/a/invoices">
-              <FileText className="mr-2 h-4 w-4" />
+              <FileText className="mr-1 h-3 w-3" />
               Faktury
             </Link>
           </Button>
 
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" size="sm" className="text-xs">
             <Link href="/a/corrections">
-              <FilePen className="mr-2 h-4 w-4" />
+              <FilePen className="mr-1 h-3 w-3" />
               Korekty
             </Link>
           </Button>
 
-          <Button asChild variant="ghost">
-            <Link href="/a/dashboard">
-              <User className="mr-2 h-4 w-4" />
-              Moje faktury
-            </Link>
-          </Button>
-
-          <Button asChild variant="ghost">
-            <Link href="/a/exports">
-              <FileText className="mr-2 h-4 w-4" />
-              Raporty
-            </Link>
-          </Button>
-
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" size="sm" className="text-xs">
             <Link href="/a/saldo">
-              <Wallet className="mr-2 h-4 w-4" />
+              <Wallet className="mr-1 h-3 w-3" />
               Saldo
             </Link>
           </Button>
 
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" size="sm" className="text-xs">
             <Link href="/a/advances">
-              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              <ArrowRightLeft className="mr-1 h-3 w-3" />
               Zaliczki
             </Link>
           </Button>
 
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" size="sm" className="text-xs">
             <Link href="/a/budget-requests">
-              <DollarSign className="mr-2 h-4 w-4" />
+              <DollarSign className="mr-1 h-3 w-3" />
               Prośby
+            </Link>
+          </Button>
+          
+          <Button asChild variant="ghost" size="sm" className="text-xs">
+            <Link href="/a/exports">
+              <FileText className="mr-1 h-3 w-3" />
+              Raporty
             </Link>
           </Button>
           

@@ -1,6 +1,9 @@
-# mobiFaktura - Complete Architecture
+# mobiFaktura - System Architecture
 
-Complete system architecture showing all components, data flow, and interactions.
+**Version:** 1.0  
+**Last Updated:** January 29, 2026
+
+Complete system architecture documenting all components, data flows, and technical decisions.
 
 ## 🏗️ System Overview
 

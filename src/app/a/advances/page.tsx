@@ -15,7 +15,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
-import { Loader2, Plus, ArrowRightLeft, Wallet, Calendar, User, Building2, CheckCircle, Info } from "lucide-react";
+import { Loader2, Plus, ArrowRightLeft, Calendar, User, Building2, CheckCircle, Info } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { AdvanceDetailsDialog } from "@/components/advance-details-dialog";
@@ -24,16 +24,31 @@ import { SearchInput } from "@/components/search-input";
 import { AdvancedExportDialog } from "@/components/advanced-export-dialog";
 import { Footer } from "@/components/footer";
 import { AdvancedFilters } from "@/components/advanced-filters";
-import type { FilterConfig } from "@/components/advanced-filters";
+import type { FilterConfig, FilterValue } from "@/components/advanced-filters";
+
+type AdvanceItem = {
+  id: string;
+  userId: string;
+  userName?: string | null;
+  userEmail?: string | null;
+  companyId?: string | null;
+  companyName?: string | null;
+  companyNip?: string | null;
+  amount: number;
+  status: string;
+  description?: string | null;
+  createdAt: Date | string;
+  sourceType?: string;
+};
 
 export default function AdvancesPage() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, FilterValue>>({});
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [selectedAdvance, setSelectedAdvance] = useState<any>(null);
+  const [selectedAdvance, setSelectedAdvance] = useState<AdvanceItem | null>(null);
   const [createForm, setCreateForm] = useState({ userId: "", companyId: "", amount: "", description: "" });
   
   const { data: currentUser } = trpc.auth.me.useQuery();
@@ -41,7 +56,7 @@ export default function AdvancesPage() {
     const searchParams = useSearchParams();
 
     const { data: advancesData, isLoading, refetch } = trpc.advances.getAll.useInfiniteQuery(
-        { status: statusFilter as any, search },
+        { status: statusFilter, search },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
       refetchInterval: 10000, // Auto-refresh every 10 seconds
@@ -71,11 +86,14 @@ export default function AdvancesPage() {
 
     useEffect(() => {
         const advanceId = searchParams?.get("advanceId");
-        if (advanceId) {
-            setSelectedAdvance({ id: advanceId });
-            setIsDetailsOpen(true);
+        if (advanceId && advances) {
+            const advance = advances.find((a: AdvanceItem) => a.id === advanceId);
+            if (advance) {
+                setSelectedAdvance(advance as AdvanceItem);
+                setIsDetailsOpen(true);
+            }
         }
-    }, [searchParams]);
+    }, [searchParams, advances]);
 
 
   // Prepare user options for SearchableSelect
@@ -212,7 +230,7 @@ export default function AdvancesPage() {
     // Global search across all fields
     if (search) {
       const query = search.toLowerCase();
-      filtered = filtered.filter((advance: any) => {
+      filtered = filtered.filter((advance: AdvanceItem) => {
         return (
           advance.userName?.toLowerCase().includes(query) ||
           advance.userEmail?.toLowerCase().includes(query) ||
@@ -230,26 +248,30 @@ export default function AdvancesPage() {
 
     // Status filter
     if (statusFilter !== "all") {
-      filtered = filtered.filter((advance: any) => advance.status === statusFilter);
+      filtered = filtered.filter((advance: AdvanceItem) => advance.status === statusFilter);
     }
 
     // Advanced filters
     if (advancedFilters.dateFrom) {
-      const fromDate = new Date(advancedFilters.dateFrom);
-      filtered = filtered.filter((advance: any) => new Date(advance.createdAt) >= fromDate);
+      const fromDate = advancedFilters.dateFrom instanceof Date 
+        ? advancedFilters.dateFrom 
+        : new Date(String(advancedFilters.dateFrom));
+      filtered = filtered.filter((advance: AdvanceItem) => new Date(advance.createdAt) >= fromDate);
     }
     if (advancedFilters.dateTo) {
-      const toDate = new Date(advancedFilters.dateTo);
-      filtered = filtered.filter((advance: any) => new Date(advance.createdAt) <= toDate);
+      const toDate = advancedFilters.dateTo instanceof Date 
+        ? advancedFilters.dateTo 
+        : new Date(String(advancedFilters.dateTo));
+      filtered = filtered.filter((advance: AdvanceItem) => new Date(advance.createdAt) <= toDate);
     }
     if (advancedFilters.amountMin) {
-      filtered = filtered.filter((advance: any) => advance.amount >= parseFloat(advancedFilters.amountMin));
+      filtered = filtered.filter((advance: AdvanceItem) => advance.amount >= parseFloat(String(advancedFilters.amountMin)));
     }
     if (advancedFilters.amountMax) {
-      filtered = filtered.filter((advance: any) => advance.amount <= parseFloat(advancedFilters.amountMax));
+      filtered = filtered.filter((advance: AdvanceItem) => advance.amount <= parseFloat(String(advancedFilters.amountMax)));
     }
     if (advancedFilters.sourceType && advancedFilters.sourceType !== "__all__") {
-      filtered = filtered.filter((advance: any) => advance.sourceType === advancedFilters.sourceType);
+      filtered = filtered.filter((advance: AdvanceItem) => advance.sourceType === advancedFilters.sourceType);
     }
 
     return filtered;

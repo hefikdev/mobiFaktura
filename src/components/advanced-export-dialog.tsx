@@ -134,10 +134,10 @@ export function AdvancedExportDialog({
         title: "Sukces!",
         description: "Raport został wygenerowany i pobrany.",
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Błąd",
-        description: error.message || "Nie udało się wygenerować raportu.",
+        description: error instanceof Error ? error.message : "Nie udało się wygenerować raportu.",
         variant: "destructive",
       });
     } finally {
@@ -305,7 +305,7 @@ export function AdvancedExportDialog({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Waluta</Label>
-                    <Select value={currencyFormat} onValueChange={(val) => setCurrencyFormat(val as any)}>
+                    <Select value={currencyFormat} onValueChange={(val: string) => setCurrencyFormat(val as "PLN" | "EUR" | "USD")}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>

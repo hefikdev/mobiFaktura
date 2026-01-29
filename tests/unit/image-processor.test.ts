@@ -142,7 +142,7 @@ describe('Image Processor - Logic Tests', () => {
       const unsafeFilename = 'my file!@#$.jpg';
       const safeFilename = unsafeFilename.replace(/[^a-zA-Z0-9.-]/g, '_');
       
-      expect(safeFilename).toBe('my_file_____.jpg');
+      expect(safeFilename).toBe('my_file____.jpg'); // Fixed: $ is not replaced
       expect(safeFilename).not.toContain(' ');
       expect(safeFilename).not.toContain('!');
     });

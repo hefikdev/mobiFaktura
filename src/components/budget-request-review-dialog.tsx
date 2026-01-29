@@ -90,7 +90,18 @@ export function BudgetRequestReviewDialog({
       setExportProgress(10);
       
       setExportProgress(30);
-      await generateSingleBudgetRequestExcel(request, {
+      await generateSingleBudgetRequestExcel({
+        userName: request.userName,
+        companyName: request.companyName || null,
+        requestedAmount: request.requestedAmount,
+        currentBalanceAtRequest: request.currentBalanceAtRequest,
+        status: request.status,
+        createdAt: request.createdAt,
+        reviewedAt: request.reviewedAt || null,
+        reviewerName: request.reviewerName || null,
+        justification: request.justification,
+        rejectionReason: request.rejectionReason || null,
+      }, {
         dateFormat: "dd/MM/yyyy",
         currencyFormat: "PLN",
         showCurrencySymbol: true,

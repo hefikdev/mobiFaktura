@@ -471,7 +471,7 @@ export function AdvanceDetailsDialog({
                                 {inv.kwota ? `${inv.kwota.toFixed(2)} PLN` : "-"}
                             </td>
                             <td className="p-2">
-                                <InvoiceStatusBadge status={inv.status as any} variant="compact" />
+                                <InvoiceStatusBadge status={inv.status} variant="compact" />
                             </td>
                             </tr>
                         ))}
@@ -539,9 +539,6 @@ export function AdvanceDetailsDialog({
                    )}
                  </div>
                  <div className="flex gap-2">
-                   <Button variant="outline" onClick={() => onOpenChange(false)}>
-                      Zamknij
-                   </Button>
                    
                    {advance.status === "pending" && (
                        <Button 

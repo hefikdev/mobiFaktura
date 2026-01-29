@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { AdminHeader } from "@/components/admin-header";
 import { AccountantHeader } from "@/components/accountant-header";
@@ -106,7 +106,6 @@ export default function ExportsPage() {
   });
   
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [selectedReports, setSelectedReports] = useState<ReportType[]>([]);
   const [reportConfigs, setReportConfigs] = useState<Record<ReportType, ReportConfig>>({
     invoices: {
       type: "invoices",
@@ -292,7 +291,7 @@ export default function ExportsPage() {
     }));
   };
 
-  const updateReportParam = (type: ReportType, param: string, value: any) => {
+  const updateReportParam = (type: ReportType, param: string, value: unknown) => {
     setReportConfigs((prev) => ({
       ...prev,
       [type]: {
@@ -344,7 +343,7 @@ export default function ExportsPage() {
 
     // Call TRPC endpoint to generate the report
     generateReportMutation.mutate({
-      reports: enabledReports as any,
+      reports: enabledReports,
       exportFormat: exportFormat,
     });
   };

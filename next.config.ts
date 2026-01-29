@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import withPWA from "next-pwa";
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
   turbopack: {},
@@ -47,7 +47,7 @@ const nextConfig = {
       },
     ];
   },
-} satisfies any;
+};
 
 export default withPWA({
   dest: "public",
@@ -172,4 +172,4 @@ export default withPWA({
       },
     },
   ],
-})(nextConfig as any);
+})(nextConfig);

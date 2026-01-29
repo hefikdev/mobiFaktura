@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SearchInput } from "@/components/search-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { AdvancedFilters, type FilterConfig } from "@/components/advanced-filters";
+import { AdvancedFilters, type FilterConfig, type FilterValue } from "@/components/advanced-filters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -54,10 +53,10 @@ import { useRouter } from "next/navigation";
 type CorrectionInvoice = {
   id: string;
   userId: string;
-  userName: string;
-  userEmail: string;
+  userName: string | null;
+  userEmail: string | null;
   companyId: string;
-  companyName: string;
+  companyName: string | null;
   invoiceNumber: string;
   imageKey: string;
   originalInvoiceId: string | null;
@@ -90,7 +89,7 @@ export default function CorrectionsPage() {
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCompany, setFilterCompany] = useState<string>("__all__");
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, FilterValue>>({});
 
   // Correction form dialog states
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -104,8 +103,6 @@ export default function CorrectionsPage() {
   const {
     data: correctionsData,
     isLoading: loadingCorrections,
-    fetchNextPage,
-    hasNextPage,
     isFetchingNextPage,
     refetch: refetchCorrections,
   } = trpc.invoice.getCorrectionInvoices.useInfiniteQuery(
@@ -115,7 +112,7 @@ export default function CorrectionsPage() {
       searchQuery,
     },
     {
-      getNextPageParam: (lastPage: any) => lastPage.nextCursor,
+      getNextPageParam: (lastPage: { nextCursor?: string }) => lastPage.nextCursor,
       enabled: !!user && (user.role === "accountant" || user.role === "admin"),
       refetchInterval: 10000, // Auto-refresh every 10 seconds
       refetchOnWindowFocus: true,
@@ -123,7 +120,7 @@ export default function CorrectionsPage() {
     }
   );
 
-  const allCorrections = (correctionsData?.pages.flatMap((page: any) => page.items) || []) as CorrectionInvoice[];
+  const allCorrections = (correctionsData?.pages.flatMap((page) => page.items) || []) as CorrectionInvoice[];
 
   const { data: companies } = trpc.company.list.useQuery();
 
@@ -196,7 +193,7 @@ export default function CorrectionsPage() {
       resetForm();
       refetchCorrections();
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "Error",
         description: error.message,
@@ -261,20 +258,24 @@ export default function CorrectionsPage() {
 
     // Apply advanced filters
     if (advancedFilters.dateFrom) {
-      const dateFrom = new Date(advancedFilters.dateFrom);
+      const dateFrom = advancedFilters.dateFrom instanceof Date 
+        ? advancedFilters.dateFrom 
+        : new Date(String(advancedFilters.dateFrom));
       filtered = filtered.filter(corr => new Date(corr.createdAt) >= dateFrom);
     }
     if (advancedFilters.dateTo) {
-      const dateTo = new Date(advancedFilters.dateTo);
+      const dateTo = advancedFilters.dateTo instanceof Date 
+        ? advancedFilters.dateTo 
+        : new Date(String(advancedFilters.dateTo));
       dateTo.setHours(23, 59, 59, 999);
       filtered = filtered.filter(corr => new Date(corr.createdAt) <= dateTo);
     }
     if (advancedFilters.amountMin) {
-      const amountMin = parseFloat(advancedFilters.amountMin);
+      const amountMin = parseFloat(String(advancedFilters.amountMin));
       filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) >= amountMin);
     }
     if (advancedFilters.amountMax) {
-      const amountMax = parseFloat(advancedFilters.amountMax);
+      const amountMax = parseFloat(String(advancedFilters.amountMax));
       filtered = filtered.filter(corr => corr.correctionAmount && parseFloat(corr.correctionAmount) <= amountMax);
     }
 

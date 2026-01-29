@@ -236,9 +236,20 @@ export const invoiceRouter = createTRPCRouter({
             console.error("Failed to rollback MinIO file after DB error:", deleteError);
           }
         }
+        
+        // Log the original error for debugging
+        console.error("Failed to create invoice in database:", error);
+        
+        // Re-throw TRPCErrors as-is (e.g., CONFLICT from optimistic locking)
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        
+        // For other errors, provide more context
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Nie udało się utworzyć faktury w bazie danych",
+          message: `Nie udało się utworzyć faktury w bazie danych: ${errorMessage}`,
         });
       }
 
@@ -901,7 +912,34 @@ export const invoiceRouter = createTRPCRouter({
         }
 
       return {
-        ...invoice,
+        id: invoice.id,
+        userId: invoice.userId,
+        companyId: invoice.companyId,
+        invoiceType: invoice.invoiceType,
+        imageKey: invoice.imageKey,
+        invoiceNumber: invoice.invoiceNumber,
+        ksefNumber: invoice.ksefNumber,
+        kwota: invoice.kwota,
+        description: invoice.description,
+        justification: invoice.justification,
+        originalInvoiceId: invoice.originalInvoiceId,
+        correctionAmount: invoice.correctionAmount,
+        status: invoice.status,
+        reviewedBy: invoice.reviewedBy,
+        reviewedAt: invoice.reviewedAt,
+        rejectionReason: invoice.rejectionReason,
+        reviewStartedAt: invoice.reviewStartedAt,
+        lastReviewPing: invoice.lastReviewPing,
+        transferredBy: invoice.transferredBy,
+        transferredAt: invoice.transferredAt,
+        settledBy: invoice.settledBy,
+        settledAt: invoice.settledAt,
+        budgetRequestId: invoice.budgetRequestId,
+        advanceId: invoice.advanceId,
+        lastEditedBy: invoice.lastEditedBy,
+        lastEditedAt: invoice.lastEditedAt,
+        createdAt: invoice.createdAt,
+        updatedAt: invoice.updatedAt,
         imageUrl,
         submitter,
         company,
@@ -911,8 +949,7 @@ export const invoiceRouter = createTRPCRouter({
         settledByUser,
         editHistory,
         budgetRequest,
-          advance,
-        // Add flag to indicate if current user is the reviewer
+        advance,
         isCurrentUserReviewing: invoice.currentReviewer === ctx.user.id,
       };
     }),
@@ -1286,8 +1323,8 @@ export const invoiceRouter = createTRPCRouter({
       // Import password verification
       const { verifyPassword } = await import("@/server/auth/password");
       const isValidPassword = await verifyPassword(
-        currentUser.passwordHash,
-        input.password
+        input.password,
+        currentUser.passwordHash
       );
 
       if (!isValidPassword) {

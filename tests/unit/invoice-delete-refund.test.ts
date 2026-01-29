@@ -34,7 +34,7 @@ describe('Invoice delete -> saldo refund (unit)', () => {
   });
 
   it('skips refund when kwota is 0 or missing', () => {
-    const invoiceNoAmount = { id: 'inv-2', userId: 'u2', invoiceNumber: 'INV-000' } as any;
+    const invoiceNoAmount = { id: 'inv-2', userId: 'u2', invoiceNumber: 'INV-000' } as Partial<{ kwota: number }>;
     expect(invoiceNoAmount.kwota).toBeUndefined();
 
     const invoiceZero = { id: 'inv-3', userId: 'u3', invoiceNumber: 'INV-001', kwota: 0 } as const;

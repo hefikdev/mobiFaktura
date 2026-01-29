@@ -13,9 +13,105 @@ import { Info } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 
+interface InvoiceEditHistory {
+  editedAt: Date | string;
+  editor?: {
+    name: string | null;
+  };
+}
+
+interface InvoiceData {
+  id: string;
+  userId: string;
+  companyId: string;
+  invoiceType: string;
+  imageKey: string;
+  invoiceNumber: string | null;
+  ksefNumber: string | null;
+  kwota: string | null;
+  description: string | null;
+  justification: string | null;
+  originalInvoiceId: string | null;
+  correctionAmount: string | null;
+  status: string;
+  reviewedBy: string | null;
+  reviewedAt: Date | string | null;
+  rejectionReason: string | null;
+  reviewStartedAt: Date | string | null;
+  lastReviewPing: Date | string | null;
+  transferredBy: string | null;
+  transferredAt: Date | string | null;
+  settledBy: string | null;
+  settledAt: Date | string | null;
+  budgetRequestId: string | null;
+  advanceId: string | null;
+  lastEditedBy: string | null;
+  lastEditedAt: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  imageUrl: string | null;
+  submitter?: {
+    name: string;
+    email: string;
+  } | undefined;
+  company?: {
+    name: string;
+    nip: string | null;
+    address: string | null;
+  } | undefined;
+  currentReviewer?: {
+    name: string;
+  } | null;
+  reviewer?: {
+    name: string;
+  } | null;
+  lastEditor?: {
+    name: string;
+  } | null;
+  settledByUser?: {
+    name: string;
+  } | null;
+  editHistory?: InvoiceEditHistory[];
+  budgetRequest?: {
+    id: string;
+    requestedAmount: number;
+    status: string;
+    createdAt: Date;
+    reviewedAt: Date | null;
+    userName: string | null;
+    companyId: string;
+    companyName: string | null;
+    relatedInvoices?: Array<{
+      id: string;
+      invoiceNumber: string | null;
+      kwota: number | null;
+      status: string;
+      createdAt: Date;
+    }>;
+  } | null;
+  advance?: {
+    id: string;
+    amount: number;
+    status: string;
+    createdAt: Date;
+    transferDate: Date | null;
+  } | null;
+  isCurrentUserReviewing: boolean;
+}
+
+interface CorrectionInvoice {
+  id: string;
+  invoiceNumber: string | null;
+  correctionAmount: number;
+  justification: string | null;
+  createdAt: Date;
+  reviewedAt: Date | null;
+  reviewerName: string | null;
+}
+
 type Props = {
-  invoice: any;
-  corrections?: any[] | null;
+  invoice: InvoiceData;
+  corrections?: CorrectionInvoice[] | null;
   invoiceId: string;
 };
 
@@ -134,7 +230,7 @@ const InvoiceDetailsDialog = memo(function InvoiceDetailsDialog({
                       <span>{invoice?.createdAt ? format(new Date(invoice.createdAt), "dd.MM.yyyy HH:mm:ss", { locale: pl }) : '—'} • {invoice?.submitter?.name || '—'}</span>
                     </div>
 
-                    {invoice?.editHistory && invoice.editHistory.length > 0 && invoice.editHistory.map((e: any, idx: number) => (
+                    {invoice?.editHistory && invoice.editHistory.length > 0 && invoice.editHistory.map((e, idx) => (
                       <div key={idx} className="flex justify-between text-muted-foreground">
                         <span>Edycja</span>
                         <span>{format(new Date(e.editedAt), "dd.MM.yyyy HH:mm:ss", { locale: pl })} • {e.editor?.name || '—'}</span>

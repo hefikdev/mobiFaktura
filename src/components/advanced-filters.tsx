@@ -29,10 +29,27 @@ export interface FilterConfig {
   placeholder?: string;
 }
 
+// Define a union type for filter values
+export type FilterValue = string | number | Date | [Date | undefined, Date | undefined] | undefined | null;
+
+// Helper to extract Date from FilterValue
+function getDateValue(value: FilterValue): Date | undefined {
+  if (value instanceof Date) return value;
+  if (typeof value === 'string') return new Date(value);
+  return undefined;
+}
+
+// Helper to format date for display
+function formatDateValue(value: FilterValue, placeholder: string): string | JSX.Element {
+  const date = getDateValue(value);
+  if (date) return format(date, "PPP", { locale: pl });
+  return <span>{placeholder}</span>;
+}
+
 export interface AdvancedFilterProps {
   filters: FilterConfig[];
-  values: Record<string, any>;
-  onChange: (values: Record<string, any>) => void;
+  values: Record<string, FilterValue>;
+  onChange: (values: Record<string, FilterValue>) => void;
   onReset: () => void;
 }
 
@@ -48,7 +65,7 @@ export function AdvancedFilters({
     (v) => v !== undefined && v !== "" && v !== null && (Array.isArray(v) ? v.length > 0 : true)
   ).length;
 
-  const handleChange = (field: string, value: any) => {
+  const handleChange = (field: string, value: FilterValue) => {
     onChange({ ...values, [field]: value });
   };
 
@@ -82,7 +99,7 @@ export function AdvancedFilters({
               <Label>{filter.label}</Label>
               {filter.type === "text" && (
                 <Input
-                  value={values[filter.field] || ""}
+                  value={(typeof values[filter.field] === 'string' || typeof values[filter.field] === 'number') ? String(values[filter.field]) : ""}
                   onChange={(e) => handleChange(filter.field, e.target.value)}
                   placeholder={filter.placeholder}
                 />
@@ -90,7 +107,7 @@ export function AdvancedFilters({
               {filter.type === "number" && (
                 <Input
                   type="number"
-                  value={values[filter.field] || ""}
+                  value={(typeof values[filter.field] === 'string' || typeof values[filter.field] === 'number') ? String(values[filter.field]) : ""}
                   onChange={(e) => handleChange(filter.field, e.target.value)}
                   placeholder={filter.placeholder}
                 />
@@ -100,14 +117,14 @@ export function AdvancedFilters({
                   <Input
                     type="number"
                     step="0.01"
-                    value={values[`${filter.field}Min`] || ""}
+                    value={(typeof values[`${filter.field}Min`] === 'string' || typeof values[`${filter.field}Min`] === 'number') ? String(values[`${filter.field}Min`]) : ""}
                     onChange={(e) => handleChange(`${filter.field}Min`, e.target.value)}
                     placeholder="Od"
                   />
                   <Input
                     type="number"
                     step="0.01"
-                    value={values[`${filter.field}Max`] || ""}
+                    value={(typeof values[`${filter.field}Max`] === 'string' || typeof values[`${filter.field}Max`] === 'number') ? String(values[`${filter.field}Max`]) : ""}
                     onChange={(e) => handleChange(`${filter.field}Max`, e.target.value)}
                     placeholder="Do"
                   />
@@ -115,7 +132,12 @@ export function AdvancedFilters({
               )}
               {filter.type === "select" && filter.options && (
                 <Select
-                  value={values[filter.field] || ""}
+                  value={(() => {
+                    const val = values[filter.field];
+                    if (typeof val === 'string') return val;
+                    if (val === undefined || val === null) return undefined;
+                    return String(val);
+                  })()}
                   onValueChange={(value) => handleChange(filter.field, value)}
                 >
                   <SelectTrigger>
@@ -144,17 +166,13 @@ export function AdvancedFilters({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {values[filter.field] ? (
-                        format(new Date(values[filter.field]), "PPP", { locale: pl })
-                      ) : (
-                        <span>{filter.placeholder || "Wybierz datę"}</span>
-                      )}
+                      {formatDateValue(values[filter.field], filter.placeholder || "Wybierz datę")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar
                       mode="single"
-                      selected={values[filter.field] ? new Date(values[filter.field]) : undefined}
+                      selected={getDateValue(values[filter.field])}
                       onSelect={(date) => handleChange(filter.field, date?.toISOString())}
                       locale={pl}
                       initialFocus
@@ -174,21 +192,13 @@ export function AdvancedFilters({
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {values[`${filter.field}From`] ? (
-                          format(new Date(values[`${filter.field}From`]), "PPP", { locale: pl })
-                        ) : (
-                          <span>Od</span>
-                        )}
+                        {formatDateValue(values[`${filter.field}From`], "Od")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
                       <Calendar
                         mode="single"
-                        selected={
-                          values[`${filter.field}From`]
-                            ? new Date(values[`${filter.field}From`])
-                            : undefined
-                        }
+                        selected={getDateValue(values[`${filter.field}From`])}
                         onSelect={(date) =>
                           handleChange(`${filter.field}From`, date?.toISOString())
                         }
@@ -207,21 +217,13 @@ export function AdvancedFilters({
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {values[`${filter.field}To`] ? (
-                          format(new Date(values[`${filter.field}To`]), "PPP", { locale: pl })
-                        ) : (
-                          <span>Do</span>
-                        )}
+                        {formatDateValue(values[`${filter.field}To`], "Do")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
                       <Calendar
                         mode="single"
-                        selected={
-                          values[`${filter.field}To`]
-                            ? new Date(values[`${filter.field}To`])
-                            : undefined
-                        }
+                        selected={getDateValue(values[`${filter.field}To`])}
                         onSelect={(date) =>
                           handleChange(`${filter.field}To`, date?.toISOString())
                         }

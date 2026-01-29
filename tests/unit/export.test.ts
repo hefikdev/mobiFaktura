@@ -9,10 +9,10 @@ describe('sanitizeExportCell', () => {
   });
 
   it('uses formatter when provided and falls back on error', () => {
-    const fmt = (v: any) => `x:${v}`;
+    const fmt = (v: unknown) => `x:${v}`;
     expect(sanitizeExportCell('a', fmt)).toBe('x:a');
 
-    const badFmt = () => { throw new Error('boom'); };
-    expect(sanitizeExportCell('a', badFmt as any)).toBe('a');
+    const badFmt = (() => { throw new Error('boom'); }) as (v: unknown) => string;
+    expect(sanitizeExportCell('a', badFmt)).toBe('a');
   });
 });

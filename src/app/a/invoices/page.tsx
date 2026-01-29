@@ -39,7 +39,7 @@ import { AdvancedExportDialog } from "@/components/advanced-export-dialog";
 import { InvoiceStatusBadge } from "@/components/invoice-status-badge";
 import { InvoiceTypeBadge } from "@/components/invoice-type-badge";
 import { SearchableSelect, SearchableSelectOption } from "@/components/ui/searchable-select";
-import { AdvancedFilters, FilterConfig } from "@/components/advanced-filters";
+import { AdvancedFilters, FilterConfig, FilterValue } from "@/components/advanced-filters";
 import {
   Loader2,
   FileText,
@@ -49,7 +49,6 @@ import {
   Calendar,
   FileCheck,
   Trash2,
-  Wallet,
 } from "lucide-react";
 import { SectionLoader } from "@/components/section-loader";
 import { format } from "date-fns";
@@ -92,7 +91,7 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCompany, setFilterCompany] = useState<string>("__all__");
   const [filterStatus, setFilterStatus] = useState<string>("__all__");
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, FilterValue>>({});
 
   // Delete invoice dialog states
   const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
@@ -132,7 +131,6 @@ export default function InvoicesPage() {
     undefined,
     { enabled: !!user && (user.role === "admin" || user.role === "accountant") }
   );
-  const utils = trpc.useUtils();
 
   // Export mutation
   const exportMutation = trpc.exports.generateInvoicesExcel.useMutation();
@@ -255,9 +253,6 @@ export default function InvoicesPage() {
     },
   });
 
-  // Get all users for the filter
-  const allUsers = usersData?.items || [];
-
   // Prepare company options for SearchableSelect
   const companyOptions: SearchableSelectOption[] = useMemo(() => {
     if (!companies) return [{ value: "__all__", label: "Wszystkie firmy", searchableText: "wszystkie" }];
@@ -359,28 +354,33 @@ export default function InvoicesPage() {
 
     // Advanced filters
     if (advancedFilters.dateFrom) {
-      const fromDate = new Date(advancedFilters.dateFrom);
+      const fromDate = advancedFilters.dateFrom instanceof Date 
+        ? advancedFilters.dateFrom 
+        : new Date(String(advancedFilters.dateFrom));
       filtered = filtered.filter((inv) => new Date(inv.createdAt) >= fromDate);
     }
     if (advancedFilters.dateTo) {
-      const toDate = new Date(advancedFilters.dateTo);
+      const toDate = advancedFilters.dateTo instanceof Date 
+        ? advancedFilters.dateTo 
+        : new Date(String(advancedFilters.dateTo));
       filtered = filtered.filter((inv) => new Date(inv.createdAt) <= toDate);
     }
     if (advancedFilters.amountMin) {
       filtered = filtered.filter((inv) => {
         const amount = parseFloat(inv.kwota || "0");
-        return amount >= parseFloat(advancedFilters.amountMin);
+        return amount >= parseFloat(String(advancedFilters.amountMin));
       });
     }
     if (advancedFilters.amountMax) {
       filtered = filtered.filter((inv) => {
         const amount = parseFloat(inv.kwota || "0");
-        return amount <= parseFloat(advancedFilters.amountMax);
+        return amount <= parseFloat(String(advancedFilters.amountMax));
       });
     }
-    if (advancedFilters.ksefNumber) {
+    if (advancedFilters.ksefNumber && typeof advancedFilters.ksefNumber === 'string') {
+      const ksefQuery = advancedFilters.ksefNumber.toLowerCase();
       filtered = filtered.filter((inv) => 
-        inv.ksefNumber?.toLowerCase().includes(advancedFilters.ksefNumber.toLowerCase())
+        inv.ksefNumber?.toLowerCase().includes(ksefQuery)
       );
     }
     if (advancedFilters.invoiceType && advancedFilters.invoiceType !== "__all__") {

@@ -1,6 +1,9 @@
-# mobiFaktura — App Logic (Up-to-date)
+# mobiFaktura — Business Logic & Workflows
 
-> This document summarizes the current application logic, main flows, user scenarios, and fallbacks. It is intended as an operational reference for devs and reviewers.
+**Version:** 1.0  
+**Last Updated:** January 29, 2026
+
+> This document describes the application's business logic, data flows, user workflows, and edge case handling.
 
 ---
 

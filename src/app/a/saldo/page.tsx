@@ -8,7 +8,7 @@ import { AccountantHeader } from "@/components/accountant-header";
 import { AdminHeader } from "@/components/admin-header";
 import { Unauthorized } from "@/components/unauthorized";
 import { SearchInput } from "@/components/search-input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +51,46 @@ import Link from "next/link";
 import { SaldoTransactionDetailsDialog } from "@/components/saldo-transaction-details-dialog";
 import { BudgetRequestReviewDialog } from "@/components/budget-request-review-dialog";
 
+type SaldoTransaction = {
+  id: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  transactionType: string;
+  referenceId: string | null;
+  notes: string | null;
+  createdAt: Date;
+  createdByName: string | null;
+  createdByEmail: string | null;
+};
+
+type BudgetRequestMinimal = {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  currentBalanceAtRequest: number;
+  requestedAmount: number;
+  justification: string;
+  status: string;
+  createdAt: Date;
+  reviewedAt?: Date | null;
+  reviewerName?: string | null;
+  settledAt?: Date | null;
+  settledBy?: string | null;
+  settledByName?: string | null;
+  transferNumber?: string | null;
+  transferDate?: Date | null;
+  transferConfirmedBy?: string | null;
+  transferConfirmedAt?: Date | null;
+  transferConfirmedByName?: string | null;
+  rejectionReason?: string | null;
+  lastBudgetRequestStatus?: string | null;
+  lastBudgetRequestAmount?: number | null;
+  companyId?: string | null;
+  companyName?: string | null;
+};
+
 export default function SaldoManagementPage() {
   const { toast } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -64,12 +104,12 @@ export default function SaldoManagementPage() {
   const [historySearchQuery, setHistorySearchQuery] = useState("");
   const [showAllUsers, setShowAllUsers] = useState(false);
   const [historyCursor, setHistoryCursor] = useState<number | undefined>(undefined);
-  const [allHistoryItems, setAllHistoryItems] = useState<any[]>([]);
+  const [allHistoryItems, setAllHistoryItems] = useState<SaldoTransaction[]>([]);
   
   // Dialog states for transaction details
-  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<SaldoTransaction | null>(null);
   const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
-  const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<any | null>(null);
+  const [selectedBudgetRequest, setSelectedBudgetRequest] = useState<BudgetRequestMinimal | null>(null);
   const [isBudgetRequestDialogOpen, setIsBudgetRequestDialogOpen] = useState(false);
 
   // Check user role
@@ -352,27 +392,28 @@ export default function SaldoManagementPage() {
   };
   
   // Handle clicking on a history item
-  const handleHistoryItemClick = (item: any) => {
-    if (item.type === 'saldo') {
+  const handleHistoryItemClick = (item: unknown) => {
+    const record = item as Record<string, unknown>;
+    if (record.type === 'saldo') {
       // For saldo transactions (korekta, adjustments)
-      if (item.transactionType === 'adjustment') {
+      if (record.transactionType === 'adjustment') {
         // Open popup with transaction details
-        setSelectedTransaction(item);
+        setSelectedTransaction(item as SaldoTransaction);
         setIsTransactionDialogOpen(true);
-      } else if (item.transactionType === 'invoice_deduction' && item.referenceId) {
+      } else if (record.transactionType === 'invoice_deduction' && record.referenceId) {
         // Navigate to invoice page
-        router.push(`/a/user-invoice/${item.referenceId}`);
-      } else if (item.transactionType === 'invoice_refund' && item.referenceId) {
+        router.push(`/a/user-invoice/${record.referenceId as string}`);
+      } else if (record.transactionType === 'invoice_refund' && record.referenceId) {
         // Navigate to correction invoice page
-        router.push(`/a/user-invoice/${item.referenceId}`);
-      } else if (item.transactionType === 'advance_credit' && item.referenceId) {
+        router.push(`/a/user-invoice/${record.referenceId as string}`);
+      } else if (record.transactionType === 'advance_credit' && record.referenceId) {
         // Show transaction details popup for advance credit
-        setSelectedTransaction(item);
+        setSelectedTransaction(item as SaldoTransaction);
         setIsTransactionDialogOpen(true);
       }
-    } else if (item.type === 'budget') {
+    } else if (record.type === 'budget') {
       // For budget requests, open the budget request dialog
-      setSelectedBudgetRequest(item);
+      setSelectedBudgetRequest(item as BudgetRequestMinimal);
       setIsBudgetRequestDialogOpen(true);
     }
   };
