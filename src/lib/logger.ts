@@ -136,7 +136,7 @@ export const logCron = (
 };
 
 export const logStorage = (
-  operation: 'upload' | 'download' | 'delete' | 'list',
+  operation: 'upload' | 'download' | 'delete' | 'list' | 'create_bucket' | 'error',
   bucket?: string,
   file?: string,
   context?: Record<string, unknown>

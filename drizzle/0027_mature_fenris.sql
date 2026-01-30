@@ -35,7 +35,8 @@ ALTER TABLE "invoices" ALTER COLUMN "image_key" SET DATA TYPE varchar(1024);--> 
 ALTER TABLE "invoices" ALTER COLUMN "description" SET DATA TYPE varchar(2000);--> statement-breakpoint
 ALTER TABLE "invoices" ALTER COLUMN "justification" SET DATA TYPE varchar(2000);--> statement-breakpoint
 ALTER TABLE "invoices" ALTER COLUMN "rejection_reason" SET DATA TYPE varchar(1000);--> statement-breakpoint
-ALTER TABLE "login_attempts" ALTER COLUMN "attempt_count" SET DATA TYPE integer;--> statement-breakpoint
+UPDATE "login_attempts" SET "attempt_count" = '0' WHERE "attempt_count" !~ '^[0-9]+$';--> statement-breakpoint
+ALTER TABLE "login_attempts" ALTER COLUMN "attempt_count" SET DATA TYPE integer USING attempt_count::integer;--> statement-breakpoint
 ALTER TABLE "login_attempts" ALTER COLUMN "attempt_count" SET DEFAULT 0;--> statement-breakpoint
 ALTER TABLE "login_logs" ALTER COLUMN "user_agent" SET DATA TYPE varchar(1000);--> statement-breakpoint
 ALTER TABLE "notifications" ALTER COLUMN "message" SET DATA TYPE varchar(2000);--> statement-breakpoint

@@ -41,7 +41,7 @@ services:
   # MinIO S3-compatible Storage
   # ============================================
   minio:
-    image: minio/minio:latest
+    image: chainguard/minio:latest
     container_name: mobifaktura_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
