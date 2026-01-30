@@ -113,11 +113,11 @@ export const invoices = pgTable("invoices", {
   invoiceType: invoiceTypeEnum("invoice_type").notNull().default("einvoice"),
   
   // File storage
-  imageKey: varchar("image_key", { length: 1024 }).notNull(), // MinIO object key
+  imageKey: varchar("image_key", { length: 1024 }).notNull(), // SeaweedFS S3 object key
   
   // User-provided data
   invoiceNumber: varchar("invoice_number", { length: 100 }).notNull(),
-  ksefNumber: varchar("ksef_number", { length: 100 }), // KSEF number (letters and numbers) - only for einvoice
+  ksefNumber: varchar("ksef_number", { length: 300 }), // KSeF number (letters and numbers) - increased to 300 chars to support extended formats
   kwota: numeric("kwota", { precision: 12, scale: 2 }), // Invoice amount
   description: varchar("description", { length: 2000 }),
   justification: varchar("justification", { length: 2000 }), // Reason for invoice submission

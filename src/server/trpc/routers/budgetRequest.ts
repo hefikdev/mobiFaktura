@@ -15,7 +15,13 @@ import { notifyBudgetRequestSubmitted, notifyBudgetRequestApproved, notifyBudget
 
 // Zod Schemas
 const createBudgetRequestSchema = z.object({
-  requestedAmount: z.number().positive("Kwota musi być większa od zera"),
+  requestedAmount: z.number().positive("Kwota musi być większa od zera").refine(
+    (val) => {
+      const decimalPart = val.toString().split('.')[1];
+      return !decimalPart || decimalPart.length <= 2;
+    },
+    { message: "Kwota może mieć maksymalnie 2 miejsca po przecinku" }
+  ),
   justification: z.string().min(5, "Uzasadnienie musi zawierać minimum 5 znaków").max(2000, "Uzasadnienie nie może przekraczać 2000 znaków"),
   companyId: z.string().uuid("Nieprawidłowy identyfikator firmy"),
 });

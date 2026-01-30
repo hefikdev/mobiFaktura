@@ -204,7 +204,7 @@ When an invoice is deleted (by user, accountant, or admin):
 - For long-running or batch operations, perform work in transactions or chunked batches with progress logs and retry/fallback behavior.
 - Important rollback cases:
   - Failed transaction should return `INTERNAL_SERVER_ERROR` and not leave partial state.
-  - For operations that modify external systems (e.g., MinIO file upload), perform compensating actions on failure.
+  - For operations that modify external systems (e.g., SeaweedFS S3 file upload), perform compensating actions on failure.
 
 ---
 

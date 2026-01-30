@@ -9,6 +9,17 @@ import { db } from "@/server/db";
 import { users, saldoTransactions, budgetRequests } from "@/server/db/schema";
 import { eq, desc, and, or, ilike, sql, type SQL } from "drizzle-orm";
 import { notifySaldoAdjusted } from "@/server/lib/notifications";
+
+/**
+ * Safely performs financial arithmetic with exactly 2 decimal places.
+ */
+function safeMoneyMath(a: number, b: number, operation: 'add' | 'subtract'): number {
+  const aCents = Math.round(a * 100);
+  const bCents = Math.round(b * 100);
+  const resultCents = operation === 'add' ? aCents + bCents : aCents - bCents;
+  return resultCents / 100;
+}
+
 // Zod Schemas
 const adjustSaldoSchema = z.object({
   userId: z.string().uuid("Nieprawidłowy identyfikator użytkownika"),
@@ -17,7 +28,13 @@ const adjustSaldoSchema = z.object({
   amount: z.number({
     required_error: "Kwota jest wymagana",
     invalid_type_error: "Kwota musi być liczbą",
-  }),
+  }).refine(
+    (val) => {
+      const decimalPart = val.toString().split('.')[1];
+      return !decimalPart || decimalPart.length <= 2;
+    },
+    { message: "Kwota może mieć maksymalnie 2 miejsca po przecinku" }
+  ),
   notes: z.string().min(5, "Notatka musi zawierać minimum 5 znaków").max(1000, "Notatka nie może przekraczać 1000 znaków"),
   transactionType: z.enum(["adjustment"], {
     required_error: "Typ transakcji jest wymagany",
@@ -166,7 +183,7 @@ export const saldoRouter = createTRPCRouter({
       }
 
       const balanceBefore = targetUser.saldo ? parseFloat(targetUser.saldo) : 0;
-      const balanceAfter = balanceBefore + input.amount;
+      const balanceAfter = safeMoneyMath(balanceBefore, input.amount, input.amount >= 0 ? 'add' : 'subtract');
       const lastUpdatedAt = targetUser.updatedAt;
 
       // Start transaction with conflict prevention

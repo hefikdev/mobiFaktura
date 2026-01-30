@@ -154,14 +154,14 @@ DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '2 days'
 - Audit trail necessity
 
 **Associated Data:**
-- Invoice images in MinIO storage
+- Invoice images in SeaweedFS S3 storage
 - Edit history (cascades on invoice deletion)
 - Notifications (cascades on invoice deletion)
 
 **Archival Strategy (Future Consideration):**
 - Move invoices older than 7 years to cold storage
 - Separate `archived_invoices` table
-- Migrate MinIO images to cheaper storage tier
+- Migrate SeaweedFS S3 images to cheaper storage tier
 - Maintain references for compliance
 
 ---
@@ -220,11 +220,11 @@ DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '2 days'
 
 ---
 
-### 5. File Storage (MinIO)
+### 5. File Storage (SeaweedFS S3)
 
 #### Invoice Images
 
-**Storage:** MinIO object storage
+**Storage:** SeaweedFS S3 object storage
 
 **Retention Policy:** Tied to invoice lifecycle
 
@@ -240,13 +240,13 @@ DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '2 days'
 **Implementation:**
 ```typescript
 // Daily audit at 1 AM (logs only, doesn't delete)
-1. List all files in MinIO bucket
+1. List all files in SeaweedFS S3 bucket
 2. Compare with invoice.imageKey in database
 3. Log any orphaned files for manual review
 ```
 
 **Orphan Prevention:**
-- Bulk delete UI properly removes MinIO files
+- Bulk delete UI properly removes SeaweedFS S3 files
 - Tight coupling between DB and storage operations
 - Transaction-based deletions
 
@@ -293,7 +293,7 @@ Create an admin dashboard page showing:
 1. **Storage Overview**
    - Total database size
    - Growth rate (daily/weekly/monthly)
-   - MinIO storage usage
+   - SeaweedFS S3 storage usage
 
 2. **Table Statistics**
    - Row counts for all tables
@@ -395,7 +395,7 @@ Create an admin dashboard page showing:
 
 ### Phase 3: Long-term Strategy (Future)
 - [ ] Implement invoice archival strategy (7+ years)
-- [ ] Create cold storage tier in MinIO
+- [ ] Create cold storage tier in SeaweedFS S3
 - [ ] Add compression for archived images
 - [ ] Consider data warehouse for analytics (separate from operational DB)
 - [ ] Implement admin audit log (separate table)
@@ -411,7 +411,7 @@ Create an admin dashboard page showing:
 - Weekly full backups (retain 3 months)
 - Monthly full backups (retain 1 year)
 
-**MinIO Backups:**
+**SeaweedFS S3 Backups:**
 - Daily incremental backups
 - Weekly full backups
 - Versioning enabled on bucket
@@ -480,7 +480,7 @@ grep "\[CRON\]" server.log
 **Investigate:**
 1. Check `getDatabaseStats()` for unusual table sizes
 2. Verify cleanup jobs are running successfully
-3. Look for orphaned files in MinIO
+3. Look for orphaned files in SeaweedFS S3
 4. Check for failed cleanup job logs
 
 **Common Causes:**
@@ -536,7 +536,7 @@ grep "\[CRON\]" server.log
 - Smaller database = lower hosting costs
 - Faster queries = less compute usage
 
-### Storage Costs (MinIO)
+### Storage Costs (SeaweedFS S3)
 - Current: Hot storage for all files
 - Future: Tiered storage (hot/cold)
 - Compression for images > 1 year old

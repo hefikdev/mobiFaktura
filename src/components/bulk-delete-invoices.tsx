@@ -240,13 +240,13 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
       addLog("info", `[${i + 1}/${previewInvoices.length}] Usuwam: ${invoice.invoiceNumber}`);
       
       try {
-        // Delete from MinIO and PostgreSQL
-        addLog("info", `  → Usuwam plik z MinIO: ${invoice.imageKey}`);
+        // Delete from SeaweedFS S3 and PostgreSQL
+        addLog("info", `  → Usuwam plik z S3: ${invoice.imageKey}`);
         await deleteSingleMutation.mutateAsync({
           invoiceId: invoice.id,
         });
         
-        addLog("info", `  → Weryfikuję usunięcie z MinIO...`);
+        addLog("info", `  → Weryfikuję usunięcie z S3...`);
         addLog("info", `  → Usuwam z bazy danych PostgreSQL...`);
         addLog("info", `  → Weryfikuję usunięcie z bazy danych...`);
         addLog("success", `  ✓ Faktura ${invoice.invoiceNumber} została pomyślnie usunięta`);
@@ -402,7 +402,7 @@ export function BulkDeleteInvoices({ open, onOpenChange }: BulkDeleteInvoicesPro
                     OSTRZEŻENIE: Ta operacja jest NIEODWRACALNA
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Faktury zostaną trwale usunięte z bazy danych PostgreSQL oraz systemu MinIO.
+                    Faktury zostaną trwale usunięte z bazy danych PostgreSQL oraz magazynu S3.
                     Proces zostanie zweryfikowany po każdym usunięciu.
                   </p>
                   <p className="text-sm text-amber-600 dark:text-amber-500 mt-2">

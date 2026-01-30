@@ -282,7 +282,7 @@ When updating documentation:
 - **Shadcn/UI**: https://ui.shadcn.com/docs
 - **Docker**: https://docs.docker.com/
 - **PostgreSQL**: https://www.postgresql.org/docs/
-- **MinIO**: https://min.io/docs/
+- **SeaweedFS**: https://github.com/seaweedfs/seaweedfs
 
 ### Polish Standards
 

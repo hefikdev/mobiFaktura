@@ -15,7 +15,7 @@ import {
 } from "@/server/db/schema";
 import { eq, sql, desc, gte, and, inArray, lt } from "drizzle-orm";
 import { hashPassword, verifyPassword, validatePassword } from "@/server/auth/password";
-import { getStorageUsage, deleteFile, minioClient, BUCKET_NAME } from "@/server/storage/minio";
+import { getStorageUsage, deleteFile, s3Client, BUCKET_NAME } from "@/server/storage/s3";
 
 export const adminRouter = createTRPCRouter({
   // Get dashboard statistics
@@ -49,7 +49,13 @@ export const adminRouter = createTRPCRouter({
       .where(eq(invoices.status, "rejected"));
 
     // Get storage usage in GB (always show decimal, even if less than 1GB)
-    const storageBytes = await getStorageUsage();
+    let storageBytes = 0;
+    try {
+      storageBytes = await getStorageUsage();
+      console.log(`[Admin Stats] SeaweedFS storage: ${storageBytes} bytes = ${(storageBytes / 1024 / 1024).toFixed(2)} MB = ${(storageBytes / 1024 / 1024 / 1024).toFixed(3)} GB`);
+    } catch (error) {
+      console.error("[Admin Stats] Error getting SeaweedFS storage usage:", error);
+    }
     const storageGB = storageBytes / (1024 * 1024 * 1024);
 
     // Get PostgreSQL database size in GB
@@ -58,6 +64,7 @@ export const adminRouter = createTRPCRouter({
     `);
     const dbSizeBytes = Number((dbSizeResult.rows[0] as Record<string, unknown>)?.size || 0);
     const dbSizeGB = dbSizeBytes / (1024 * 1024 * 1024);
+    console.log(`[Admin Stats] PostgreSQL database: ${dbSizeBytes} bytes = ${(dbSizeBytes / 1024 / 1024).toFixed(2)} MB = ${dbSizeGB.toFixed(4)} GB`);
 
     return {
       users: userCount?.count || 0,
@@ -696,7 +703,7 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      let minioDeleted = false;
+      let storageDeleted = false;
       let dbDeleted = false;
 
       try {
@@ -759,9 +766,9 @@ export const adminRouter = createTRPCRouter({
             });
           }
 
-          // 1. Delete from MinIO
+          // 1. Delete from SeaweedFS S3
           await deleteFile(invoice.imageKey);
-          minioDeleted = true;
+          storageDeleted = true;
 
           // 2. Delete edit history
           await tx.delete(invoiceEditHistory).where(eq(invoiceEditHistory.invoiceId, input.id));
@@ -787,12 +794,12 @@ export const adminRouter = createTRPCRouter({
 
         return { 
           success: true,
-          minioDeleted,
+          storageDeleted,
           dbDeleted,
         };
       } catch (error) {
         // If one deletion succeeded but the other failed, we have a problem
-        if (minioDeleted && !dbDeleted) {
+        if (storageDeleted && !dbDeleted) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Plik został usunięty, ale nie udało się usunąć wpisu z bazy danych",
@@ -1079,24 +1086,25 @@ export const adminRouter = createTRPCRouter({
             }
           }
 
-          // Step 1: Delete from MinIO
+          // Step 1: Delete from SeaweedFS S3
           await deleteFile(imageKey);
 
-          // Step 2: Verify MinIO deletion by trying to get presigned URL (should fail)
-          let minioDeleted = false;
+          // Step 2: Verify S3 deletion by trying to check if object exists (should fail)
+          let storageDeleted = false;
           try {
-            await minioClient.statObject(BUCKET_NAME, imageKey);
-            minioDeleted = false;
+            const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+            await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: imageKey }));
+            storageDeleted = false;
           } catch (err: unknown) {
-            if (err && typeof err === 'object' && 'code' in err && err.code === 'NotFound') {
-              minioDeleted = true;
+            if (err && typeof err === 'object' && 'name' in err && err.name === 'NotFound') {
+              storageDeleted = true;
             }
           }
 
-          if (!minioDeleted) {
+          if (!storageDeleted) {
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
-              message: `Failed to delete from MinIO: ${imageKey}`,
+              message: `Failed to delete from S3: ${imageKey}`,
             });
           }
 

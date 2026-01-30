@@ -394,6 +394,19 @@ export default function UploadPage() {
       // Normalize kwota: replace comma with dot, remove spaces, parse to float
       const normalizedKwota = parseFloat(kwota.replace(/,/g, '.').replace(/\s/g, ''));
       
+      // Check for more than 2 decimal places (prevent rounding issues)
+      if (!isNaN(normalizedKwota)) {
+        const decimalPart = normalizedKwota.toString().split('.')[1];
+        if (decimalPart && decimalPart.length > 2) {
+          toast({
+            title: "Błąd",
+            description: "Kwota może mieć maksymalnie 2 miejsca po przecinku",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      
       createMutation.mutate({
         imageDataUrl,
         invoiceNumber: invoiceNumber.trim(),
@@ -492,6 +505,7 @@ export default function UploadPage() {
                   onChange={(e) => setKsefNumber(e.target.value)}
                   placeholder="np. 1234567890-ABC-XYZ"
                   className="flex-1"
+                  maxLength={300}
                   disabled={isFetchingKsef}
                 />
                 <Button

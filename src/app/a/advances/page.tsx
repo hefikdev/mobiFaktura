@@ -288,10 +288,23 @@ export default function AdvancesPage() {
       });
       return;
     }
+    
+    const numAmount = parseFloat(createForm.amount);
+    // Check for more than 2 decimal places (prevent rounding issues)
+    const decimalPart = numAmount.toString().split('.')[1];
+    if (decimalPart && decimalPart.length > 2) {
+      toast({
+        title: "Błąd",
+        description: "Kwota może mieć maksymalnie 2 miejsca po przecinku",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     createMutation.mutate({
       userId: createForm.userId,
       companyId: createForm.companyId,
-      amount: parseFloat(createForm.amount),
+      amount: numAmount,
       description: description,
     });
   };

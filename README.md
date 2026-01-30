@@ -30,7 +30,7 @@ The system features comprehensive financial workflows including invoice manageme
 
 ### Infrastructure
 - **PostgreSQL 16** - Primary relational database with performance indexing
-- **MinIO** - S3-compatible object storage for invoice files
+- **SeaweedFS S3** - Distributed S3-compatible object storage for invoice files
 - **Docker & Docker Compose** - Containerization for development and production
 - **Node.js 20** - JavaScript runtime with Alpine Linux for minimal image size
 
@@ -58,7 +58,7 @@ The system features comprehensive financial workflows including invoice manageme
 - **Bulk operations**: Approve/reject multiple invoices at once
 - **Edit history**: Complete audit trail of all changes
 - **Advanced search & filters**: By company, date, status, amount, type, KSeF number
-- **File storage**: Secure S3-compatible MinIO storage with image preview and zoom
+- **File storage**: Secure S3-compatible SeaweedFS storage with image preview and zoom
 
 ### 💰 Financial Management
 - **Saldo (Balance) System**: Per-user balance tracking with transaction history
@@ -124,7 +124,7 @@ The system features comprehensive financial workflows including invoice manageme
 # 1. Install dependencies
 npm install
 
-# 2. Start services (PostgreSQL, MinIO)
+# 2. Start services (PostgreSQL, SeaweedFS S3)
 docker-compose up -d
 
 # 3. Initialize database
@@ -177,7 +177,7 @@ docker-compose up -d
 ### Data Protection
 - All passwords hashed with Argon2id (64MB memory cost, 3 iterations)
 - Session data in encrypted PostgreSQL
-- File uploads stored in MinIO with private ACLs
+- File uploads stored in SeaweedFS S3 with private access and authentication
 - Audit logs track all user actions
 - Login attempt tracking prevents brute force attacks
 
@@ -226,8 +226,11 @@ npm run lint             # Run ESLint
 
 ### Services
 - **postgres** - PostgreSQL 16 database with health checks
-- **minio** - S3-compatible object storage with console
-- **minio-init** - Automated bucket initialization
+- **seaweedfs-master** - SeaweedFS master server for cluster coordination
+- **seaweedfs-volume** - SeaweedFS volume server for data storage
+- **seaweedfs-filer** - SeaweedFS filer for file system interface
+- **seaweedfs-s3** - SeaweedFS S3-compatible API gateway
+- **seaweedfs-init** - Automated bucket initialization
 - **app** - Next.js application with health checks
 
 ### Configuration
@@ -236,8 +239,10 @@ All services read from `.env` file. Set `NODE_ENV=production` for production dep
 ### Port Mappings (Development)
 - App: `3000`
 - PostgreSQL: `5432`
-- MinIO API: `9000`
-- MinIO Console: `9001`
+- SeaweedFS S3 API: `9000`
+- SeaweedFS Master: `9333`
+- SeaweedFS Volume: `8080`
+- SeaweedFS Filer: `8888`
 
 ## 📈 Performance Considerations
 
@@ -256,11 +261,11 @@ All services read from `.env` file. Set `NODE_ENV=production` for production dep
 - Ensure hostname is "postgres" (Docker service name)
 - Try connecting directly: `docker-compose exec postgres psql -U mobifaktura`
 
-### MinIO Issues
-- Access console at http://localhost:9001
-- Default credentials: minioadmin / minioadmin
-- Verify bucket exists
-- Check MINIO_ENDPOINT configuration
+### SeaweedFS S3 Issues
+- Access SeaweedFS Master UI at http://localhost:9333
+- Verify bucket exists using AWS CLI or S3 client
+- Check S3_ENDPOINT configuration
+- Ensure port 9000 is accessible
 
 ### Application Won't Start
 - Verify JWT_SECRET is set and > 32 characters
@@ -278,7 +283,7 @@ All services read from `.env` file. Set `NODE_ENV=production` for production dep
 - Check database indexes: `npm run db:studio`
 - Review tRPC procedure logs for slow queries
 - Monitor Docker container resource usage
-- Check MinIO bucket size and file count
+- Check SeaweedFS S3 bucket size and file count
 
 ## 📚 Documentation
 

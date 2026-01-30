@@ -10,9 +10,21 @@ import { db } from "@/server/db";
 import { invoices, users, companies, invoiceEditHistory, invoiceActionLogs, saldoTransactions, budgetRequests, advances } from "@/server/db/schema";
 import { eq, desc, and, ne, or, isNull, lt, isNotNull, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { uploadFile, getPresignedUrl, deleteFile } from "@/server/storage/minio";
+import { uploadFile, getSecureImageUrl, deleteFile } from "@/server/storage/s3";
 import { compressImage, dataUrlToBuffer } from "@/server/storage/image-processor";
 import { hasCompanyPermission, getUserCompanyIds } from "@/server/permissions";
+
+/**
+ * Safely performs financial arithmetic with exactly 2 decimal places.
+ * Prevents floating-point precision errors (e.g., 0.1 + 0.2 = 0.30000000000000004)
+ * by converting to cents, performing integer math, then converting back.
+ */
+function safeMoneyMath(a: number, b: number, operation: 'add' | 'subtract'): number {
+  const aCents = Math.round(a * 100);
+  const bCents = Math.round(b * 100);
+  const resultCents = operation === 'add' ? aCents + bCents : aCents - bCents;
+  return resultCents / 100;
+}
 
 export const invoiceRouter = createTRPCRouter({
   // Create new invoice (user and admin)
@@ -22,8 +34,15 @@ export const invoiceRouter = createTRPCRouter({
         imageDataUrl: z.string().min(1, "Zdjęcie jest wymagane"),
         invoiceNumber: z.string().min(1, "Numer faktury jest wymagany").max(100, "Numer faktury nie może przekraczać 100 znaków"),
         invoiceType: z.enum(["einvoice", "receipt"]).default("einvoice"),
-        ksefNumber: z.string().max(100, "Numer KSeF nie może przekraczać 100 znaków").optional(),
-        kwota: z.number().positive("Kwota musi być większa od zera").optional(),
+        ksefNumber: z.string().max(300, "Numer KSeF nie może przekraczać 300 znaków").optional(),
+        kwota: z.number().positive("Kwota musi być większa od zera").refine(
+          (val) => {
+            if (val === undefined) return true;
+            const decimalPart = val.toString().split('.')[1];
+            return !decimalPart || decimalPart.length <= 2;
+          },
+          { message: "Kwota może mieć maksymalnie 2 miejsca po przecinku" }
+        ).optional(),
         companyId: z.string().uuid("Firma jest wymagana"),
         justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków").max(2000, "Uzasadnienie nie może przekraczać 2000 znaków"),
         budgetRequestId: z.string().uuid().optional(),
@@ -117,11 +136,11 @@ export const invoiceRouter = createTRPCRouter({
       const timestamp = Date.now();
       const objectKey = `${ctx.user.id}/${timestamp}.jpg`;
 
-      // Upload compressed image to MinIO first
-      let minioUploadSuccess = false;
+      // Upload compressed image to SeaweedFS S3 first
+      let storageUploadSuccess = false;
       try {
         await uploadFile(compressedBuffer, objectKey, "image/jpeg");
-        minioUploadSuccess = true;
+        storageUploadSuccess = true;
       } catch (error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -188,7 +207,7 @@ export const invoiceRouter = createTRPCRouter({
             }
 
             const balanceBefore = currentUser.saldo ? parseFloat(currentUser.saldo) : 0;
-            const balanceAfter = balanceBefore - input.kwota;
+            const balanceAfter = safeMoneyMath(balanceBefore, input.kwota, 'subtract');
             const lastUpdatedAt = currentUser.updatedAt;
 
             // Update user saldo with optimistic locking
@@ -227,13 +246,13 @@ export const invoiceRouter = createTRPCRouter({
           }
         });
       } catch (error) {
-        // Rollback: Delete file from MinIO if database insert fails
-        if (minioUploadSuccess) {
+        // Rollback: Delete file from SeaweedFS S3 if database insert fails
+        if (storageUploadSuccess) {
           try {
             await deleteFile(objectKey);
           } catch (deleteError) {
             // Log but don't throw - original error is more important
-            console.error("Failed to rollback MinIO file after DB error:", deleteError);
+            console.error("Failed to rollback SeaweedFS S3 file after DB error:", deleteError);
           }
         }
         
@@ -254,9 +273,9 @@ export const invoiceRouter = createTRPCRouter({
       }
 
       // Verify both operations succeeded
-      if (!invoice || !minioUploadSuccess) {
+      if (!invoice || !storageUploadSuccess) {
         // This should never happen due to earlier checks, but added for safety
-        if (minioUploadSuccess) {
+        if (storageUploadSuccess) {
           await deleteFile(objectKey);
         }
         throw new TRPCError({
@@ -736,10 +755,10 @@ export const invoiceRouter = createTRPCRouter({
           )
         );
 
-      // Get presigned URL for image (may be missing for corrections)
+      // Get secure image URL (may be missing for corrections)
       let imageUrl: string | null = null;
       try {
-        imageUrl = await getPresignedUrl(invoice.imageKey);
+        imageUrl = getSecureImageUrl(invoice.imageKey);
       } catch {
         imageUrl = null;
       }
@@ -1388,7 +1407,7 @@ export const invoiceRouter = createTRPCRouter({
             }
 
             const balanceBefore = invoiceUser.saldo ? parseFloat(invoiceUser.saldo) : 0;
-            const balanceAfter = balanceBefore + refundAmount;
+            const balanceAfter = safeMoneyMath(balanceBefore, refundAmount, 'add');
             const lastUpdatedAt = invoiceUser.updatedAt;
 
             // Update user saldo with optimistic locking
@@ -1426,7 +1445,7 @@ export const invoiceRouter = createTRPCRouter({
             });
           }
 
-          // 1. Delete from MinIO
+          // 1. Delete from SeaweedFS S3
           await deleteFile(invoice.imageKey);
 
           // 2. Delete edit history (cascade should handle this, but being explicit)
@@ -1525,7 +1544,13 @@ export const invoiceRouter = createTRPCRouter({
     .input(
       z.object({
         originalInvoiceId: z.string().uuid("Wybierz oryginalną fakturę"),
-        correctionAmount: z.number().positive("Kwota korekty musi być większa od zera"),
+        correctionAmount: z.number().positive("Kwota korekty musi być większa od zera").refine(
+          (val) => {
+            const decimalPart = val.toString().split('.')[1];
+            return !decimalPart || decimalPart.length <= 2;
+          },
+          { message: "Kwota korekty może mieć maksymalnie 2 miejsca po przecinku" }
+        ),
         justification: z.string().min(10, "Uzasadnienie musi zawierać minimum 10 znaków").max(2000, "Uzasadnienie nie może przekraczać 2000 znaków"),
       })
     )
@@ -1628,7 +1653,7 @@ export const invoiceRouter = createTRPCRouter({
           }
 
           const balanceBefore = currentUser.saldo ? parseFloat(currentUser.saldo) : 0;
-          const balanceAfter = balanceBefore + input.correctionAmount;
+          const balanceAfter = safeMoneyMath(balanceBefore, input.correctionAmount, 'add');
 
           // Update user saldo
           await tx

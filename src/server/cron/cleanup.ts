@@ -1,7 +1,7 @@
 import { db } from "@/server/db";
 import { loginLogs, sessions, loginAttempts, invoices } from "@/server/db/schema";
 import { lt, eq } from "drizzle-orm";
-import { minioClient, BUCKET_NAME } from "@/server/storage/minio";
+import { s3Client, BUCKET_NAME } from "@/server/storage/s3";
 import { logCron, logError } from "@/lib/logger";
 
 /**
@@ -107,7 +107,7 @@ export async function cleanOldLoginAttempts() {
 }
 
 /**
- * Check for orphaned files in MinIO (files without corresponding database records)
+ * Check for orphaned files in S3 (files without corresponding database records)
  * WARNING: This is a read-only audit function - logs orphans but doesn't delete them
  */
 export async function auditOrphanedFiles() {
@@ -115,14 +115,31 @@ export async function auditOrphanedFiles() {
   logCron('audit_orphaned_files', 'started');
   
   try {
-    const stream = minioClient.listObjectsV2(BUCKET_NAME, '', true);
-    const minioFiles: string[] = [];
+    const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+    const s3Files: string[] = [];
     
-    // Collect all MinIO file keys
-    for await (const obj of stream) {
-      if (obj.name) {
-        minioFiles.push(obj.name);
+    // Collect all S3 file keys
+    let continuationToken: string | undefined;
+    let isTruncated = true;
+    
+    while (isTruncated) {
+      const response = await s3Client.send(
+        new ListObjectsV2Command({
+          Bucket: BUCKET_NAME,
+          ContinuationToken: continuationToken,
+        })
+      );
+      
+      if (response.Contents) {
+        for (const obj of response.Contents) {
+          if (obj.Key) {
+            s3Files.push(obj.Key);
+          }
+        }
       }
+      
+      isTruncated = response.IsTruncated ?? false;
+      continuationToken = response.NextContinuationToken;
     }
     
     // Get all image keys from database
@@ -133,20 +150,20 @@ export async function auditOrphanedFiles() {
     const dbFileSet = new Set(dbFiles.map(f => f.imageKey));
     
     // Find orphans
-    const orphans = minioFiles.filter(f => !dbFileSet.has(f));
+    const orphans = s3Files.filter(f => !dbFileSet.has(f));
     
     const duration = Date.now() - start;
     
     if (orphans.length > 0) {
       logCron('audit_orphaned_files', 'completed', duration, {
         orphanCount: orphans.length,
-        totalFiles: minioFiles.length,
+        totalFiles: s3Files.length,
         orphans: orphans.slice(0, 10), // Log first 10 only
       });
     } else {
       logCron('audit_orphaned_files', 'completed', duration, {
         orphanCount: 0,
-        totalFiles: minioFiles.length,
+        totalFiles: s3Files.length,
       });
     }
     

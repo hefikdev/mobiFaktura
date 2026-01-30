@@ -343,6 +343,17 @@ export default function KorektyPage() {
       return;
     }
 
+    // Check for more than 2 decimal places (prevent rounding issues)
+    const decimalPart = normalizedAmount.toString().split('.')[1];
+    if (decimalPart && decimalPart.length > 2) {
+      toast({
+        title: "Błąd",
+        description: "Kwota może mieć maksymalnie 2 miejsca po przecinku",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (justification.trim().length < 10) {
       toast({
         title: "Błąd",

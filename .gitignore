@@ -37,5 +37,5 @@ public/workbox-*.js.map
 
 # Docker volumes (local dev)
 postgres_data/
-minio_data/
+seaweedfs_data/
 dev_data/

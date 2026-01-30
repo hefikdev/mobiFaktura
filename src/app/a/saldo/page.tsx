@@ -349,6 +349,17 @@ export default function SaldoManagementPage() {
       return;
     }
 
+    // Check for more than 2 decimal places (prevent rounding issues)
+    const decimalPart = numAmount.toString().split('.')[1];
+    if (decimalPart && decimalPart.length > 2) {
+      toast({
+        title: "Błąd",
+        description: "Kwota może mieć maksymalnie 2 miejsca po przecinku",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (notes.trim().length < 5) {
       toast({
         title: "Błąd",
@@ -843,7 +854,7 @@ export default function SaldoManagementPage() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <History className="h-5 w-5 text-primary" />
-                  Pełna historia (Saldo i Prośby)
+                  Pełna historia
                 </CardTitle>
               </CardHeader>
               <CardContent>

@@ -34,15 +34,16 @@ export async function GET() {
       );
     }
 
-    // Check MinIO connection (optional - won't fail health check)
-    let minioHealthy = "unknown";
+    // Check S3 connection (optional - won't fail health check)
+    let storageHealthy = "unknown";
     try {
-      const { minioClient } = await import("@/server/storage/minio");
-      await minioClient.listBuckets();
-      minioHealthy = "healthy";
+      const { s3Client } = await import("@/server/storage/s3");
+      const { ListBucketsCommand } = await import("@aws-sdk/client-s3");
+      await s3Client.send(new ListBucketsCommand({}));
+      storageHealthy = "healthy";
     } catch (error) {
-      minioHealthy = "degraded";
-      // MinIO failure doesn't fail the health check
+      storageHealthy = "degraded";
+      // S3 failure doesn't fail the health check
     }
 
     const responseTime = Date.now() - startTime;
@@ -51,7 +52,7 @@ export async function GET() {
       type: 'health_check_success',
       duration: `${responseTime}ms`,
       database: 'healthy',
-      storage: minioHealthy,
+      storage: storageHealthy,
     });
 
     return NextResponse.json(
@@ -62,7 +63,7 @@ export async function GET() {
         responseTime: `${responseTime}ms`,
         checks: {
           database: "healthy",
-          storage: minioHealthy,
+          storage: storageHealthy,
         },
         version: process.env.npm_package_version || "1.0.0",
         environment: process.env.NODE_ENV,

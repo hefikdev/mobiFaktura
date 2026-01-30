@@ -29,8 +29,8 @@ Complete system architecture documenting all components, data flows, and technic
                     │                │                │
                     ▼                ▼                ▼
         ┌───────────────┐  ┌─────────────┐  ┌──────────────┐
-        │   PostgreSQL  │  │    MinIO    │  │  Log Files   │
-        │   Database    │  │   Storage   │  │  /app/logs   │
+        │   PostgreSQL  │  │ SeaweedFS   │  │  Log Files   │
+        │   Database    │  │ S3 Storage  │  │  /app/logs   │
         │   Port: 5432  │  │  Port: 9000 │  │              │
         └───────────────┘  └─────────────┘  └──────────────┘
 ```
@@ -58,7 +58,7 @@ Complete system architecture documenting all components, data flows, and technic
 │  │ → API Routes (/api/*)                                │      │
 │  │ → tRPC Procedures                                    │      │
 │  │ → Database Layer (Drizzle ORM)                       │      │
-│  │ → Storage Layer (MinIO Client)                       │      │
+│  │ → Storage Layer (SeaweedFS S3 Client)                │      │
 │  │ → Auth Layer (JWT + Argon2)                          │      │
 │  │ → Logging Layer (Pino)                               │      │
 │  │ → Cron Jobs (Cleanup tasks)                          │      │
@@ -70,7 +70,7 @@ Complete system architecture documenting all components, data flows, and technic
 │  Environment:                                                    │
 │  • NODE_ENV=production                                          │
 │  • DATABASE_URL=postgres://...                                  │
-│  • MINIO_ENDPOINT=minio:9000                                   │
+│  • S3_ENDPOINT=seaweedfs-s3                                    │
 │  • LOG_LEVEL=info                                              │
 │                                                                  │
 │  Health Check:                                                   │
@@ -114,42 +114,44 @@ Complete system architecture documenting all components, data flows, and technic
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. **mobifaktura_minio** (Object Storage)
+### 3. **seaweedfs_cluster** (Object Storage)
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      MinIO S3 Storage                            │
+│                    SeaweedFS S3 Storage                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  Buckets:                                                        │
 │  └─ invoices (private)                                          │
 │     └─ Invoice images/scans                                     │
 │                                                                  │
-│  Ports:                                                          │
-│  • 9000: S3 API                                                 │
-│  • 9001: Web Console                                            │
+│  Components:                                                     │
+│  • Master (9333): Cluster coordination                          │
+│  • Volume (8080): Data storage                                  │
+│  • Filer (8888): File system interface                          │
+│  • S3 (9000): S3-compatible API                                 │
 │                                                                  │
 │  Volumes:                                                        │
-│  • minio_data → /data                                           │
+│  • seaweedfs_data → /data                                       │
 │                                                                  │
 │  Health Check:                                                   │
-│  • curl -f http://localhost:9000/minio/health/live             │
+│  • S3 endpoint responds to HTTP requests                        │
 │  • Interval: 30s, Timeout: 20s, Retries: 3                    │
 │                                                                  │
 │  Access:                                                         │
-│  • Internal: minio:9000 (app ↔ minio)                         │
-│  • External: localhost:9000, localhost:9001 (console)          │
+│  • Internal: seaweedfs-s3:9000 (app ↔ S3)                      │
+│  • External: localhost:9000 (S3), localhost:9333 (master)      │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 4. **mobifaktura_minio_init** (Initialization)
+### 4. **seaweedfs_init** (Initialization)
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                  MinIO Bucket Initialization                     │
+│                SeaweedFS S3 Bucket Initialization                │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  One-time setup task that:                                      │
-│  1. Waits for MinIO to be healthy                              │
+│  1. Waits for SeaweedFS S3 to be healthy                        │
 │  2. Creates 'invoices' bucket                                   │
 │  3. Sets bucket to private access                              │
 │  4. Exits after completion                                      │
@@ -197,9 +199,9 @@ Complete system architecture documenting all components, data flows, and technic
 
 ### Invoice Upload Flow
 ```
-┌──────┐    ┌────────────┐    ┌──────────┐    ┌──────────┐    ┌───────┐
-│Client│    │ Middleware │    │   tRPC   │    │ Database │    │ MinIO │
-└──┬───┘    └─────┬──────┘    └────┬─────┘    └────┬─────┘    └───┬───┘
+┌──────┐    ┌────────────┐    ┌──────────┐    ┌──────────┐    ┌────────┐
+│Client│    │ Middleware │    │   tRPC   │    │ Database │    │SeaweedFS│
+└──┬───┘    └─────┬──────┘    └────┬─────┘    └────┬─────┘    └───┬────┘
    │              │                 │               │              │
    │  POST invoice image            │               │              │
    ├─────────────>│                 │               │              │
@@ -235,9 +237,9 @@ Complete system architecture documenting all components, data flows, and technic
 
 ### Invoice Review Flow (Accountant)
 ```
-┌───────────┐    ┌──────────┐    ┌──────────┐    ┌───────┐    ┌──────────┐
-│Accountant │    │   tRPC   │    │ Database │    │ MinIO │    │   User   │
-└─────┬─────┘    └────┬─────┘    └────┬─────┘    └───┬───┘    └────┬─────┘
+┌───────────┐    ┌──────────┐    ┌──────────┐    ┌────────┐    ┌──────────┐
+│Accountant │    │   tRPC   │    │ Database │    │SeaweedFS│    │   User   │
+└─────┬─────┘    └────┬─────┘    └────┬─────┘    └───┬────┘    └────┬─────┘
       │               │               │              │             │
       │  Get pending  │               │              │             │
       │  invoices     │               │              │             │
@@ -343,7 +345,7 @@ mobiFaktura/
 │   │   │   └── schema.ts       # Database schema
 │   │   │
 │   │   ├── storage/            # Object storage
-│   │   │   └── minio.ts        # MinIO client
+│   │   │   └── s3.ts            # SeaweedFS S3 client
 │   │   │
 │   │   ├── lib/                # Server utilities
 │   │   │
@@ -414,7 +416,7 @@ mobiFaktura/
 │  1. Network Layer                                                │
 │     • Docker internal network isolation                          │
 │     • Only port 3000 exposed to host                            │
-│     • PostgreSQL/MinIO internal only                            │
+│     • PostgreSQL/SeaweedFS S3 internal only                     │
 │                                                                  │
 │  2. Middleware Layer (src/middleware.ts)                        │
 │     • IP address extraction and tracking                        │
@@ -448,7 +450,7 @@ mobiFaktura/
 │                                                                  │
 │  8. Data Protection                                              │
 │     • Sensitive data redaction in logs                          │
-│     • Private MinIO buckets                                     │
+│     • Private SeaweedFS S3 buckets                              │
 │     • Encrypted database connections                            │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -465,7 +467,7 @@ mobiFaktura/
 │                                                                  │
 │  1. Health Checks                                                │
 │     • Endpoint: GET /api/health                                 │
-│     • Checks: Database, MinIO, Uptime                          │
+│     • Checks: Database, SeaweedFS S3, Uptime                    │
 │     • Response: JSON with status codes                          │
 │     • Docker: Automatic restart on unhealthy                    │
 │                                                                  │
@@ -524,7 +526,7 @@ mobiFaktura/
 │     • Keeps notification table lean                             │
 │                                                                  │
 │  5. auditOrphanedFiles()                                        │
-│     • Find MinIO files without database records                 │
+│     • Find S3 files without database records                    │
 │     • Log orphaned files for manual review                      │
 │     • Does NOT auto-delete (safety)                            │
 │                                                                  │
@@ -558,24 +560,24 @@ mobiFaktura/
 │    ┌────┼────┐                                                  │
 │    │         │                                                  │
 │    ▼         ▼                                                  │
-│  ┌──────┐  ┌──────┐                                            │
-│  │postgres minio│                                               │
-│  │:5432 │  │:9000 │                                            │
-│  └──────┘  └──────┘                                            │
+│  ┌──────┐  ┌──────────┐                                        │
+│  │postgres seaweedfs│                                           │
+│  │:5432 │  │:9000    │                                          │
+│  └──────┘  └──────────┘                                        │
 │                                                                  │
 │  Service Names (Internal DNS):                                   │
-│  • postgres:5432        → PostgreSQL                            │
-│  • minio:9000           → MinIO API                             │
-│  • mobifaktura_app:3000 → Next.js app                          │
+│  • postgres:5432             → PostgreSQL                       │
+│  • seaweedfs-s3:9000         → SeaweedFS S3 API                │
+│  • mobifaktura_app:3000      → Next.js app                     │
 │                                                                  │
 │  External Access (Port Mapping):                                 │
-│  • localhost:3000  → app:3000     (Application)                │
-│  • localhost:9000  → minio:9000   (MinIO API)                  │
-│  • localhost:9001  → minio:9001   (MinIO Console)              │
+│  • localhost:3000  → app:3000            (Application)           │
+│  • localhost:9000  → seaweedfs-s3:9000  (SeaweedFS S3 API)     │
+│  • localhost:9333  → seaweedfs-master:9333 (Master UI)        │
 │                                                                  │
 │  Volumes (Persistent Storage):                                   │
 │  • postgres_data    → PostgreSQL data                           │
-│  • minio_data       → MinIO objects                             │
+│  • seaweedfs_data   → SeaweedFS S3 objects                     │
 │  • app_logs         → Application logs                          │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -601,9 +603,9 @@ mobiFaktura/
 │  • ~10-50 MB disk per day                                       │
 │                                                                  │
 │  File Storage:                                                   │
-│  • MinIO: S3-compatible, optimized                              │
-│  • Presigned URLs for direct access                             │
-│  • No proxy through app server                                  │
+│  • SeaweedFS: S3-compatible, distributed                       │
+│  • Secure authenticated access                                 │
+│  • Proxy through app server with JWT validation                │
 │                                                                  │
 │  Caching:                                                        │
 │  • React Server Components (automatic)                          │
@@ -652,8 +654,8 @@ mobiFaktura/
 │     │ docker-compose up -d                    │                │
 │     │   ↓                                     │                │
 │     │ 1. PostgreSQL starts                    │                │
-│     │ 2. MinIO starts                         │                │
-│     │ 3. MinIO init creates bucket            │                │
+│     │ 2. SeaweedFS cluster starts             │                │
+│     │ 3. SeaweedFS init creates bucket        │                │
 │     │ 4. App waits for dependencies           │                │
 │     │ 5. App starts on port 3000              │                │
 │     └─────────────────────────────────────────┘                │
@@ -695,7 +697,7 @@ mobiFaktura/
 │  • tRPC 11.0.0-rc.608          (Type-safe API)                 │
 │  • Drizzle ORM 0.44.7          (Database ORM)                   │
 │  • PostgreSQL 16               (Database)                       │
-│  • MinIO                       (Object Storage)                 │
+│  • SeaweedFS 4.07              (Object Storage)                 │
 │  • Jose 5.9.6                  (JWT)                            │
 │  • Argon2 0.41.1               (Password Hashing)               │
 │  • Pino 9.5.0                  (Logging)                        │
@@ -778,13 +780,13 @@ mobiFaktura/
 │  • POSTGRES_PASSWORD         Database password                  │
 │  • POSTGRES_DB               Database name                      │
 │                                                                  │
-│  MinIO Storage:                                                  │
-│  • MINIO_ENDPOINT            Server hostname                    │
-│  • MINIO_PORT                API port                           │
-│  • MINIO_ACCESS_KEY          Access key                         │
-│  • MINIO_SECRET_KEY          Secret key                         │
-│  • MINIO_BUCKET              Bucket name                        │
-│  • MINIO_USE_SSL             SSL enabled (false)                │
+│  SeaweedFS S3 Storage:                                            │
+│  • S3_ENDPOINT               Server hostname                    │
+│  • S3_PORT                   API port                           │
+│  • S3_ACCESS_KEY             Access key                         │
+│  • S3_SECRET_KEY             Secret key                         │
+│  • S3_BUCKET                 Bucket name                        │
+│  • S3_USE_SSL                SSL enabled (false)                │
 │                                                                  │
 │  Authentication:                                                 │
 │  • JWT_SECRET                Token signing key (32+ chars)      │
@@ -880,7 +882,7 @@ docker inspect mobifaktura_app | grep -A 10 Health
 - Clear boundaries between layers
 - Frontend/Backend split via tRPC
 - Database abstraction via Drizzle ORM
-- Storage abstraction via MinIO client
+- Storage abstraction via SeaweedFS S3 client
 
 ### 2. **Type Safety**
 - TypeScript throughout

@@ -507,10 +507,17 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {loadingStats ? "..." : `${stats?.storageGB || 0} GB`}
+                {loadingStats ? "..." : (() => {
+                  const gb = stats?.storageGB || 0;
+                  // Show more decimals for small values
+                  if (gb === 0) return "0 GB";
+                  if (gb < 0.001) return `${(gb * 1024).toFixed(2)} MB`;
+                  if (gb < 0.01) return `${gb.toFixed(3)} GB`;
+                  return `${gb.toFixed(2)} GB`;
+                })()}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Magazyn plików MinIO
+                Magazyn plików SeaweedFS S3
               </p>
             </CardContent>
           </Card>
@@ -1129,7 +1136,7 @@ export default function AdminPage() {
                   <div>
                     <h3 className="text-lg font-semibold text-destructive">Masowe usuwanie faktur</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Masowe usuwanie faktur z bazy danych i MinIO - operacja nieodwracalna
+                      Masowe usuwanie faktur z bazy danych i SeaweedFS S3 - operacja nieodwracalna
                     </p>
                   </div>
                   <Button

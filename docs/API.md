@@ -181,7 +181,7 @@ mobiFaktura uses [tRPC](https://trpc.io/) for end-to-end type-safe API communica
   imageDataUrl: string;              // Base64 data URL
   invoiceNumber: string;             // Max 100 chars
   invoiceType: "einvoice" | "receipt";
-  ksefNumber?: string;               // Optional, max 100 chars
+  ksefNumber?: string;               // Optional, max 300 chars
   kwota?: number;                    // Optional, positive
   companyId: string;                 // UUID
   justification: string;             // 10-2000 chars
@@ -197,7 +197,7 @@ mobiFaktura uses [tRPC](https://trpc.io/) for end-to-end type-safe API communica
 - Image must be valid format
 
 **Side Effects:**
-- Compresses and uploads image to MinIO
+- Compresses and uploads image to SeaweedFS S3
 - Creates invoice record with status "pending"
 - Notifies accountants
 - Links to budget request if provided
@@ -542,7 +542,7 @@ mobiFaktura uses [tRPC](https://trpc.io/) for end-to-end type-safe API communica
 
 **Side Effects:**
 - Deletes invoice record
-- Deletes image from MinIO
+- Deletes image from SeaweedFS S3
 - If invoice was accepted, reverses saldo transaction
 - Creates audit log entry
 
@@ -878,7 +878,7 @@ Array<{
 
 **Side Effects:**
 - Deletes invoices created before date
-- Deletes associated files from MinIO
+- Deletes associated files from SeaweedFS S3
 - Reverses saldo if needed
 - Cannot be undone
 
@@ -1087,7 +1087,7 @@ Validation errors are automatically returned to client.
 
 - **Validation**: File type and size checked
 - **Compression**: Images compressed before storage
-- **Storage**: MinIO with private buckets
+- **Storage**: SeaweedFS S3 with private buckets and authentication
 - **URLs**: Presigned URLs with 15-minute expiry
 
 ---

@@ -312,6 +312,17 @@ export default function CorrectionsPage() {
       return;
     }
 
+    // Check for more than 2 decimal places (prevent rounding issues)
+    const decimalPart = normalizedAmount.toString().split('.')[1];
+    if (decimalPart && decimalPart.length > 2) {
+      toast({
+        title: "Error",
+        description: "Amount can have maximum 2 decimal places",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (justification.trim().length < 10) {
       toast({
         title: "Error",

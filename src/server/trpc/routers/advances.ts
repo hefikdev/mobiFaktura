@@ -12,7 +12,13 @@ import { alias } from "drizzle-orm/pg-core";
 const createManualAdvanceSchema = z.object({
   userId: z.string().uuid(),
   companyId: z.string().uuid(),
-  amount: z.number().positive(),
+  amount: z.number().positive("Kwota musi być większa od zera").refine(
+    (val) => {
+      const decimalPart = val.toString().split('.')[1];
+      return !decimalPart || decimalPart.length <= 2;
+    },
+    { message: "Kwota może mieć maksymalnie 2 miejsca po przecinku" }
+  ),
   description: z.string().trim().min(5, "Opis musi mieć co najmniej 5 znaków").max(2000, "Opis nie może przekraczać 2000 znaków"),
 });
 

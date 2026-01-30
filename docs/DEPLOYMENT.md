@@ -14,7 +14,7 @@
 5. [Docker Configuration](#docker-configuration)
 6. [Environment Variables](#environment-variables)
 7. [Database Setup](#database-setup)
-8. [MinIO Setup](#minio-setup)
+8. [SeaweedFS S3 Setup](#seaweedfs-s3-setup)
 9. [Health Checks & Monitoring](#health-checks--monitoring)
 10. [Backup & Recovery](#backup--recovery)
 11. [Troubleshooting](#troubleshooting)
@@ -27,7 +27,7 @@
 mobiFaktura is deployed using Docker Compose with three main services:
 - **Next.js Application** (app)
 - **PostgreSQL Database** (postgres)
-- **MinIO Object Storage** (minio)
+- **SeaweedFS S3 Object Storage** (seaweedfs cluster)
 
 The application is designed to be production-ready with health checks, automatic restarts, and comprehensive logging.
 
@@ -58,8 +58,10 @@ The application is designed to be production-ready with health checks, automatic
 **Ports:**
 - 3000: Next.js application
 - 5432: PostgreSQL (can be firewalled)
-- 9000: MinIO API (internal)
-- 9001: MinIO Console (optional, for admin)
+- 9000: SeaweedFS S3 API (internal)
+- 9333: SeaweedFS Master (internal)
+- 8080: SeaweedFS Volume (internal)
+- 8888: SeaweedFS Filer (internal)
 
 **Domain Requirements (Production):**
 - Valid domain name
@@ -105,13 +107,13 @@ COOKIE_DOMAIN=localhost
 COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
 
-# MinIO Configuration
-MINIO_ENDPOINT=minio
-MINIO_PORT=9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-MINIO_USE_SSL=false
-MINIO_BUCKET_NAME=mobifaktura-invoices
+# SeaweedFS S3 Configuration
+S3_ENDPOINT=seaweedfs-s3
+S3_PORT=9000
+S3_ACCESS_KEY=mobifaktura_s3_internal
+S3_SECRET_KEY=mobifaktura_s3_secret_key_2026
+S3_USE_SSL=false
+S3_BUCKET=invoices
 
 # Logging
 LOG_LEVEL=info
@@ -120,8 +122,8 @@ LOG_LEVEL=info
 ### 4. Start Services
 
 ```bash
-# Start database and MinIO
-docker-compose -f docker-compose.dev.yaml up -d postgres minio
+# Start database and SeaweedFS
+docker-compose -f docker-compose.dev.yaml up -d postgres seaweedfs-master seaweedfs-volume seaweedfs-filer seaweedfs-s3
 
 # Wait for services to be ready (30 seconds)
 sleep 30
@@ -139,9 +141,8 @@ npm run dev
 ### 5. Access Application
 
 - **Application**: http://localhost:3000
-- **MinIO Console**: http://localhost:9001
-  - Username: `minioadmin`
-  - Password: `minioadmin`
+- **SeaweedFS Master UI**: http://localhost:9333
+  - Access via S3-compatible tools or API
 
 ### Test Accounts (After Seeding)
 
@@ -188,15 +189,13 @@ COOKIE_DOMAIN=yourdomain.com
 COOKIE_SECURE=true
 COOKIE_SAMESITE=lax
 
-# MinIO Configuration (use strong credentials!)
-MINIO_ENDPOINT=minio
-MINIO_PORT=9000
-MINIO_ROOT_USER=<STRONG_USERNAME>
-MINIO_ROOT_PASSWORD=<STRONG_PASSWORD_MIN_8_CHARS>
-MINIO_ACCESS_KEY=<STRONG_USERNAME>
-MINIO_SECRET_KEY=<STRONG_PASSWORD>
-MINIO_USE_SSL=false
-MINIO_BUCKET_NAME=mobifaktura-invoices
+# SeaweedFS S3 Configuration (use strong credentials!)
+S3_ENDPOINT=seaweedfs-s3
+S3_PORT=9000
+S3_ACCESS_KEY=<STRONG_USERNAME>
+S3_SECRET_KEY=<STRONG_PASSWORD>
+S3_USE_SSL=false
+S3_BUCKET=invoices
 
 # Logging
 LOG_LEVEL=warn
@@ -243,7 +242,7 @@ docker-compose ps
 # Should show:
 # ✓ app (healthy)
 # ✓ postgres (healthy)
-# ✓ minio (healthy)
+# ✓ seaweedfs (healthy)
 
 # Test application
 curl https://yourdomain.com/api/health
@@ -280,18 +279,57 @@ services:
     networks:
       - mobifaktura_network
 
-  minio:
-    image: minio/minio:latest
-    container_name: mobifaktura_minio
+  # SeaweedFS Master
+  seaweedfs-master:
+    image: chrislusf/seaweedfs:4.07
+    container_name: mobifaktura_seaweedfs_master
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
+    command: "master -ip=seaweedfs-master -port=9333"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:9333/cluster/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mobifaktura_network
+
+  # SeaweedFS Volume
+  seaweedfs-volume:
+    image: chrislusf/seaweedfs:4.07
+    container_name: mobifaktura_seaweedfs_volume
+    restart: unless-stopped
+    command: "volume -mserver=seaweedfs-master:9333 -port=8080 -max=100"
+    depends_on:
+      - seaweedfs-master
+    volumes:
+      - seaweedfs_data:/data
+    networks:
+      - mobifaktura_network
+
+  # SeaweedFS Filer
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:4.07
+    container_name: mobifaktura_seaweedfs_filer
+    restart: unless-stopped
+    command: "filer -master=seaweedfs-master:9333"
+    depends_on:
+      - seaweedfs-master
+      - seaweedfs-volume
+    networks:
+      - mobifaktura_network
+
+  # SeaweedFS S3
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:4.07
+    container_name: mobifaktura_seaweedfs_s3
+    restart: unless-stopped
+    command: "s3 -filer=seaweedfs-filer:8888 -config=/etc/seaweedfs/s3.config.json"
+    depends_on:
+      - seaweedfs-filer
+    volumes:
+      - ./dev_data/seaweedfs/s3.config.json:/etc/seaweedfs/s3.config.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:9000/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -307,19 +345,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
+      seaweedfs-s3:
         condition: service_healthy
     environment:
       NODE_ENV: ${NODE_ENV}
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
-      MINIO_PORT: ${MINIO_PORT}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_USE_SSL: ${MINIO_USE_SSL}
-      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_PORT: ${S3_PORT}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_USE_SSL: ${S3_USE_SSL}
+      S3_BUCKET: ${S3_BUCKET}
     ports:
       - "3000:3000"
     volumes:
@@ -335,7 +373,7 @@ services:
 
 volumes:
   postgres_data:
-  minio_data:
+  seaweedfs_data:
   app_logs:
 
 networks:
@@ -402,8 +440,8 @@ CMD ["npm", "start"]
 | `DATABASE_URL` | ✅ | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
 | `JWT_SECRET` | ✅ | Session encryption key (32+ chars) | Generated with `openssl` |
 | `COOKIE_DOMAIN` | ✅ | Cookie domain | `yourdomain.com` |
-| `MINIO_ACCESS_KEY` | ✅ | MinIO username | `admin` |
-| `MINIO_SECRET_KEY` | ✅ | MinIO password (8+ chars) | Strong password |
+| `S3_ACCESS_KEY` | ✅ | SeaweedFS S3 username | `mobifaktura_s3_internal` |
+| `S3_SECRET_KEY` | ✅ | SeaweedFS S3 password | Strong password |
 
 ### Optional Variables
 
@@ -413,7 +451,7 @@ CMD ["npm", "start"]
 | `COOKIE_SAMESITE` | `lax` | Cookie SameSite policy |
 | `LOG_LEVEL` | `info` | Logging verbosity |
 | `LOG_FILE` | - | Log file path |
-| `MINIO_USE_SSL` | `false` | Enable SSL for MinIO |
+| `S3_USE_SSL` | `false` | Enable SSL for SeaweedFS |
 
 ### Generating Secrets
 
@@ -493,40 +531,38 @@ docker-compose exec postgres psql -U mobifaktura -d mobifaktura -c "REINDEX DATA
 
 ---
 
-## MinIO Setup
+## SeaweedFS S3 Setup
 
 ### Initial Configuration
 
-MinIO is auto-configured on first start:
-1. Creates bucket: `mobifaktura-invoices`
-2. Sets bucket policy: private
-3. Enables versioning (optional)
+SeaweedFS is auto-configured on first start:
+1. Creates bucket: `invoices`
+2. Sets bucket policy: private with authentication
+3. Configured via s3.config.json
 
-### Accessing MinIO Console
+### Accessing SeaweedFS Master UI
 
-**URL:** http://your-server:9001
+**URL:** http://your-server:9333
 
-**Credentials:** 
-- Username: `${MINIO_ROOT_USER}`
-- Password: `${MINIO_ROOT_PASSWORD}`
+**Features:**
+- Cluster status and monitoring
+- Volume management
+- System topology
 
-### Backup MinIO Data
+### Backup SeaweedFS Data
 
 ```bash
-# Backup all objects
-docker-compose exec minio mc mirror /data/mobifaktura-invoices /backup/
-
-# Or use volume backup
-docker run --rm -v mobifaktura_minio_data:/data -v $(pwd):/backup \
-  alpine tar czf /backup/minio-backup.tar.gz /data
+# Backup all S3 data using volume backup
+docker run --rm -v mobifaktura_seaweedfs_data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/seaweedfs-backup.tar.gz /data
 ```
 
-### Restore MinIO Data
+### Restore SeaweedFS Data
 
 ```bash
 # Restore from volume backup
-docker run --rm -v mobifaktura_minio_data:/data -v $(pwd):/backup \
-  alpine tar xzf /backup/minio-backup.tar.gz -C /
+docker run --rm -v mobifaktura_seaweedfs_data:/data -v $(pwd):/backup \
+  alpine tar xzf /backup/seaweedfs-backup.tar.gz -C /
 ```
 
 ---
@@ -622,11 +658,11 @@ docker-compose -f $COMPOSE_FILE exec -T postgres \
   pg_dump -U mobifaktura mobifaktura | \
   gzip > $BACKUP_DIR/db_backup_$DATE.sql.gz
 
-# Backup MinIO data
+# Backup SeaweedFS S3 data
 docker run --rm \
-  -v mobifaktura_minio_data:/data \
+  -v mobifaktura_seaweedfs_data:/data \
   -v $BACKUP_DIR:/backup \
-  alpine tar czf /backup/minio_backup_$DATE.tar.gz /data
+  alpine tar czf /backup/seaweedfs_backup_$DATE.tar.gz /data
 
 # Backup .env file
 cp /path/to/mobiFaktura/.env $BACKUP_DIR/env_backup_$DATE
@@ -656,11 +692,11 @@ docker-compose down
 gunzip -c db_backup_20260129_020000.sql.gz | \
   docker-compose exec -T postgres psql -U mobifaktura mobifaktura
 
-# 3. Restore MinIO data
+# 3. Restore SeaweedFS S3 data
 docker run --rm \
-  -v mobifaktura_minio_data:/data \
+  -v mobifaktura_seaweedfs_data:/data \
   -v $(pwd):/backup \
-  alpine tar xzf /backup/minio_backup_20260129_020000.tar.gz -C /
+  alpine tar xzf /backup/seaweedfs_backup_20260129_020000.tar.gz -C /
 
 # 4. Restore environment
 cp env_backup_20260129_020000 .env
@@ -687,7 +723,7 @@ docker-compose logs app
 **Common issues:**
 - JWT_SECRET missing or too short
 - DATABASE_URL incorrect
-- MinIO credentials mismatch
+- SeaweedFS credentials mismatch
 - Port 3000 already in use
 
 **Solutions:**
@@ -725,24 +761,23 @@ db.select().from(require('./src/server/db/schema').users).limit(1).then(console.
 "
 ```
 
-### MinIO Issues
+### SeaweedFS Issues
 
-**Check MinIO:**
+**Check SeaweedFS:**
 ```bash
 # Is it running?
-docker-compose ps minio
+docker-compose ps seaweedfs-s3
 
-# Access console
-# Open http://localhost:9001
+# Access master UI
+# Open http://localhost:9333
 
-# Check bucket exists
-docker-compose exec minio mc ls /data/
+# Check bucket exists using AWS CLI
+aws s3 ls --endpoint-url http://localhost:9000
 ```
 
 **Recreate bucket:**
 ```bash
-docker-compose exec minio mc mb /data/mobifaktura-invoices
-docker-compose exec minio mc anonymous set private /data/mobifaktura-invoices
+aws s3 mb s3://invoices --endpoint-url http://localhost:9000
 ```
 
 ### Session/Cookie Issues
@@ -787,8 +822,8 @@ docker system df -v
 # Specific volumes
 du -sh /var/lib/docker/volumes/mobifaktura_*
 
-# MinIO storage
-docker-compose exec minio df -h /data
+# SeaweedFS storage
+docker exec mobifaktura_seaweedfs_master wget -qO- http://localhost:9333/vol/status
 ```
 
 **Clean up:**
@@ -930,8 +965,8 @@ ufw allow 443/tcp
 
 # Block direct access to services
 ufw deny 5432/tcp
-ufw deny 9000/tcp
-ufw deny 9001/tcp
+ufw deny 3900/tcp
+ufw deny 3902/tcp
 
 # Enable firewall
 ufw enable
@@ -994,7 +1029,7 @@ For high traffic, deploy multiple app instances behind a load balancer.
 
 **Requirements:**
 - Shared PostgreSQL database
-- Shared MinIO storage
+- Shared SeaweedFS storage
 - Session store in database (already configured)
 - Load balancer (Nginx/HAProxy/Traefik)
 

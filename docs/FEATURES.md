@@ -796,7 +796,7 @@ Assign users to companies:
 #### Delete Old Invoices
 - Select date threshold
 - Deletes invoices older than date
-- Also deletes associated files from MinIO
+- Also deletes associated files from SeaweedFS S3
 - Creates audit log entry
 
 #### Delete Old Budget Requests
